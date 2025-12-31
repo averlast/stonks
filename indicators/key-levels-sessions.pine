@@ -1,0 +1,240 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © SMC Mastery Guide
+
+//@version=5
+indicator("Key Levels & Session Times", overlay=true, max_lines_count=500, max_boxes_count=100, max_labels_count=50)
+
+// ==================== INPUTS ====================
+// Previous Day Levels
+showPDH = input.bool(true, "Show PDH (Previous Day High)", group="Previous Day Levels")
+showPDL = input.bool(true, "Show PDL (Previous Day Low)", group="Previous Day Levels")
+showPDO = input.bool(false, "Show PDO (Previous Day Open)", group="Previous Day Levels")
+showPDC = input.bool(false, "Show PDC (Previous Day Close)", group="Previous Day Levels")
+showPDMid = input.bool(true, "Show PD Midpoint (50%)", group="Previous Day Levels")
+
+pdhColor = input.color(color.new(#ff6b6b, 30), "PDH Color", group="Previous Day Levels")
+pdlColor = input.color(color.new(#00d4aa, 30), "PDL Color", group="Previous Day Levels")
+pdoColor = input.color(color.new(#888888, 50), "PDO Color", group="Previous Day Levels")
+pdcColor = input.color(color.new(#4da6ff, 50), "PDC Color", group="Previous Day Levels")
+pdMidColor = input.color(color.new(#d4a000, 50), "PD Mid Color", group="Previous Day Levels")
+
+// Opening Range
+showORB = input.bool(true, "Show Opening Range (ORB)", group="Opening Range")
+orbMinutes = input.int(15, "ORB Duration (minutes)", options=[5, 15, 30, 60], group="Opening Range")
+orbHighColor = input.color(color.new(#ff6b6b, 40), "ORB High Color", group="Opening Range")
+orbLowColor = input.color(color.new(#00d4aa, 40), "ORB Low Color", group="Opening Range")
+orbFillColor = input.color(color.new(#4da6ff, 90), "ORB Fill Color", group="Opening Range")
+
+// Session Highlights
+showNYSession = input.bool(true, "Highlight NY Session", group="Sessions")
+showLunchLull = input.bool(true, "Highlight Lunch Lull (Caution)", group="Sessions")
+showReversalWindow = input.bool(true, "Highlight 10AM Reversal Window", group="Sessions")
+
+nySessionColor = input.color(color.new(#00d4aa, 95), "NY Session Color", group="Sessions")
+lunchColor = input.color(color.new(#ff6b6b, 93), "Lunch Lull Color", group="Sessions")
+reversalColor = input.color(color.new(#d4a000, 93), "Reversal Window Color", group="Sessions")
+
+// Session Times (EST/ET)
+nyOpenHour = input.int(9, "NY Open Hour (ET)", group="Session Times")
+nyOpenMinute = input.int(30, "NY Open Minute", group="Session Times")
+nyCloseHour = input.int(13, "NY Close Hour (ET) - Your Session End", group="Session Times")
+nyCloseMinute = input.int(30, "NY Close Minute", group="Session Times")
+
+// ==================== TIME FUNCTIONS ====================
+// Convert to exchange timezone
+inSession(sess) => not na(time(timeframe.period, sess, "America/New_York"))
+
+isNYSession = inSession("0930-1330")
+isLunchLull = inSession("1200-1245")
+isReversalWindow = inSession("1000-1030")
+isORBFormation = inSession("0930-0945")
+
+// ==================== PREVIOUS DAY LEVELS ====================
+var float pdh = na
+var float pdl = na
+var float pdo = na
+var float pdc = na
+var float pdMid = na
+
+var line pdhLine = na
+var line pdlLine = na
+var line pdoLine = na
+var line pdcLine = na
+var line pdMidLine = na
+
+var label pdhLabel = na
+var label pdlLabel = na
+var label pdMidLabel = na
+
+// Get previous day's data using request.security
+[prevHigh, prevLow, prevOpen, prevClose] = request.security(syminfo.tickerid, "D", [high[1], low[1], open[1], close[1]], lookahead=barmerge.lookahead_on)
+
+// New day detection
+newDay = ta.change(time("D")) != 0
+
+if newDay
+    pdh := prevHigh
+    pdl := prevLow
+    pdo := prevOpen
+    pdc := prevClose
+    pdMid := (prevHigh + prevLow) / 2
+
+    // Delete old lines
+    line.delete(pdhLine)
+    line.delete(pdlLine)
+    line.delete(pdoLine)
+    line.delete(pdcLine)
+    line.delete(pdMidLine)
+    label.delete(pdhLabel)
+    label.delete(pdlLabel)
+    label.delete(pdMidLabel)
+
+    // Create new lines
+    if showPDH and not na(pdh)
+        pdhLine := line.new(bar_index, pdh, bar_index + 1, pdh, color=pdhColor, width=2, style=line.style_solid, extend=extend.right)
+        pdhLabel := label.new(bar_index, pdh, "PDH", color=color.new(color.white, 100), textcolor=pdhColor, style=label.style_label_left, size=size.small)
+
+    if showPDL and not na(pdl)
+        pdlLine := line.new(bar_index, pdl, bar_index + 1, pdl, color=pdlColor, width=2, style=line.style_solid, extend=extend.right)
+        pdlLabel := label.new(bar_index, pdl, "PDL", color=color.new(color.white, 100), textcolor=pdlColor, style=label.style_label_left, size=size.small)
+
+    if showPDO and not na(pdo)
+        pdoLine := line.new(bar_index, pdo, bar_index + 1, pdo, color=pdoColor, width=1, style=line.style_dashed, extend=extend.right)
+
+    if showPDC and not na(pdc)
+        pdcLine := line.new(bar_index, pdc, bar_index + 1, pdc, color=pdcColor, width=1, style=line.style_dashed, extend=extend.right)
+
+    if showPDMid and not na(pdMid)
+        pdMidLine := line.new(bar_index, pdMid, bar_index + 1, pdMid, color=pdMidColor, width=1, style=line.style_dotted, extend=extend.right)
+        pdMidLabel := label.new(bar_index, pdMid, "PD 50%", color=color.new(color.white, 100), textcolor=pdMidColor, style=label.style_label_left, size=size.tiny)
+
+// ==================== OPENING RANGE (ORB) ====================
+var float orbHigh = na
+var float orbLow = na
+var bool orbSet = false
+var int orbStartBar = na
+
+var line orbHighLine = na
+var line orbLowLine = na
+var box orbBox = na
+var label orbHighLabel = na
+var label orbLowLabel = na
+
+// Reset ORB at new day
+if newDay
+    orbHigh := na
+    orbLow := na
+    orbSet := false
+    orbStartBar := na
+    line.delete(orbHighLine)
+    line.delete(orbLowLine)
+    box.delete(orbBox)
+    label.delete(orbHighLabel)
+    label.delete(orbLowLabel)
+
+// Build ORB during formation period
+orbSession = switch orbMinutes
+    5 => "0930-0935"
+    15 => "0930-0945"
+    30 => "0930-1000"
+    60 => "0930-1030"
+
+inORBSession = inSession(orbSession)
+
+if inORBSession and showORB
+    if na(orbHigh) or high > orbHigh
+        orbHigh := high
+    if na(orbLow) or low < orbLow
+        orbLow := low
+    if na(orbStartBar)
+        orbStartBar := bar_index
+
+// Draw ORB after formation period ends
+if not inORBSession and not na(orbHigh) and not na(orbLow) and not orbSet and showORB
+    orbSet := true
+
+    // Create ORB lines
+    orbHighLine := line.new(orbStartBar, orbHigh, bar_index + 100, orbHigh, color=orbHighColor, width=2, style=line.style_solid)
+    orbLowLine := line.new(orbStartBar, orbLow, bar_index + 100, orbLow, color=orbLowColor, width=2, style=line.style_solid)
+
+    // Create ORB box
+    orbBox := box.new(orbStartBar, orbHigh, bar_index + 100, orbLow, border_color=color.new(#4da6ff, 70), bgcolor=orbFillColor, border_width=1)
+
+    // Labels
+    orbHighLabel := label.new(bar_index, orbHigh, "ORB High", color=color.new(color.white, 100), textcolor=orbHighColor, style=label.style_label_left, size=size.tiny)
+    orbLowLabel := label.new(bar_index, orbLow, "ORB Low", color=color.new(color.white, 100), textcolor=orbLowColor, style=label.style_label_left, size=size.tiny)
+
+// ==================== SESSION BACKGROUNDS ====================
+// NY Session background
+bgcolor(showNYSession and isNYSession ? nySessionColor : na, title="NY Session")
+
+// Lunch Lull (caution zone)
+bgcolor(showLunchLull and isLunchLull ? lunchColor : na, title="Lunch Lull")
+
+// 10 AM Reversal Window
+bgcolor(showReversalWindow and isReversalWindow ? reversalColor : na, title="Reversal Window")
+
+// ==================== SESSION MARKERS ====================
+// Mark session start
+var bool sessionStartMarked = false
+if isNYSession and not isNYSession[1] and showNYSession
+    label.new(bar_index, low, "NY\nOpen", color=color.new(#00d4aa, 30), textcolor=color.white, style=label.style_label_up, size=size.tiny)
+    sessionStartMarked := true
+
+// Mark reversal window start
+if isReversalWindow and not isReversalWindow[1] and showReversalWindow
+    label.new(bar_index, high, "10AM\nReversal", color=color.new(#d4a000, 30), textcolor=color.white, style=label.style_label_down, size=size.tiny)
+
+// Mark lunch lull start
+if isLunchLull and not isLunchLull[1] and showLunchLull
+    label.new(bar_index, high, "Lunch\nLull", color=color.new(#ff6b6b, 30), textcolor=color.white, style=label.style_label_down, size=size.tiny)
+
+// ==================== ORB BREAKOUT ALERTS ====================
+orbBreakoutUp = orbSet and close > orbHigh and close[1] <= orbHigh
+orbBreakoutDown = orbSet and close < orbLow and close[1] >= orbLow
+
+// Visual markers for breakouts
+if orbBreakoutUp
+    label.new(bar_index, low, "ORB\nBREAK", color=color.new(#00d4aa, 20), textcolor=color.white, style=label.style_label_up, size=size.small)
+
+if orbBreakoutDown
+    label.new(bar_index, high, "ORB\nBREAK", color=color.new(#ff6b6b, 20), textcolor=color.white, style=label.style_label_down, size=size.small)
+
+// ==================== INFO TABLE ====================
+var table infoTable = table.new(position.top_right, 2, 6, bgcolor=color.new(#1a1a2e, 20), border_width=1)
+
+if barstate.islast
+    // Header
+    table.cell(infoTable, 0, 0, "Level", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 1, 0, "Price", text_color=color.white, text_size=size.small)
+
+    // PDH
+    if showPDH and not na(pdh)
+        table.cell(infoTable, 0, 1, "PDH", text_color=pdhColor, text_size=size.small)
+        table.cell(infoTable, 1, 1, str.tostring(pdh, format.mintick), text_color=pdhColor, text_size=size.small)
+
+    // PDL
+    if showPDL and not na(pdl)
+        table.cell(infoTable, 0, 2, "PDL", text_color=pdlColor, text_size=size.small)
+        table.cell(infoTable, 1, 2, str.tostring(pdl, format.mintick), text_color=pdlColor, text_size=size.small)
+
+    // PD Mid
+    if showPDMid and not na(pdMid)
+        table.cell(infoTable, 0, 3, "PD 50%", text_color=pdMidColor, text_size=size.small)
+        table.cell(infoTable, 1, 3, str.tostring(pdMid, format.mintick), text_color=pdMidColor, text_size=size.small)
+
+    // ORB High
+    if showORB and not na(orbHigh)
+        table.cell(infoTable, 0, 4, "ORB H", text_color=orbHighColor, text_size=size.small)
+        table.cell(infoTable, 1, 4, str.tostring(orbHigh, format.mintick), text_color=orbHighColor, text_size=size.small)
+
+    // ORB Low
+    if showORB and not na(orbLow)
+        table.cell(infoTable, 0, 5, "ORB L", text_color=orbLowColor, text_size=size.small)
+        table.cell(infoTable, 1, 5, str.tostring(orbLow, format.mintick), text_color=orbLowColor, text_size=size.small)
+
+// ==================== ALERTS ====================
+alertcondition(orbBreakoutUp, "ORB Breakout Up", "Price closed above ORB High")
+alertcondition(orbBreakoutDown, "ORB Breakout Down", "Price closed below ORB Low")
+alertcondition(isReversalWindow and not isReversalWindow[1], "10AM Reversal Window", "10 AM reversal window has started")
+alertcondition(isLunchLull and not isLunchLull[1], "Lunch Lull Started", "Lunch lull period - avoid new entries")

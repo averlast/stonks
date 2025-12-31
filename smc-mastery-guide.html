@@ -1,0 +1,2482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SMC Mastery Guide - MNQ Futures Trading System</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #0a0a0f 0%, #0d1117 100%);
+      color: #e0e0e0;
+      line-height: 1.7;
+      padding: 40px 20px;
+      min-height: 100vh;
+    }
+
+    .container { max-width: 1100px; margin: 0 auto; }
+
+    h1 {
+      font-size: 2.8rem;
+      background: linear-gradient(135deg, #00d4aa 0%, #4da6ff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #888;
+      margin-bottom: 50px;
+      font-size: 1.2rem;
+    }
+
+    h2 {
+      font-size: 2rem;
+      color: #00d4aa;
+      margin: 60px 0 25px 0;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #1a1a2e;
+    }
+
+    h3 {
+      font-size: 1.5rem;
+      color: #4da6ff;
+      margin: 40px 0 20px 0;
+    }
+
+    h4 {
+      font-size: 1.2rem;
+      color: #ff6b6b;
+      margin: 30px 0 15px 0;
+    }
+
+    p { margin-bottom: 18px; color: #c0c0c0; font-size: 1.05rem; }
+
+    /* Cards */
+    .card {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      border-radius: 16px;
+      padding: 30px;
+      margin: 30px 0;
+      border: 1px solid #2a2a4a;
+    }
+
+    .card.green {
+      background: linear-gradient(135deg, #1a1a2e 0%, #0d3320 100%);
+      border-color: #00d4aa;
+    }
+
+    .card.blue {
+      background: linear-gradient(135deg, #1a1a2e 0%, #0d2033 100%);
+      border-color: #4da6ff;
+    }
+
+    .card.gold {
+      background: linear-gradient(135deg, #1a1a2e 0%, #33290d 100%);
+      border-color: #d4a000;
+    }
+
+    .card-title {
+      font-size: 1.4rem;
+      color: #fff;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .card-title .badge {
+      background: #00d4aa;
+      color: #0a0a0f;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: bold;
+    }
+
+    .card-title .badge.blue { background: #4da6ff; }
+    .card-title .badge.red { background: #ff6b6b; }
+    .card-title .badge.gold { background: #d4a000; }
+
+    /* Framework Box */
+    .framework-box {
+      background: #0d0d15;
+      border-radius: 12px;
+      padding: 30px;
+      margin: 25px 0;
+      border-left: 4px solid #00d4aa;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 25px 0;
+      font-size: 0.95rem;
+    }
+
+    th, td {
+      padding: 14px 18px;
+      text-align: left;
+      border-bottom: 1px solid #2a2a4a;
+    }
+
+    th {
+      background: #1a1a2e;
+      color: #00d4aa;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.85rem;
+      letter-spacing: 0.5px;
+    }
+
+    tr:hover { background: rgba(0, 212, 170, 0.05); }
+
+    /* Key Points */
+    .key-point {
+      background: linear-gradient(90deg, rgba(0, 212, 170, 0.15) 0%, transparent 100%);
+      border-left: 4px solid #00d4aa;
+      padding: 20px 25px;
+      margin: 25px 0;
+      border-radius: 0 12px 12px 0;
+    }
+
+    .key-point.warning {
+      background: linear-gradient(90deg, rgba(255, 107, 107, 0.15) 0%, transparent 100%);
+      border-left-color: #ff6b6b;
+    }
+
+    .key-point.info {
+      background: linear-gradient(90deg, rgba(77, 166, 255, 0.15) 0%, transparent 100%);
+      border-left-color: #4da6ff;
+    }
+
+    .key-point.gold {
+      background: linear-gradient(90deg, rgba(212, 160, 0, 0.15) 0%, transparent 100%);
+      border-left-color: #d4a000;
+    }
+
+    /* Steps */
+    .steps {
+      background: #0d0d15;
+      border-radius: 12px;
+      padding: 25px 30px;
+      margin: 25px 0;
+    }
+
+    .step {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 25px;
+      align-items: flex-start;
+    }
+
+    .step:last-child { margin-bottom: 0; }
+
+    .step-number {
+      background: linear-gradient(135deg, #00d4aa 0%, #00a888 100%);
+      color: #0a0a0f;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+
+    .step-content { flex: 1; }
+    .step-title { color: #fff; font-weight: 600; margin-bottom: 8px; font-size: 1.1rem; }
+    .step-desc { color: #999; font-size: 0.95rem; }
+
+    /* Grid layouts */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 25px;
+      margin: 25px 0;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin: 25px 0;
+    }
+
+    /* Mini cards */
+    .mini-card {
+      background: #0d0d15;
+      border-radius: 12px;
+      padding: 20px;
+      border-left: 4px solid #4da6ff;
+    }
+
+    .mini-card.green { border-left-color: #00d4aa; }
+    .mini-card.red { border-left-color: #ff6b6b; }
+    .mini-card.gold { border-left-color: #d4a000; }
+
+    .mini-card-title {
+      color: #fff;
+      font-weight: 600;
+      margin-bottom: 10px;
+      font-size: 1rem;
+    }
+
+    .mini-card-desc { color: #888; font-size: 0.9rem; }
+
+    /* Diagram container */
+    .diagram {
+      background: #0a0a0f;
+      border-radius: 12px;
+      padding: 25px;
+      margin: 25px 0;
+      overflow-x: auto;
+    }
+
+    .diagram-title {
+      color: #888;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 20px;
+    }
+
+    /* ASCII diagrams */
+    .ascii {
+      font-family: "Monaco", "Menlo", "Ubuntu Mono", "Consolas", monospace;
+      font-size: 13px;
+      line-height: 1.4;
+      white-space: pre;
+      color: #888;
+    }
+
+    .ascii .green { color: #00d4aa; }
+    .ascii .red { color: #ff6b6b; }
+    .ascii .blue { color: #4da6ff; }
+    .ascii .gold { color: #d4a000; }
+    .ascii .white { color: #fff; }
+
+    /* Checklist */
+    .checklist {
+      background: #0d0d15;
+      border-radius: 12px;
+      padding: 25px;
+      margin: 25px 0;
+    }
+
+    .checklist-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 15px;
+      padding: 12px 0;
+      border-bottom: 1px solid #1a1a2e;
+    }
+
+    .checklist-item:last-child { border-bottom: none; }
+
+    .checkbox {
+      width: 22px;
+      height: 22px;
+      border: 2px solid #00d4aa;
+      border-radius: 4px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .checklist-text { color: #c0c0c0; }
+    .checklist-text strong { color: #fff; }
+
+    /* Session timeline */
+    .timeline {
+      background: #0d0d15;
+      border-radius: 12px;
+      padding: 30px;
+      margin: 25px 0;
+    }
+
+    .timeline-item {
+      display: flex;
+      gap: 25px;
+      padding: 20px 0;
+      border-left: 3px solid #2a2a4a;
+      margin-left: 15px;
+      padding-left: 25px;
+      position: relative;
+    }
+
+    .timeline-item::before {
+      content: '';
+      position: absolute;
+      left: -8px;
+      top: 25px;
+      width: 14px;
+      height: 14px;
+      background: #00d4aa;
+      border-radius: 50%;
+    }
+
+    .timeline-item.caution::before { background: #ff6b6b; }
+    .timeline-item.secondary::before { background: #4da6ff; }
+
+    .timeline-time {
+      color: #00d4aa;
+      font-weight: 600;
+      min-width: 120px;
+      font-size: 1rem;
+    }
+
+    .timeline-content { flex: 1; }
+    .timeline-title { color: #fff; font-weight: 600; margin-bottom: 8px; }
+    .timeline-desc { color: #888; font-size: 0.9rem; }
+
+    /* Trade example */
+    .trade-example {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      border-radius: 16px;
+      padding: 30px;
+      margin: 30px 0;
+      border: 1px solid #2a2a4a;
+    }
+
+    .trade-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+
+    .trade-title { font-size: 1.3rem; color: #fff; }
+
+    .trade-stats {
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+
+    .trade-stat {
+      background: #0a0a0f;
+      padding: 8px 16px;
+      border-radius: 8px;
+    }
+
+    .trade-stat-label { color: #888; font-size: 0.8rem; }
+    .trade-stat-value { color: #00d4aa; font-weight: bold; }
+
+    /* TOC */
+    .toc {
+      background: #0d0d15;
+      border-radius: 12px;
+      padding: 30px;
+      margin: 30px 0;
+    }
+
+    .toc-title {
+      color: #00d4aa;
+      font-size: 1.3rem;
+      margin-bottom: 25px;
+      font-weight: 600;
+    }
+
+    .toc-section { margin-bottom: 20px; }
+
+    .toc-section-title {
+      color: #fff;
+      font-weight: 600;
+      margin-bottom: 10px;
+      font-size: 1.05rem;
+    }
+
+    .toc-items { padding-left: 20px; }
+
+    .toc-item { padding: 6px 0; }
+
+    .toc-item a {
+      color: #4da6ff;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .toc-item a:hover { color: #00d4aa; text-decoration: underline; }
+
+    /* MFF Params */
+    .mff-box {
+      background: linear-gradient(135deg, #0d3320 0%, #1a1a2e 100%);
+      border: 2px solid #00d4aa;
+      border-radius: 16px;
+      padding: 30px;
+      margin: 30px 0;
+    }
+
+    .mff-title {
+      color: #00d4aa;
+      font-size: 1.3rem;
+      margin-bottom: 20px;
+      font-weight: 600;
+    }
+
+    .mff-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+    }
+
+    .mff-item {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 15px;
+      border-radius: 10px;
+      text-align: center;
+    }
+
+    .mff-label { color: #888; font-size: 0.85rem; margin-bottom: 5px; }
+    .mff-value { color: #fff; font-size: 1.2rem; font-weight: 600; }
+
+    /* Flowchart */
+    .flowchart {
+      background: #0a0a0f;
+      border-radius: 12px;
+      padding: 30px;
+      margin: 25px 0;
+      text-align: center;
+    }
+
+    .flow-node {
+      display: inline-block;
+      background: #1a1a2e;
+      border: 2px solid #4da6ff;
+      border-radius: 10px;
+      padding: 15px 25px;
+      margin: 10px;
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .flow-node.decision {
+      background: #0d2033;
+      border-color: #4da6ff;
+      transform: rotate(0deg);
+    }
+
+    .flow-node.action {
+      background: #0d3320;
+      border-color: #00d4aa;
+    }
+
+    .flow-node.result {
+      background: linear-gradient(135deg, #00d4aa 0%, #00a888 100%);
+      color: #0a0a0f;
+      border: none;
+    }
+
+    .flow-node.wait {
+      background: #332200;
+      border-color: #d4a000;
+    }
+
+    .flow-arrow {
+      color: #4da6ff;
+      font-size: 1.5rem;
+      margin: 0 10px;
+    }
+
+    .flow-row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+      margin: 15px 0;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      h1 { font-size: 2rem; }
+      h2 { font-size: 1.5rem; }
+      .ascii { font-size: 11px; }
+      .timeline-item { flex-direction: column; gap: 10px; }
+      .timeline-time { min-width: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>SMC Mastery Guide</h1>
+    <p class="subtitle">A Complete Smart Money Concepts Framework for MNQ Futures</p>
+
+    <!-- MFF Parameters -->
+    <div class="mff-box">
+      <div class="mff-title">MyFundedFutures $50K Core Account</div>
+      <div class="mff-grid">
+        <div class="mff-item">
+          <div class="mff-label">Profit Target</div>
+          <div class="mff-value">$3,000</div>
+        </div>
+        <div class="mff-item">
+          <div class="mff-label">Max Drawdown</div>
+          <div class="mff-value">$2,000 EOD</div>
+        </div>
+        <div class="mff-item">
+          <div class="mff-label">Risk Per Trade</div>
+          <div class="mff-value">$200-400</div>
+        </div>
+        <div class="mff-item">
+          <div class="mff-label">Max Contracts</div>
+          <div class="mff-value">3 NQ / 30 MNQ</div>
+        </div>
+        <div class="mff-item">
+          <div class="mff-label">Consistency</div>
+          <div class="mff-value">50% max/day</div>
+        </div>
+        <div class="mff-item">
+          <div class="mff-label">Session</div>
+          <div class="mff-value">9:30-1:30 ET</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table of Contents -->
+    <div class="toc">
+      <div class="toc-title">What's In This Guide</div>
+      <div class="grid-2">
+        <div>
+          <div class="toc-section">
+            <div class="toc-section-title">Part 1: The Framework</div>
+            <div class="toc-items">
+              <div class="toc-item"><a href="#tda">1.1 Top-Down Analysis</a></div>
+              <div class="toc-item"><a href="#timeframes">1.2 Timeframe Alignment</a></div>
+              <div class="toc-item"><a href="#bias">1.3 Establishing Directional Bias</a></div>
+            </div>
+          </div>
+          <div class="toc-section">
+            <div class="toc-section-title">Part 2: Core Concepts</div>
+            <div class="toc-items">
+              <div class="toc-item"><a href="#liquidity">2.1 External vs Internal Liquidity</a></div>
+              <div class="toc-item"><a href="#fvg">2.2 Fair Value Gaps (FVGs)</a></div>
+              <div class="toc-item"><a href="#ob">2.3 Order Blocks (OBs)</a></div>
+              <div class="toc-item"><a href="#structure">2.4 BOS and CHoCH</a></div>
+              <div class="toc-item"><a href="#premium">2.5 Premium & Discount Zones</a></div>
+              <div class="toc-item"><a href="#golden">2.6 Golden Zones</a></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="toc-section">
+            <div class="toc-section-title">Part 3: The Three Setups</div>
+            <div class="toc-items">
+              <div class="toc-item"><a href="#sweep">3.1 Sweep Setup (CRT Reversal)</a></div>
+              <div class="toc-item"><a href="#run">3.2 Run Setup (Continuation)</a></div>
+              <div class="toc-item"><a href="#orb">3.3 ORB Setup (Opening Range)</a></div>
+            </div>
+          </div>
+          <div class="toc-section">
+            <div class="toc-section-title">Part 4: Execution</div>
+            <div class="toc-items">
+              <div class="toc-item"><a href="#entry">4.1 Entry Execution Process</a></div>
+              <div class="toc-item"><a href="#session">4.2 Session Structure</a></div>
+              <div class="toc-item"><a href="#checklist">4.3 Pre-Trade Checklist</a></div>
+            </div>
+          </div>
+          <div class="toc-section">
+            <div class="toc-section-title">Part 5: Examples</div>
+            <div class="toc-items">
+              <div class="toc-item"><a href="#examples">5.1 Trade Walkthroughs</a></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== PART 1: THE FRAMEWORK ========== -->
+    <h2 id="tda">Part 1: The Framework</h2>
+    <p>Before looking for any trade, you must understand where the market wants to go. This section establishes the foundation that every trade decision builds upon.</p>
+
+    <div class="card green">
+      <div class="card-title">
+        <span class="badge">FOUNDATION</span>
+        1.1 Top-Down Analysis (TDA)
+      </div>
+
+      <p>Top-Down Analysis is the process of reading market structure from the highest timeframes down to your entry timeframe. The highest timeframes dictate direction; lower timeframes provide precision.</p>
+
+      <div class="key-point">
+        <strong>The Core Principle:</strong> Higher timeframes ALWAYS take priority. If the weekly is bearish, a bullish 15m setup is fighting the current. Align your trades with the bigger picture.
+      </div>
+
+      <h4>The Three-Tier System</h4>
+      <table>
+        <thead>
+          <tr>
+            <th>Tier</th>
+            <th>Timeframes</th>
+            <th>Purpose</th>
+            <th>What You're Looking For</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Higher (Bias)</strong></td>
+            <td>Weekly, Daily</td>
+            <td>Establish directional bias</td>
+            <td>Trend direction, major PD arrays, key levels</td>
+          </tr>
+          <tr>
+            <td><strong>Medium (Setup)</strong></td>
+            <td>4H, 1H</td>
+            <td>Find trade setups</td>
+            <td>Structure (BOS/CHoCH), FVGs, OBs to target</td>
+          </tr>
+          <tr>
+            <td><strong>Lower (Entry)</strong></td>
+            <td>15m, 5m</td>
+            <td>Execute entries</td>
+            <td>Entry FVGs, confirmation patterns, precise timing</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="diagram">
+        <div class="diagram-title">TDA Flow: Weekly → Daily → 4H → 15m → 5m</div>
+        <div class="ascii">
+<span class="white">WEEKLY</span>                <span class="white">DAILY</span>                 <span class="white">4H</span>                   <span class="white">15M</span>                  <span class="white">5M</span>
+   │                      │                     │                     │                    │
+   ▼                      ▼                     ▼                     ▼                    ▼
+<span class="blue">┌─────────┐</span>          <span class="blue">┌─────────┐</span>          <span class="blue">┌─────────┐</span>          <span class="blue">┌─────────┐</span>         <span class="green">┌─────────┐</span>
+<span class="blue">│  BIAS   │</span>    →     <span class="blue">│  BIAS   │</span>    →     <span class="blue">│  SETUP  │</span>    →     <span class="blue">│  SETUP  │</span>   →     <span class="green">│  ENTRY  │</span>
+<span class="blue">│         │</span>          <span class="blue">│  + KEY  │</span>          <span class="blue">│  ZONE   │</span>          <span class="blue">│CONFIRM  │</span>         <span class="green">│EXECUTE  │</span>
+<span class="blue">│ Bull?   │</span>          <span class="blue">│ LEVELS  │</span>          <span class="blue">│         │</span>          <span class="blue">│         │</span>         <span class="green">│         │</span>
+<span class="blue">│ Bear?   │</span>          <span class="blue">│ PDH/PDL │</span>          <span class="blue">│ FVG/OB  │</span>          <span class="blue">│ CHoCH?  │</span>         <span class="green">│ FVG     │</span>
+<span class="blue">│ Range?  │</span>          <span class="blue">│ FVGs    │</span>          <span class="blue">│ Target  │</span>          <span class="blue">│ BOS?    │</span>         <span class="green">│ Entry   │</span>
+<span class="blue">└─────────┘</span>          <span class="blue">└─────────┘</span>          <span class="blue">└─────────┘</span>          <span class="blue">└─────────┘</span>         <span class="green">└─────────┘</span>
+
+<span class="gold">Questions:</span>        <span class="gold">Questions:</span>          <span class="gold">Questions:</span>          <span class="gold">Questions:</span>         <span class="gold">Action:</span>
+• Bullish/Bearish? • Where's PDH/PDL?   • 4H FVG/OB in play? • Structure aligned? • Enter at FVG
+• Clear trend?     • Daily FVG nearby?  • 4H bias matches?   • CHoCH confirmed?  • Stop below FVG
+• Major level hit? • Key level in play? • Where's my target? • Clear direction?  • Target ext. liq
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="timeframes">
+      <div class="card-title">
+        <span class="badge blue">ALIGNMENT</span>
+        1.2 Timeframe Alignment
+      </div>
+
+      <p>Your trade has the highest probability when ALL timeframes point in the same direction. If they conflict, sit out.</p>
+
+      <div class="grid-2">
+        <div class="mini-card green">
+          <div class="mini-card-title">Aligned = Trade</div>
+          <div class="mini-card-desc">
+            Weekly: Bullish (uptrend)<br>
+            Daily: Bullish (price in/above FVG)<br>
+            4H: Bullish (CHoCH to upside)<br>
+            15m: Bullish FVG forming<br>
+            <strong style="color: #00d4aa;">→ Take the long</strong>
+          </div>
+        </div>
+        <div class="mini-card red">
+          <div class="mini-card-title">Misaligned = No Trade</div>
+          <div class="mini-card-desc">
+            Weekly: Bullish (uptrend)<br>
+            Daily: Bullish (price above FVG)<br>
+            4H: Bearish (CHoCH to downside)<br>
+            15m: Bearish structure<br>
+            <strong style="color: #ff6b6b;">→ Wait for realignment</strong>
+          </div>
+        </div>
+      </div>
+
+      <h4>Timeframe Pairing Guide</h4>
+      <p>Use these pairings for setup → entry alignment:</p>
+      <table>
+        <thead>
+          <tr>
+            <th>If You Identify Setup On</th>
+            <th>Look For Entry On</th>
+            <th>Use Case</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Monthly</td>
+            <td>Daily</td>
+            <td>Position/Swing trades</td>
+          </tr>
+          <tr>
+            <td>Weekly</td>
+            <td>4H</td>
+            <td>Swing trades</td>
+          </tr>
+          <tr>
+            <td>Daily</td>
+            <td>1H - 15m</td>
+            <td>Day trades (our focus)</td>
+          </tr>
+          <tr>
+            <td>4H</td>
+            <td>15m - 5m</td>
+            <td>Day trades (our focus)</td>
+          </tr>
+          <tr>
+            <td>1H</td>
+            <td>5m - 1m</td>
+            <td>Scalps</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card" id="bias">
+      <div class="card-title">
+        <span class="badge">PROCESS</span>
+        1.3 Establishing Directional Bias
+      </div>
+
+      <p>Before each session, go through this process to determine your bias for the day:</p>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <div class="step-title">Check Weekly Structure</div>
+            <div class="step-desc">Is price in an uptrend (higher highs, higher lows) or downtrend (lower highs, lower lows)? Is there a weekly FVG or OB nearby that price might target? This gives you the macro direction.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <div class="step-title">Check Daily Structure</div>
+            <div class="step-desc">Mark PDH (Previous Day High) and PDL (Previous Day Low). Is there a daily FVG? Has it been mitigated or is it fresh? Where did yesterday close relative to its range? This gives you the immediate context.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <div class="step-title">Check 4H Structure</div>
+            <div class="step-desc">What's the current 4H order flow? Look for the most recent BOS or CHoCH. Is there a 4H FVG that price is approaching? The 4H tells you what's happening RIGHT NOW.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <div class="step-title">Identify Key Levels</div>
+            <div class="step-desc">Mark the levels price is likely to target: PDH/PDL, session highs/lows, unfilled FVGs, unmitigated OBs. These become your targets and reversal zones.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">5</div>
+          <div class="step-content">
+            <div class="step-title">Form Your Narrative</div>
+            <div class="step-desc">Based on steps 1-4, what's the most likely scenario? Example: "Weekly bullish, daily pulled back into FVG, 4H showing CHoCH back to bullish. Looking for longs targeting PDH." This is your bias.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="key-point warning">
+        <strong>If you can't form a clear narrative, don't trade.</strong> Confused charts create confused traders. Wait for clarity.
+      </div>
+    </div>
+
+    <!-- ========== PART 2: CORE CONCEPTS ========== -->
+    <h2 id="liquidity">Part 2: Core Concepts</h2>
+    <p>These are the building blocks of Smart Money Concepts. Master each one before moving to setups.</p>
+
+    <div class="card green">
+      <div class="card-title">
+        <span class="badge">CORE</span>
+        2.1 External vs Internal Liquidity
+      </div>
+
+      <p>Everything in SMC revolves around two types of liquidity. Understanding this is the foundation of everything else.</p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>What It Is</th>
+            <th>Examples</th>
+            <th>Your Role</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>External Liquidity</strong></td>
+            <td>Swing highs/lows where stop losses cluster. These are TARGETS.</td>
+            <td>PDH, PDL, swing highs/lows, session highs/lows, ORB high/low</td>
+            <td><span style="color: #ff6b6b;">TARGET these for exits</span></td>
+          </tr>
+          <tr>
+            <td><strong>Internal Liquidity</strong></td>
+            <td>Imbalance zones that act as fuel for moves. These are ENTRIES.</td>
+            <td>Fair Value Gaps (FVGs), Order Blocks (OBs)</td>
+            <td><span style="color: #00d4aa;">ENTER at these zones</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="key-point gold">
+        <strong>The Master Principle:</strong> Price moves FROM internal liquidity TO external liquidity. Your job: Enter at internal (FVG/OB), exit at external (PDH/PDL/swing).
+      </div>
+
+      <div class="diagram">
+        <div class="diagram-title">Price Flow: Internal → External</div>
+        <svg width="700" height="360" viewBox="0 0 700 360">
+          <rect width="700" height="360" fill="#0a0a0f"/>
+
+          <!-- PDH Level (Target) -->
+          <line x1="50" y1="60" x2="650" y2="60" stroke="#ff6b6b" stroke-width="2"/>
+          <text x="60" y="45" fill="#ff6b6b" font-size="12" font-weight="bold">EXTERNAL LIQUIDITY (Target)</text>
+          <text x="60" y="80" fill="#ff6b6b" font-size="11">PDH</text>
+
+          <!-- PDL Level (Previous) -->
+          <line x1="50" y1="300" x2="650" y2="300" stroke="#ff6b6b" stroke-width="2"/>
+          <text x="60" y="325" fill="#ff6b6b" font-size="11">EXTERNAL LIQUIDITY (Previous)</text>
+          <text x="60" y="340" fill="#ff6b6b" font-size="11">PDL</text>
+
+          <!-- FVG Zone (Internal Liquidity) -->
+          <rect x="200" y="170" width="250" height="50" fill="rgba(0, 212, 170, 0.25)" stroke="#00d4aa" stroke-width="2"/>
+          <text x="325" y="195" fill="#00d4aa" font-size="12" font-weight="bold" text-anchor="middle">INTERNAL LIQUIDITY</text>
+          <text x="325" y="212" fill="#00d4aa" font-size="10" text-anchor="middle">FVG Zone = YOUR ENTRY</text>
+
+          <!-- Entry Label -->
+          <text x="480" y="195" fill="#d4a000" font-size="11" font-weight="bold">Enter long here</text>
+          <path d="M 470 190 L 455 190" stroke="#d4a000" stroke-width="2" fill="none" marker-end="url(#arrowLeft)"/>
+          <defs>
+            <marker id="arrowLeft" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M9,0 L9,6 L0,3 z" fill="#d4a000"/>
+            </marker>
+          </defs>
+
+          <!-- Price action candles showing the flow -->
+          <!-- Candles coming from PDL area moving up -->
+          <line x1="100" y1="265" x2="100" y2="285" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="90" y="240" width="20" height="25" fill="#00d4aa"/>
+          <line x1="100" y1="220" x2="100" y2="240" stroke="#00d4aa" stroke-width="2"/>
+
+          <line x1="130" y1="230" x2="130" y2="250" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="120" y="195" width="20" height="35" fill="#00d4aa"/>
+          <line x1="130" y1="175" x2="130" y2="195" stroke="#00d4aa" stroke-width="2"/>
+
+          <!-- Retracement into FVG -->
+          <line x1="160" y1="150" x2="160" y2="170" stroke="#ff6b6b" stroke-width="2"/>
+          <rect x="150" y="170" width="20" height="40" fill="#ff6b6b"/>
+          <line x1="160" y1="210" x2="160" y2="225" stroke="#ff6b6b" stroke-width="2"/>
+
+          <text x="150" y="250" fill="#c0c0c0" font-size="10" text-anchor="middle">Price retraces</text>
+          <text x="150" y="263" fill="#c0c0c0" font-size="10" text-anchor="middle">into FVG</text>
+
+          <!-- Continuation candles after FVG entry -->
+          <line x1="530" y1="140" x2="530" y2="160" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="520" y="100" width="20" height="40" fill="#00d4aa"/>
+          <line x1="530" y1="80" x2="530" y2="100" stroke="#00d4aa" stroke-width="2"/>
+
+          <line x1="570" y1="100" x2="570" y2="115" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="560" y="70" width="20" height="30" fill="#00d4aa"/>
+          <line x1="570" y1="55" x2="570" y2="70" stroke="#00d4aa" stroke-width="2"/>
+
+          <!-- Arrow showing movement to target -->
+          <path d="M 590 65 L 620 55" stroke="#00d4aa" stroke-width="2" fill="none" marker-end="url(#arrowTarget)"/>
+          <defs>
+            <marker id="arrowTarget" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#00d4aa"/>
+            </marker>
+          </defs>
+          <text x="530" y="50" fill="#ffffff" font-size="10" text-anchor="middle">Price moves UP</text>
+          <text x="530" y="35" fill="#ffffff" font-size="10" text-anchor="middle">to target PDH</text>
+        </svg>
+      </div>
+    </div>
+
+    <div class="card" id="fvg">
+      <div class="card-title">
+        <span class="badge blue">ENTRY ZONE</span>
+        2.2 Fair Value Gaps (FVGs)
+      </div>
+
+      <p>A Fair Value Gap is a 3-candle pattern where the wicks of candle 1 and candle 3 don't overlap, leaving an imbalance. This imbalance acts as a magnet - price wants to return and fill it.</p>
+
+      <div class="diagram">
+        <div class="diagram-title">FVG Formation</div>
+        <svg width="700" height="300" viewBox="0 0 700 300">
+          <rect width="700" height="300" fill="#0a0a0f"/>
+
+          <!-- BULLISH FVG -->
+          <text x="120" y="25" fill="#00d4aa" font-size="14" font-weight="bold" text-anchor="middle">BULLISH FVG</text>
+
+          <!-- Candle 1 (green) -->
+          <line x1="60" y1="230" x2="60" y2="260" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="50" y="190" width="20" height="40" fill="#00d4aa"/>
+          <line x1="60" y1="160" x2="60" y2="190" stroke="#00d4aa" stroke-width="2"/>
+          <text x="60" y="275" fill="#888" font-size="11" text-anchor="middle">C1</text>
+
+          <!-- Candle 2 (big green) -->
+          <line x1="100" y1="150" x2="100" y2="170" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="90" y="80" width="20" height="70" fill="#00d4aa"/>
+          <line x1="100" y1="50" x2="100" y2="80" stroke="#00d4aa" stroke-width="2"/>
+          <text x="100" y="275" fill="#888" font-size="11" text-anchor="middle">C2</text>
+
+          <!-- Candle 3 (green) -->
+          <line x1="140" y1="70" x2="140" y2="90" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="130" y="40" width="20" height="30" fill="#00d4aa"/>
+          <line x1="140" y1="20" x2="140" y2="40" stroke="#00d4aa" stroke-width="2"/>
+          <text x="140" y="275" fill="#888" font-size="11" text-anchor="middle">C3</text>
+
+          <!-- Bullish FVG Zone -->
+          <rect x="45" y="90" width="110" height="70" fill="rgba(0, 212, 170, 0.2)" stroke="#00d4aa" stroke-width="2" stroke-dasharray="5,3"/>
+          <text x="220" y="130" fill="#00d4aa" font-size="12" font-weight="bold">GAP = FVG</text>
+          <line x1="155" y1="125" x2="215" y2="125" stroke="#00d4aa" stroke-width="1" marker-end="url(#arrowGreen)"/>
+
+          <!-- C1 High label -->
+          <line x1="70" y1="160" x2="190" y2="160" stroke="#888" stroke-width="1" stroke-dasharray="3,3"/>
+          <text x="195" y="163" fill="#888" font-size="10">C1 High Wick</text>
+
+          <!-- C3 Low label -->
+          <line x1="150" y1="90" x2="190" y2="90" stroke="#888" stroke-width="1" stroke-dasharray="3,3"/>
+          <text x="195" y="93" fill="#888" font-size="10">C3 Low Wick</text>
+
+          <!-- BEARISH FVG -->
+          <text x="530" y="25" fill="#ff6b6b" font-size="14" font-weight="bold" text-anchor="middle">BEARISH FVG</text>
+
+          <!-- Candle 1 (red) -->
+          <line x1="470" y1="40" x2="470" y2="60" stroke="#ff6b6b" stroke-width="2"/>
+          <rect x="460" y="60" width="20" height="40" fill="#ff6b6b"/>
+          <line x1="470" y1="100" x2="470" y2="130" stroke="#ff6b6b" stroke-width="2"/>
+          <text x="470" y="275" fill="#888" font-size="11" text-anchor="middle">C1</text>
+
+          <!-- Candle 2 (big red) -->
+          <line x1="510" y1="90" x2="510" y2="110" stroke="#ff6b6b" stroke-width="2"/>
+          <rect x="500" y="110" width="20" height="70" fill="#ff6b6b"/>
+          <line x1="510" y1="180" x2="510" y2="210" stroke="#ff6b6b" stroke-width="2"/>
+          <text x="510" y="275" fill="#888" font-size="11" text-anchor="middle">C2</text>
+
+          <!-- Candle 3 (red) -->
+          <line x1="550" y1="180" x2="550" y2="200" stroke="#ff6b6b" stroke-width="2"/>
+          <rect x="540" y="200" width="20" height="30" fill="#ff6b6b"/>
+          <line x1="550" y1="230" x2="550" y2="260" stroke="#ff6b6b" stroke-width="2"/>
+          <text x="550" y="275" fill="#888" font-size="11" text-anchor="middle">C3</text>
+
+          <!-- Bearish FVG Zone -->
+          <rect x="455" y="130" width="110" height="50" fill="rgba(255, 107, 107, 0.2)" stroke="#ff6b6b" stroke-width="2" stroke-dasharray="5,3"/>
+          <text x="620" y="160" fill="#ff6b6b" font-size="12" font-weight="bold">GAP = FVG</text>
+          <line x1="565" y1="155" x2="610" y2="155" stroke="#ff6b6b" stroke-width="1"/>
+
+          <defs>
+            <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L9,3 z" fill="#00d4aa"/>
+            </marker>
+          </defs>
+        </svg>
+        <p style="text-align: center; color: #888; margin-top: 15px; font-size: 0.9rem;">
+          <span style="color: #00d4aa;">Bullish FVG:</span> Gap between C1 high wick and C3 low wick &nbsp;|&nbsp;
+          <span style="color: #ff6b6b;">Bearish FVG:</span> Gap between C1 low wick and C3 high wick
+        </p>
+      </div>
+
+      <h4>The 7 FVG Rules</h4>
+      <div class="grid-2">
+        <div class="mini-card green">
+          <div class="mini-card-title">1. Align with Order Flow</div>
+          <div class="mini-card-desc">Only use bullish FVGs in uptrends, bearish FVGs in downtrends. Never trade against the current direction.</div>
+        </div>
+        <div class="mini-card red">
+          <div class="mini-card-title">2. Never Use Mitigated FVGs</div>
+          <div class="mini-card-desc">Once price touches an FVG (even barely), it's weakened. Only trade fresh, untouched gaps.</div>
+        </div>
+        <div class="mini-card">
+          <div class="mini-card-title">3. Target Premium/Discount</div>
+          <div class="mini-card-desc">For longs: FVGs in discount (lower half). For shorts: FVGs in premium (upper half).</div>
+        </div>
+        <div class="mini-card">
+          <div class="mini-card-title">4. Stack Timeframes</div>
+          <div class="mini-card-desc">Find a 4H FVG, then drop to 15m to find a smaller FVG inside it. Precise entry with HTF confluence.</div>
+        </div>
+        <div class="mini-card green">
+          <div class="mini-card-title">5. Check the 3rd Candle</div>
+          <div class="mini-card-desc">If 3rd candle continues = "breakaway gap" (STRONG). If 3rd candle reverses = "rejection gap" (WEAK - avoid).</div>
+        </div>
+        <div class="mini-card gold">
+          <div class="mini-card-title">6. FVGs at Runs are Strongest</div>
+          <div class="mini-card-desc">If an FVG forms during a breakout through a key level (liquidity run), it's the highest probability.</div>
+        </div>
+        <div class="mini-card red">
+          <div class="mini-card-title">7. Avoid Consolidation FVGs</div>
+          <div class="mini-card-desc">If FVGs keep failing both ways, you're in chop. Wait for two consecutive FVGs to be respected.</div>
+        </div>
+      </div>
+
+      <div class="diagram">
+        <div class="diagram-title">Breakaway Gap (Trade) vs Rejection Gap (Avoid)</div>
+        <svg width="700" height="340" viewBox="0 0 700 340">
+          <rect width="700" height="340" fill="#0a0a0f"/>
+
+          <!-- BREAKAWAY GAP SECTION -->
+          <text x="150" y="25" fill="#00d4aa" font-size="14" font-weight="bold" text-anchor="middle">BREAKAWAY GAP - TRADE THIS</text>
+
+          <!-- Candle 1 (Green/Bullish) -->
+          <line x1="80" y1="245" x2="80" y2="265" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="70" y="200" width="20" height="45" fill="#00d4aa"/>
+          <line x1="80" y1="175" x2="80" y2="200" stroke="#00d4aa" stroke-width="2"/>
+          <text x="110" y="220" fill="#c0c0c0" font-size="10">Candle 1</text>
+
+          <!-- Candle 2 (Green/Bullish - Large impulse) -->
+          <line x1="140" y1="175" x2="140" y2="195" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="130" y="110" width="20" height="65" fill="#00d4aa"/>
+          <line x1="140" y1="85" x2="140" y2="110" stroke="#00d4aa" stroke-width="2"/>
+          <text x="170" y="140" fill="#c0c0c0" font-size="10">Candle 2</text>
+
+          <!-- FVG Zone -->
+          <rect x="65" y="110" width="130" height="65" fill="rgba(77, 166, 255, 0.2)" stroke="#4da6ff" stroke-width="1" stroke-dasharray="4,2"/>
+          <text x="130" y="145" fill="#4da6ff" font-size="9" text-anchor="middle">FVG</text>
+
+          <!-- Candle 3 (Green - Continues UP) -->
+          <line x1="200" y1="90" x2="200" y2="110" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="190" y="50" width="20" height="40" fill="#00d4aa"/>
+          <line x1="200" y1="30" x2="200" y2="50" stroke="#00d4aa" stroke-width="2"/>
+          <text x="230" y="70" fill="#00d4aa" font-size="10">Candle 3</text>
+          <text x="230" y="82" fill="#00d4aa" font-size="9">continues UP</text>
+
+          <!-- Arrow showing continuation -->
+          <path d="M 200 45 L 200 25" stroke="#00d4aa" stroke-width="2" fill="none" marker-end="url(#arrowGreen)"/>
+          <defs>
+            <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#00d4aa"/>
+            </marker>
+          </defs>
+
+          <text x="150" y="290" fill="#ffffff" font-size="11" text-anchor="middle">3rd candle shows buyer strength</text>
+          <text x="150" y="310" fill="#00d4aa" font-size="12" font-weight="bold" text-anchor="middle">HIGH probability</text>
+
+          <!-- REJECTION GAP SECTION -->
+          <text x="530" y="25" fill="#ff6b6b" font-size="14" font-weight="bold" text-anchor="middle">REJECTION GAP - AVOID</text>
+
+          <!-- Candle 1 (Green/Bullish) -->
+          <line x1="460" y1="245" x2="460" y2="265" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="450" y="200" width="20" height="45" fill="#00d4aa"/>
+          <line x1="460" y1="175" x2="460" y2="200" stroke="#00d4aa" stroke-width="2"/>
+          <text x="490" y="220" fill="#c0c0c0" font-size="10">Candle 1</text>
+
+          <!-- Candle 2 (Green/Bullish - Large impulse) -->
+          <line x1="520" y1="175" x2="520" y2="195" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="510" y="110" width="20" height="65" fill="#00d4aa"/>
+          <line x1="520" y1="85" x2="520" y2="110" stroke="#00d4aa" stroke-width="2"/>
+          <text x="550" y="140" fill="#c0c0c0" font-size="10">Candle 2</text>
+
+          <!-- FVG Zone -->
+          <rect x="445" y="110" width="130" height="65" fill="rgba(77, 166, 255, 0.2)" stroke="#4da6ff" stroke-width="1" stroke-dasharray="4,2"/>
+          <text x="510" y="145" fill="#4da6ff" font-size="9" text-anchor="middle">FVG</text>
+
+          <!-- Candle 3 (RED - REVERSES into FVG) -->
+          <line x1="580" y1="60" x2="580" y2="80" stroke="#ff6b6b" stroke-width="2"/>
+          <rect x="570" y="80" width="20" height="55" fill="#ff6b6b"/>
+          <line x1="580" y1="135" x2="580" y2="150" stroke="#ff6b6b" stroke-width="2"/>
+          <text x="610" y="100" fill="#ff6b6b" font-size="10">Candle 3</text>
+          <text x="610" y="112" fill="#ff6b6b" font-size="9">REVERSES</text>
+
+          <!-- Arrow showing reversal -->
+          <path d="M 580 140 L 580 160" stroke="#ff6b6b" stroke-width="2" fill="none" marker-end="url(#arrowRed)"/>
+          <defs>
+            <marker id="arrowRed" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#ff6b6b"/>
+            </marker>
+          </defs>
+
+          <text x="530" y="290" fill="#ffffff" font-size="11" text-anchor="middle">3rd candle shows seller rejection</text>
+          <text x="530" y="310" fill="#ff6b6b" font-size="12" font-weight="bold" text-anchor="middle">LOW probability - skip it</text>
+
+          <!-- Divider line -->
+          <line x1="350" y1="40" x2="350" y2="280" stroke="#333" stroke-width="1" stroke-dasharray="5,5"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="card" id="ob">
+      <div class="card-title">
+        <span class="badge blue">ENTRY ZONE</span>
+        2.3 Order Blocks (OBs)
+      </div>
+
+      <p>An Order Block is the last opposing candle(s) before an impulsive move. It represents where institutions placed their orders - and where they'll defend price if it returns.</p>
+
+      <div class="key-point info">
+        <strong>Key Distinction:</strong> A bullish OB is made of <strong>bearish candles</strong> (the last sellers before buyers took over). A bearish OB is made of <strong>bullish candles</strong> (the last buyers before sellers took over).
+      </div>
+
+      <div class="diagram">
+        <div class="diagram-title">Order Block Formation</div>
+        <svg width="700" height="320" viewBox="0 0 700 320">
+          <rect width="700" height="320" fill="#0a0a0f"/>
+
+          <!-- BULLISH ORDER BLOCK -->
+          <text x="150" y="25" fill="#00d4aa" font-size="14" font-weight="bold" text-anchor="middle">BULLISH ORDER BLOCK</text>
+
+          <!-- OB Candles (RED - bearish candles that form the bullish OB) -->
+          <line x1="60" y1="140" x2="60" y2="160" stroke="#ff6b6b" stroke-width="2"/>
+          <rect x="50" y="160" width="20" height="35" fill="#ff6b6b"/>
+          <line x1="60" y1="195" x2="60" y2="215" stroke="#ff6b6b" stroke-width="2"/>
+
+          <line x1="90" y1="155" x2="90" y2="175" stroke="#ff6b6b" stroke-width="2"/>
+          <rect x="80" y="175" width="20" height="30" fill="#ff6b6b"/>
+          <line x1="90" y1="205" x2="90" y2="225" stroke="#ff6b6b" stroke-width="2"/>
+
+          <!-- OB Zone Box -->
+          <rect x="45" y="160" width="70" height="65" fill="rgba(0, 212, 170, 0.15)" stroke="#00d4aa" stroke-width="2"/>
+          <text x="80" y="245" fill="#00d4aa" font-size="10" text-anchor="middle">ORDER BLOCK</text>
+
+          <!-- BOS Level -->
+          <line x1="40" y1="140" x2="220" y2="140" stroke="#4da6ff" stroke-width="1" stroke-dasharray="5,3"/>
+          <text x="225" y="143" fill="#4da6ff" font-size="10">BOS Level</text>
+
+          <!-- Impulsive Move Up (GREEN candles) -->
+          <line x1="130" y1="70" x2="130" y2="90" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="120" y="90" width="20" height="60" fill="#00d4aa"/>
+          <line x1="130" y1="150" x2="130" y2="170" stroke="#00d4aa" stroke-width="2"/>
+
+          <line x1="160" y1="30" x2="160" y2="50" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="150" y="50" width="20" height="50" fill="#00d4aa"/>
+          <line x1="160" y1="100" x2="160" y2="120" stroke="#00d4aa" stroke-width="2"/>
+
+          <!-- BOS Arrow -->
+          <path d="M 130 130 L 130 85" stroke="#00d4aa" stroke-width="2" marker-end="url(#arrowGreenOB)"/>
+          <text x="145" y="105" fill="#00d4aa" font-size="11" font-weight="bold">BOS!</text>
+
+          <!-- Labels -->
+          <text x="75" y="275" fill="#888" font-size="10" text-anchor="middle">Red candles before</text>
+          <text x="75" y="288" fill="#888" font-size="10" text-anchor="middle">bullish BOS</text>
+          <text x="75" y="305" fill="#00d4aa" font-size="11" text-anchor="middle">= Bullish OB</text>
+
+          <!-- BEARISH ORDER BLOCK -->
+          <text x="530" y="25" fill="#ff6b6b" font-size="14" font-weight="bold" text-anchor="middle">BEARISH ORDER BLOCK</text>
+
+          <!-- OB Candles (GREEN - bullish candles that form the bearish OB) -->
+          <line x1="460" y1="95" x2="460" y2="115" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="450" y="115" width="20" height="35" fill="#00d4aa"/>
+          <line x1="460" y1="150" x2="460" y2="170" stroke="#00d4aa" stroke-width="2"/>
+
+          <line x1="490" y1="80" x2="490" y2="100" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="480" y="100" width="20" height="30" fill="#00d4aa"/>
+          <line x1="490" y1="130" x2="490" y2="150" stroke="#00d4aa" stroke-width="2"/>
+
+          <!-- OB Zone Box -->
+          <rect x="445" y="100" width="70" height="70" fill="rgba(255, 107, 107, 0.15)" stroke="#ff6b6b" stroke-width="2"/>
+          <text x="480" y="90" fill="#ff6b6b" font-size="10" text-anchor="middle">ORDER BLOCK</text>
+
+          <!-- BOS Level -->
+          <line x1="440" y1="170" x2="620" y2="170" stroke="#4da6ff" stroke-width="1" stroke-dasharray="5,3"/>
+          <text x="625" y="173" fill="#4da6ff" font-size="10">BOS Level</text>
+
+          <!-- Impulsive Move Down (RED candles) -->
+          <line x1="530" y1="140" x2="530" y2="160" stroke="#ff6b6b" stroke-width="2"/>
+          <rect x="520" y="160" width="20" height="60" fill="#ff6b6b"/>
+          <line x1="530" y1="220" x2="530" y2="240" stroke="#ff6b6b" stroke-width="2"/>
+
+          <line x1="560" y1="190" x2="560" y2="210" stroke="#ff6b6b" stroke-width="2"/>
+          <rect x="550" y="210" width="20" height="50" fill="#ff6b6b"/>
+          <line x1="560" y1="260" x2="560" y2="280" stroke="#ff6b6b" stroke-width="2"/>
+
+          <!-- BOS Arrow -->
+          <path d="M 530 180 L 530 225" stroke="#ff6b6b" stroke-width="2" marker-end="url(#arrowRedOB)"/>
+          <text x="545" y="205" fill="#ff6b6b" font-size="11" font-weight="bold">BOS!</text>
+
+          <!-- Labels -->
+          <text x="475" y="275" fill="#888" font-size="10" text-anchor="middle">Green candles before</text>
+          <text x="475" y="288" fill="#888" font-size="10" text-anchor="middle">bearish BOS</text>
+          <text x="475" y="305" fill="#ff6b6b" font-size="11" text-anchor="middle">= Bearish OB</text>
+
+          <defs>
+            <marker id="arrowGreenOB" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L9,3 z" fill="#00d4aa"/>
+            </marker>
+            <marker id="arrowRedOB" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L9,3 z" fill="#ff6b6b"/>
+            </marker>
+          </defs>
+        </svg>
+      </div>
+
+      <h4>Order Block Rules</h4>
+      <div class="grid-2">
+        <div class="mini-card">
+          <div class="mini-card-title">Must Be Validated by BOS</div>
+          <div class="mini-card-desc">It's not an OB until price breaks the highest wick (bullish) or lowest wick (bearish). Before BOS, it's just candles.</div>
+        </div>
+        <div class="mini-card">
+          <div class="mini-card-title">Use Bodies, Not Wicks</div>
+          <div class="mini-card-desc">Mark from first candle's OPEN to last candle's CLOSE. The bodies define the zone, not the wicks.</div>
+        </div>
+        <div class="mini-card">
+          <div class="mini-card-title">Candles Must Be Sequential</div>
+          <div class="mini-card-desc">No opposing colored candles in between. If a bullish candle interrupts bearish ones, the sequence breaks.</div>
+        </div>
+        <div class="mini-card red">
+          <div class="mini-card-title">Only Use Unmitigated OBs</div>
+          <div class="mini-card-desc">Once price touches an OB, it's "used up." The orders are filled. Never trade the same OB twice.</div>
+        </div>
+        <div class="mini-card gold">
+          <div class="mini-card-title">50% Level is Strongest</div>
+          <div class="mini-card-desc">The midpoint of the OB typically sees the strongest reactions. Consider this your optimal entry within the OB.</div>
+        </div>
+        <div class="mini-card">
+          <div class="mini-card-title">Must Form From a PDA</div>
+          <div class="mini-card-desc">High-probability OBs form after sweeps, at FVG rejections, or at key levels. Random OBs without context are weaker.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="structure">
+      <div class="card-title">
+        <span class="badge blue">STRUCTURE</span>
+        2.4 Break of Structure (BOS) and Change of Character (CHoCH)
+      </div>
+
+      <p>These two concepts tell you whether the trend is continuing or potentially reversing.</p>
+
+      <div class="grid-2">
+        <div class="mini-card green">
+          <div class="mini-card-title">BOS - Break of Structure</div>
+          <div class="mini-card-desc">
+            Price breaks a swing high (bullish) or swing low (bearish), <strong>confirming trend continuation</strong>.<br><br>
+            • Bullish BOS = Price breaks above previous swing high<br>
+            • Bearish BOS = Price breaks below previous swing low<br><br>
+            <span style="color: #00d4aa;">BOS validates the trend. Trade in BOS direction.</span>
+          </div>
+        </div>
+        <div class="mini-card red">
+          <div class="mini-card-title">CHoCH - Change of Character</div>
+          <div class="mini-card-desc">
+            The <strong>first</strong> break against the current trend. Signals potential reversal.<br><br>
+            • Bullish CHoCH = First break above swing high in a downtrend<br>
+            • Bearish CHoCH = First break below swing low in an uptrend<br><br>
+            <span style="color: #ff6b6b;">CHoCH is a warning. Wait for confirmation before trading reversal.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="diagram">
+        <div class="diagram-title">The Reversal Sequence: Sweep → CHoCH → BOS → Entry</div>
+        <svg width="700" height="420" viewBox="0 0 700 420">
+          <rect width="700" height="420" fill="#0a0a0f"/>
+
+          <!-- PDH Level -->
+          <line x1="30" y1="70" x2="670" y2="70" stroke="#ff6b6b" stroke-width="2" stroke-dasharray="8,4"/>
+          <text x="40" y="60" fill="#ff6b6b" font-size="12" font-weight="bold">PDH (External Liquidity)</text>
+
+          <!-- Uptrend candles (Green) -->
+          <!-- Candle 1 -->
+          <line x1="80" y1="250" x2="80" y2="270" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="70" y="200" width="20" height="50" fill="#00d4aa"/>
+          <line x1="80" y1="180" x2="80" y2="200" stroke="#00d4aa" stroke-width="2"/>
+
+          <!-- Candle 2 -->
+          <line x1="120" y1="200" x2="120" y2="220" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="110" y="150" width="20" height="50" fill="#00d4aa"/>
+          <line x1="120" y1="130" x2="120" y2="150" stroke="#00d4aa" stroke-width="2"/>
+
+          <!-- Candle 3 -->
+          <line x1="160" y1="150" x2="160" y2="165" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="150" y="105" width="20" height="45" fill="#00d4aa"/>
+          <line x1="160" y1="85" x2="160" y2="105" stroke="#00d4aa" stroke-width="2"/>
+
+          <text x="100" y="290" fill="#c0c0c0" font-size="11" text-anchor="middle">Uptrend</text>
+
+          <!-- SWEEP Candle (Red - wicks above PDH but closes below) -->
+          <line x1="210" y1="50" x2="210" y2="75" stroke="#ff6b6b" stroke-width="2"/>
+          <rect x="200" y="75" width="20" height="50" fill="#ff6b6b"/>
+          <line x1="210" y1="125" x2="210" y2="140" stroke="#ff6b6b" stroke-width="2"/>
+
+          <text x="210" y="40" fill="#ff6b6b" font-size="11" font-weight="bold" text-anchor="middle">SWEEP</text>
+          <text x="280" y="95" fill="#c0c0c0" font-size="10">Price wicks above</text>
+          <text x="280" y="108" fill="#c0c0c0" font-size="10">but closes BELOW</text>
+          <text x="280" y="121" fill="#ff6b6b" font-size="10">= Reversal signal</text>
+
+          <!-- Swing Low Level (for CHoCH reference) -->
+          <line x1="55" y1="200" x2="280" y2="200" stroke="#4da6ff" stroke-width="1" stroke-dasharray="4,3"/>
+          <text x="290" y="203" fill="#4da6ff" font-size="9">Swing Low</text>
+
+          <!-- CHoCH Candle (Red - breaks below swing low) -->
+          <line x1="340" y1="130" x2="340" y2="150" stroke="#ff6b6b" stroke-width="2"/>
+          <rect x="330" y="150" width="20" height="70" fill="#ff6b6b"/>
+          <line x1="340" y1="220" x2="340" y2="245" stroke="#ff6b6b" stroke-width="2"/>
+
+          <!-- CHoCH Box -->
+          <rect x="320" y="190" width="60" height="35" fill="none" stroke="#4da6ff" stroke-width="2"/>
+          <text x="350" y="212" fill="#4da6ff" font-size="11" font-weight="bold" text-anchor="middle">CHoCH</text>
+
+          <text x="420" y="210" fill="#4da6ff" font-size="10">First break below</text>
+          <text x="420" y="223" fill="#4da6ff" font-size="10">previous swing low</text>
+          <text x="420" y="250" fill="#4da6ff" font-size="9" font-style="italic">Wait here - don't enter yet</text>
+
+          <!-- FVG Zone -->
+          <rect x="365" y="180" width="80" height="40" fill="rgba(212, 160, 0, 0.3)" stroke="#d4a000" stroke-width="2"/>
+          <text x="405" y="205" fill="#d4a000" font-size="10" font-weight="bold" text-anchor="middle">FVG</text>
+          <text x="510" y="195" fill="#d4a000" font-size="10">Bearish FVG forms</text>
+          <text x="510" y="208" fill="#d4a000" font-size="10">= Entry zone</text>
+
+          <!-- BOS Candle (Red - breaks further down) -->
+          <line x1="460" y1="220" x2="460" y2="240" stroke="#ff6b6b" stroke-width="2"/>
+          <rect x="450" y="240" width="20" height="80" fill="#ff6b6b"/>
+          <line x1="460" y1="320" x2="460" y2="340" stroke="#ff6b6b" stroke-width="2"/>
+
+          <!-- BOS Box -->
+          <rect x="440" y="300" width="60" height="30" fill="none" stroke="#ff6b6b" stroke-width="2"/>
+          <text x="470" y="320" fill="#ff6b6b" font-size="11" font-weight="bold" text-anchor="middle">BOS</text>
+
+          <text x="540" y="315" fill="#c0c0c0" font-size="10">Break below CHoCH low</text>
+          <text x="540" y="328" fill="#c0c0c0" font-size="10">= Trend confirmed bearish</text>
+
+          <!-- Entry Arrow and Label -->
+          <path d="M 550 360 L 405 230" stroke="#00d4aa" stroke-width="2" stroke-dasharray="5,3" fill="none" marker-end="url(#arrowEntry)"/>
+          <defs>
+            <marker id="arrowEntry" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#00d4aa"/>
+            </marker>
+          </defs>
+          <text x="550" y="380" fill="#00d4aa" font-size="12" font-weight="bold">NOW enter short</text>
+          <text x="550" y="395" fill="#00d4aa" font-size="11">at FVG retest</text>
+        </svg>
+      </div>
+
+      <div class="key-point">
+        <strong>The Silver Bullet:</strong> The first FVG that forms after a CHoCH (during the move that creates the CHoCH) is called the "Silver Bullet." It's the highest probability entry FVG because it marks the start of the new trend.
+      </div>
+    </div>
+
+    <div class="card" id="premium">
+      <div class="card-title">
+        <span class="badge">ZONES</span>
+        2.5 Premium and Discount Zones
+      </div>
+
+      <p>Every range (whether a swing, an FVG, or an OB) can be divided into premium and discount zones. This helps you get optimal entries.</p>
+
+      <div class="diagram">
+        <div class="diagram-title">Premium vs Discount</div>
+        <svg width="700" height="350" viewBox="0 0 700 350">
+          <rect width="700" height="350" fill="#0a0a0f"/>
+
+          <!-- Main range visualization -->
+          <!-- Swing High Line -->
+          <line x1="80" y1="50" x2="450" y2="50" stroke="#ff6b6b" stroke-width="2"/>
+          <text x="50" y="55" fill="#ff6b6b" font-size="11" text-anchor="end">Swing High</text>
+
+          <!-- Premium Zone (Red) -->
+          <rect x="80" y="50" width="370" height="100" fill="rgba(255, 107, 107, 0.2)"/>
+          <text x="265" y="85" fill="#ff6b6b" font-size="14" font-weight="bold" text-anchor="middle">PREMIUM ZONE</text>
+          <text x="265" y="105" fill="#ff6b6b" font-size="11" text-anchor="middle">(Above 50%)</text>
+          <text x="265" y="130" fill="#c0c0c0" font-size="10" text-anchor="middle">Shorts enter here - Price is "expensive"</text>
+
+          <!-- 50% Line -->
+          <line x1="80" y1="150" x2="450" y2="150" stroke="#ffffff" stroke-width="2" stroke-dasharray="8,4"/>
+          <text x="50" y="155" fill="#ffffff" font-size="11" text-anchor="end">50% Line</text>
+
+          <!-- Discount Zone (Green) -->
+          <rect x="80" y="150" width="370" height="100" fill="rgba(0, 212, 170, 0.2)"/>
+          <text x="265" y="185" fill="#00d4aa" font-size="14" font-weight="bold" text-anchor="middle">DISCOUNT ZONE</text>
+          <text x="265" y="205" fill="#00d4aa" font-size="11" text-anchor="middle">(Below 50%)</text>
+          <text x="265" y="230" fill="#c0c0c0" font-size="10" text-anchor="middle">Longs enter here - Price is "cheap"</text>
+
+          <!-- Swing Low Line -->
+          <line x1="80" y1="250" x2="450" y2="250" stroke="#00d4aa" stroke-width="2"/>
+          <text x="50" y="255" fill="#00d4aa" font-size="11" text-anchor="end">Swing Low</text>
+
+          <!-- Sample candles showing price in zones -->
+          <!-- Bearish candle in premium (good short) -->
+          <line x1="510" y1="70" x2="510" y2="85" stroke="#ff6b6b" stroke-width="2"/>
+          <rect x="500" y="85" width="20" height="35" fill="#ff6b6b"/>
+          <line x1="510" y1="120" x2="510" y2="135" stroke="#ff6b6b" stroke-width="2"/>
+          <text x="540" y="100" fill="#ff6b6b" font-size="10">Short here</text>
+
+          <!-- Bullish candle in discount (good long) -->
+          <line x1="510" y1="175" x2="510" y2="190" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="500" y="190" width="20" height="35" fill="#00d4aa"/>
+          <line x1="510" y1="225" x2="510" y2="240" stroke="#00d4aa" stroke-width="2"/>
+          <text x="540" y="210" fill="#00d4aa" font-size="10">Long here</text>
+
+          <!-- Bottom text -->
+          <text x="265" y="290" fill="#ffffff" font-size="11" text-anchor="middle">For LONGS: Look for bullish FVGs/OBs in the DISCOUNT zone</text>
+          <text x="265" y="310" fill="#ffffff" font-size="11" text-anchor="middle">For SHORTS: Look for bearish FVGs/OBs in the PREMIUM zone</text>
+        </svg>
+      </div>
+
+      <div class="key-point info">
+        <strong>Apply to Everything:</strong> Premium/Discount applies to the overall swing, to individual FVGs, and to OBs. An FVG in the discount zone of a larger swing, with your entry in the discount zone of that FVG = stacked confluence.
+      </div>
+    </div>
+
+    <div class="card gold" id="golden">
+      <div class="card-title">
+        <span class="badge gold">HIGHEST PROBABILITY</span>
+        2.6 Golden Zones (OB + FVG Overlap)
+      </div>
+
+      <p>When an Order Block has a Fair Value Gap overlapping it, you have the highest probability entry zone possible. This is where institutions have both unfilled orders AND an imbalance to fill.</p>
+
+      <div class="diagram">
+        <div class="diagram-title">Golden Zone Formation</div>
+        <svg width="700" height="380" viewBox="0 0 700 380">
+          <rect width="700" height="380" fill="#0a0a0f"/>
+
+          <!-- OB Candles (Bearish - before impulse) -->
+          <line x1="100" y1="220" x2="100" y2="240" stroke="#ff6b6b" stroke-width="2"/>
+          <rect x="90" y="240" width="20" height="50" fill="#ff6b6b"/>
+          <line x1="100" y1="290" x2="100" y2="310" stroke="#ff6b6b" stroke-width="2"/>
+
+          <line x1="140" y1="230" x2="140" y2="250" stroke="#ff6b6b" stroke-width="2"/>
+          <rect x="130" y="250" width="20" height="45" fill="#ff6b6b"/>
+          <line x1="140" y1="295" x2="140" y2="315" stroke="#ff6b6b" stroke-width="2"/>
+
+          <text x="120" y="340" fill="#c0c0c0" font-size="10" text-anchor="middle">OB candles</text>
+          <text x="120" y="355" fill="#c0c0c0" font-size="9" text-anchor="middle">(before impulse)</text>
+
+          <!-- Impulse Candles (Green - creating FVG) -->
+          <line x1="200" y1="150" x2="200" y2="170" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="190" y="100" width="20" height="70" fill="#00d4aa"/>
+          <line x1="200" y1="75" x2="200" y2="100" stroke="#00d4aa" stroke-width="2"/>
+
+          <line x1="250" y1="80" x2="250" y2="100" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="240" y="40" width="20" height="60" fill="#00d4aa"/>
+          <line x1="250" y1="20" x2="250" y2="40" stroke="#00d4aa" stroke-width="2"/>
+
+          <text x="225" y="200" fill="#c0c0c0" font-size="10" text-anchor="middle">Impulsive move</text>
+          <text x="225" y="215" fill="#c0c0c0" font-size="9" text-anchor="middle">creates FVG</text>
+
+          <!-- Zone visualization on the right -->
+          <!-- FVG Zone (Blue - upper part) -->
+          <rect x="320" y="100" width="250" height="60" fill="rgba(77, 166, 255, 0.25)" stroke="#4da6ff" stroke-width="2"/>
+          <text x="445" y="135" fill="#4da6ff" font-size="12" font-weight="bold" text-anchor="middle">FVG Zone</text>
+          <text x="600" y="135" fill="#4da6ff" font-size="10">FVG</text>
+
+          <!-- Golden Zone (Gold - overlap area) -->
+          <rect x="320" y="160" width="250" height="70" fill="rgba(212, 160, 0, 0.4)" stroke="#d4a000" stroke-width="3"/>
+          <text x="445" y="200" fill="#d4a000" font-size="14" font-weight="bold" text-anchor="middle">GOLDEN ZONE</text>
+          <text x="600" y="190" fill="#d4a000" font-size="10">OB + FVG</text>
+          <text x="600" y="205" fill="#d4a000" font-size="10">overlap</text>
+
+          <!-- Order Block Zone (Green/Purple - lower part) -->
+          <rect x="320" y="230" width="250" height="70" fill="rgba(0, 212, 170, 0.2)" stroke="#00d4aa" stroke-width="2"/>
+          <text x="445" y="270" fill="#00d4aa" font-size="12" font-weight="bold" text-anchor="middle">Order Block Zone</text>
+          <text x="600" y="270" fill="#00d4aa" font-size="10">OB</text>
+
+          <!-- Connecting arrows -->
+          <path d="M 170 240 L 315 270" stroke="#00d4aa" stroke-width="1" stroke-dasharray="4,3" fill="none"/>
+          <path d="M 210 100 L 315 130" stroke="#4da6ff" stroke-width="1" stroke-dasharray="4,3" fill="none"/>
+
+          <!-- Bottom text -->
+          <text x="350" y="330" fill="#d4a000" font-size="12" font-weight="bold">The GOLDEN ZONE is where FVG and OB overlap.</text>
+          <text x="350" y="350" fill="#ffffff" font-size="11">This is your highest probability entry point.</text>
+          <text x="350" y="368" fill="#ffffff" font-size="11">Prioritize these setups above all others.</text>
+        </svg>
+      </div>
+
+      <div class="key-point gold">
+        <strong>Golden Zone Priority:</strong> When you see a Golden Zone, it takes priority over regular FVGs or OBs. Enter here with more confidence - you can use tighter stops and/or larger position size (within risk rules).
+      </div>
+    </div>
+
+    <!-- ========== PART 3: THE THREE SETUPS ========== -->
+    <h2>Part 3: The Three Setups</h2>
+    <p>Now that you understand the concepts, here's how they combine into tradeable setups.</p>
+
+    <div class="card green" id="sweep">
+      <div class="card-title">
+        <span class="badge">SETUP 1</span>
+        Sweep Setup (CRT Reversal)
+      </div>
+
+      <p>The Sweep Setup is a reversal play. You're looking for price to sweep external liquidity, fail to continue, and reverse. This uses Candle Range Theory (CRT) principles.</p>
+
+      <h4>When to Use</h4>
+      <ul style="list-style: none; padding: 0;">
+        <li style="padding: 8px 0; color: #c0c0c0;">→ Price approaches a key level (PDH, PDL, swing high/low)</li>
+        <li style="padding: 8px 0; color: #c0c0c0;">→ Higher timeframe shows potential reversal zone (weekly/daily FVG or OB)</li>
+        <li style="padding: 8px 0; color: #c0c0c0;">→ You want to catch a reversal, not ride a continuation</li>
+      </ul>
+
+      <h4>The AMD Framework</h4>
+      <p>Sweep setups follow the AMD (Accumulation, Manipulation, Distribution) pattern:</p>
+
+      <div class="grid-3">
+        <div class="mini-card">
+          <div class="mini-card-title">A - Accumulation</div>
+          <div class="mini-card-desc">Price consolidates, building energy. Often happens pre-market or early session. Range forms.</div>
+        </div>
+        <div class="mini-card red">
+          <div class="mini-card-title">M - Manipulation</div>
+          <div class="mini-card-desc">Price SWEEPS external liquidity (wicks beyond the level) but fails to CLOSE beyond it. This is the trap.</div>
+        </div>
+        <div class="mini-card green">
+          <div class="mini-card-title">D - Distribution</div>
+          <div class="mini-card-desc">Price reverses hard in the opposite direction. This is where you trade - enter on the FVG formed during CHoCH.</div>
+        </div>
+      </div>
+
+      <div class="diagram">
+        <div class="diagram-title">Sweep Setup (Bearish Example)</div>
+        <svg width="700" height="420" viewBox="0 0 700 420">
+          <rect width="700" height="420" fill="#0a0a0f"/>
+
+          <!-- PDH Level -->
+          <line x1="30" y1="80" x2="670" y2="80" stroke="#ff6b6b" stroke-width="2"/>
+          <text x="40" y="65" fill="#ffffff" font-size="12" font-weight="bold">PDH (Previous Day High)</text>
+
+          <!-- Phase Labels -->
+          <text x="100" y="115" fill="#4da6ff" font-size="12" font-weight="bold" text-anchor="middle">ACCUMULATION</text>
+          <text x="100" y="130" fill="#c0c0c0" font-size="10" text-anchor="middle">Price ranges</text>
+
+          <text x="280" y="115" fill="#ff6b6b" font-size="12" font-weight="bold" text-anchor="middle">MANIPULATION</text>
+          <text x="280" y="130" fill="#c0c0c0" font-size="10" text-anchor="middle">Price sweeps PDH</text>
+          <text x="280" y="143" fill="#c0c0c0" font-size="10" text-anchor="middle">but fails to close</text>
+
+          <text x="500" y="115" fill="#00d4aa" font-size="12" font-weight="bold" text-anchor="middle">DISTRIBUTION</text>
+          <text x="500" y="130" fill="#c0c0c0" font-size="10" text-anchor="middle">Price reverses hard</text>
+
+          <!-- Accumulation Range (Mixed candles) -->
+          <!-- Candle 1 -->
+          <line x1="60" y1="160" x2="60" y2="175" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="50" y="175" width="20" height="30" fill="#00d4aa"/>
+          <line x1="60" y1="205" x2="60" y2="220" stroke="#00d4aa" stroke-width="2"/>
+
+          <!-- Candle 2 -->
+          <line x1="90" y1="165" x2="90" y2="180" stroke="#ff6b6b" stroke-width="2"/>
+          <rect x="80" y="180" width="20" height="25" fill="#ff6b6b"/>
+          <line x1="90" y1="205" x2="90" y2="215" stroke="#ff6b6b" stroke-width="2"/>
+
+          <!-- Candle 3 -->
+          <line x1="120" y1="155" x2="120" y2="170" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="110" y="170" width="20" height="35" fill="#00d4aa"/>
+          <line x1="120" y1="205" x2="120" y2="218" stroke="#00d4aa" stroke-width="2"/>
+
+          <!-- Candle 4 -->
+          <line x1="150" y1="158" x2="150" y2="172" stroke="#ff6b6b" stroke-width="2"/>
+          <rect x="140" y="172" width="20" height="30" fill="#ff6b6b"/>
+          <line x1="150" y1="202" x2="150" y2="215" stroke="#ff6b6b" stroke-width="2"/>
+
+          <!-- Accumulation Low Line -->
+          <line x1="40" y1="220" x2="370" y2="220" stroke="#4da6ff" stroke-width="1" stroke-dasharray="4,3"/>
+          <text x="195" y="238" fill="#4da6ff" font-size="9" text-anchor="middle">Accumulation Low</text>
+
+          <!-- Sweep Candle (Wicks above PDH but closes below) -->
+          <line x1="250" y1="55" x2="250" y2="85" stroke="#ff6b6b" stroke-width="2"/>
+          <rect x="240" y="85" width="20" height="60" fill="#ff6b6b"/>
+          <line x1="250" y1="145" x2="250" y2="165" stroke="#ff6b6b" stroke-width="2"/>
+          <text x="280" y="75" fill="#ff6b6b" font-size="10" font-weight="bold">SWEEP!</text>
+          <text x="300" y="100" fill="#c0c0c0" font-size="9">Wicks above</text>
+          <text x="300" y="112" fill="#c0c0c0" font-size="9">closes below</text>
+
+          <!-- CHoCH Candle -->
+          <line x1="380" y1="150" x2="380" y2="170" stroke="#ff6b6b" stroke-width="2"/>
+          <rect x="370" y="170" width="20" height="75" fill="#ff6b6b"/>
+          <line x1="380" y1="245" x2="380" y2="265" stroke="#ff6b6b" stroke-width="2"/>
+
+          <!-- CHoCH Label -->
+          <rect x="400" y="230" width="55" height="25" fill="none" stroke="#4da6ff" stroke-width="2"/>
+          <text x="427" y="247" fill="#4da6ff" font-size="10" font-weight="bold" text-anchor="middle">CHoCH</text>
+          <text x="470" y="240" fill="#c0c0c0" font-size="9">Break below</text>
+          <text x="470" y="252" fill="#c0c0c0" font-size="9">accumulation low</text>
+
+          <!-- FVG Zone -->
+          <rect x="405" y="260" width="80" height="35" fill="rgba(212, 160, 0, 0.3)" stroke="#d4a000" stroke-width="2"/>
+          <text x="445" y="282" fill="#d4a000" font-size="10" font-weight="bold" text-anchor="middle">FVG</text>
+          <text x="510" y="275" fill="#d4a000" font-size="9">Entry zone</text>
+
+          <!-- BOS Candle -->
+          <line x1="500" y1="270" x2="500" y2="290" stroke="#ff6b6b" stroke-width="2"/>
+          <rect x="490" y="290" width="20" height="70" fill="#ff6b6b"/>
+          <line x1="500" y1="360" x2="500" y2="380" stroke="#ff6b6b" stroke-width="2"/>
+
+          <!-- BOS Label -->
+          <rect x="520" y="330" width="45" height="22" fill="none" stroke="#ff6b6b" stroke-width="2"/>
+          <text x="542" y="345" fill="#ff6b6b" font-size="10" font-weight="bold" text-anchor="middle">BOS</text>
+          <text x="585" y="340" fill="#c0c0c0" font-size="9">Confirms</text>
+          <text x="585" y="352" fill="#c0c0c0" font-size="9">reversal</text>
+
+          <!-- Target Arrow -->
+          <path d="M 500 385 L 500 405" stroke="#00d4aa" stroke-width="2" fill="none" marker-end="url(#arrowDown)"/>
+          <defs>
+            <marker id="arrowDown" markerWidth="10" markerHeight="10" refX="5" refY="10" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L5,10 L10,0" fill="none" stroke="#00d4aa" stroke-width="1"/>
+            </marker>
+          </defs>
+          <text x="540" y="400" fill="#00d4aa" font-size="10">Target: PDL</text>
+        </svg>
+      </div>
+
+      <h4>Sweep Setup Checklist</h4>
+      <div class="checklist">
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>HTF Alignment:</strong> Is there a reason for reversal on higher TF? (Weekly/Daily at FVG, OB, or key level)</div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>External Liquidity Swept:</strong> Did price wick through the level but FAIL to close beyond?</div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>CHoCH Formed:</strong> Has price broken the first swing in the opposite direction?</div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>FVG Present:</strong> Is there a fresh FVG in the move that created the CHoCH?</div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>Premium/Discount:</strong> Is the FVG in the correct zone? (Premium for shorts, Discount for longs)</div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>Golden Zone?</strong> Does the FVG overlap with an OB? (Bonus confluence)</div>
+        </div>
+      </div>
+
+      <h4>Entry Execution</h4>
+      <div class="steps">
+        <div class="step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <div class="step-title">Wait for the Sweep</div>
+            <div class="step-desc">Don't anticipate. Wait for price to actually sweep the level and fail to close beyond.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <div class="step-title">Wait for CHoCH</div>
+            <div class="step-desc">On 15m or 5m, wait for the first break of structure in the reversal direction. This confirms buyers/sellers have stepped in.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <div class="step-title">Mark the FVG</div>
+            <div class="step-desc">The FVG that formed during the CHoCH move is your entry zone. Wait for price to retrace into it.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <div class="step-title">Enter at FVG</div>
+            <div class="step-desc">Enter when price touches the FVG. Stop beyond the sweep high/low. Target the opposite external liquidity (PDL if short, PDH if long).</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="key-point">
+        <strong>Primary Window:</strong> 10:00 - 11:30 AM ET. The 10 AM reversal is one of the most reliable times for sweeps. The morning move often sweeps overnight highs/lows before reversing.
+      </div>
+    </div>
+
+    <div class="card blue" id="run">
+      <div class="card-title">
+        <span class="badge blue">SETUP 2</span>
+        Run Setup (Continuation)
+      </div>
+
+      <p>The Run Setup is a continuation play. Price breaks through external liquidity with strength (closes beyond, not just wicks), confirming trend continuation. You enter on the pullback to the FVG created during the breakout.</p>
+
+      <h4>When to Use</h4>
+      <ul style="list-style: none; padding: 0;">
+        <li style="padding: 8px 0; color: #c0c0c0;">→ Strong trend in place (all timeframes aligned)</li>
+        <li style="padding: 8px 0; color: #c0c0c0;">→ Price CLOSES beyond external liquidity (not just wicks through)</li>
+        <li style="padding: 8px 0; color: #c0c0c0;">→ FVG forms during or immediately after the breakout</li>
+      </ul>
+
+      <div class="key-point info">
+        <strong>Run vs Sweep - The Key Difference:</strong><br>
+        <span style="color: #ff6b6b;">SWEEP:</span> Wicks through level, closes back inside → REVERSAL<br>
+        <span style="color: #00d4aa;">RUN:</span> Closes through level with FVG → CONTINUATION
+      </div>
+
+      <div class="diagram">
+        <div class="diagram-title">Run Setup (Bullish Example)</div>
+        <svg width="700" height="400" viewBox="0 0 700 400">
+          <rect width="700" height="400" fill="#0a0a0f"/>
+
+          <!-- PDH Level -->
+          <line x1="30" y1="220" x2="670" y2="220" stroke="#00d4aa" stroke-width="2"/>
+          <text x="40" y="210" fill="#ffffff" font-size="12" font-weight="bold">PDH (Previous Day High)</text>
+
+          <!-- Uptrend candles approaching PDH -->
+          <!-- Candle 1 -->
+          <line x1="80" y1="310" x2="80" y2="330" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="70" y="270" width="20" height="40" fill="#00d4aa"/>
+          <line x1="80" y1="250" x2="80" y2="270" stroke="#00d4aa" stroke-width="2"/>
+
+          <!-- Candle 2 -->
+          <line x1="120" y1="280" x2="120" y2="300" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="110" y="245" width="20" height="35" fill="#00d4aa"/>
+          <line x1="120" y1="225" x2="120" y2="245" stroke="#00d4aa" stroke-width="2"/>
+
+          <!-- Candle 3 -->
+          <line x1="160" y1="260" x2="160" y2="275" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="150" y="230" width="20" height="30" fill="#00d4aa"/>
+          <line x1="160" y1="215" x2="160" y2="230" stroke="#00d4aa" stroke-width="2"/>
+
+          <text x="120" y="350" fill="#c0c0c0" font-size="10" text-anchor="middle">Uptrend approaching PDH</text>
+
+          <!-- Breakout Candle (CLOSES above PDH) -->
+          <line x1="240" y1="230" x2="240" y2="250" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="230" y="140" width="20" height="90" fill="#00d4aa"/>
+          <line x1="240" y1="120" x2="240" y2="140" stroke="#00d4aa" stroke-width="2"/>
+
+          <text x="280" y="160" fill="#00d4aa" font-size="10" font-weight="bold">RUN!</text>
+          <text x="280" y="175" fill="#c0c0c0" font-size="9">Impulsive candle</text>
+          <text x="280" y="188" fill="#c0c0c0" font-size="9">CLOSES above PDH</text>
+          <text x="280" y="201" fill="#c0c0c0" font-size="9">with FVG</text>
+
+          <!-- FVG Zone (at PDH level) -->
+          <rect x="245" y="165" width="100" height="55" fill="rgba(212, 160, 0, 0.3)" stroke="#d4a000" stroke-width="2"/>
+          <text x="295" y="197" fill="#d4a000" font-size="10" font-weight="bold" text-anchor="middle">FVG</text>
+
+          <!-- Retest Arrow -->
+          <path d="M 410 100 C 380 120, 360 140, 345 175" stroke="#4da6ff" stroke-width="2" stroke-dasharray="5,3" fill="none" marker-end="url(#arrowRetest)"/>
+          <defs>
+            <marker id="arrowRetest" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#4da6ff"/>
+            </marker>
+          </defs>
+          <text x="430" y="95" fill="#4da6ff" font-size="10">Price retests</text>
+          <text x="430" y="108" fill="#4da6ff" font-size="10">FVG (Entry)</text>
+
+          <!-- Continuation Candle -->
+          <line x1="430" y1="100" x2="430" y2="115" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="420" y="60" width="20" height="40" fill="#00d4aa"/>
+          <line x1="430" y1="40" x2="430" y2="60" stroke="#00d4aa" stroke-width="2"/>
+
+          <!-- Another continuation -->
+          <line x1="480" y1="65" x2="480" y2="80" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="470" y="35" width="20" height="30" fill="#00d4aa"/>
+          <line x1="480" y1="20" x2="480" y2="35" stroke="#00d4aa" stroke-width="2"/>
+
+          <!-- Target Arrow -->
+          <path d="M 510 30 L 540 15" stroke="#00d4aa" stroke-width="2" fill="none" marker-end="url(#arrowUp)"/>
+          <defs>
+            <marker id="arrowUp" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#00d4aa"/>
+            </marker>
+          </defs>
+          <text x="550" y="25" fill="#00d4aa" font-size="10">Target: Next external</text>
+          <text x="550" y="40" fill="#00d4aa" font-size="10">liquidity (higher)</text>
+        </svg>
+      </div>
+
+      <h4>Run Setup Checklist</h4>
+      <div class="checklist">
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>HTF Trend Clear:</strong> Is the weekly/daily trend supporting continuation in this direction?</div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>Strong Close:</strong> Did price CLOSE beyond the external liquidity level (not just wick)?</div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>FVG Created:</strong> Is there an FVG that formed during or right after the breakout?</div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>FVG Position:</strong> Is the FVG at or overlapping the broken level? (Strongest setup)</div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>Clear Target:</strong> Is there clear external liquidity above/below to target?</div>
+        </div>
+      </div>
+
+      <h4>Entry Execution</h4>
+      <div class="steps">
+        <div class="step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <div class="step-title">Confirm the Run</div>
+            <div class="step-desc">Wait for a candle to CLOSE beyond the external liquidity level. A wick above isn't enough - the body must close beyond.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <div class="step-title">Identify the FVG</div>
+            <div class="step-desc">Mark the FVG that formed during the breakout move. The best FVGs overlap with the broken level itself.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <div class="step-title">Wait for Retest</div>
+            <div class="step-desc">Price will often pull back to "retest" the breakout level / FVG. This is your entry.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <div class="step-title">Enter at FVG</div>
+            <div class="step-desc">Enter when price touches the FVG. Stop below the FVG (for longs). Target: Next external liquidity.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="key-point gold">
+        <strong>FVGs at Runs are the Strongest:</strong> An FVG that forms while price is breaking through a key level has the highest probability of being respected. Institutions are defending the breakout.
+      </div>
+    </div>
+
+    <div class="card" id="orb">
+      <div class="card-title">
+        <span class="badge">SETUP 3</span>
+        ORB Setup (Opening Range Breakout)
+      </div>
+
+      <p>The ORB Setup uses the first 15 minutes of the NY session (9:30-9:45 AM) to define a range. You trade the breakout of this range, with direction confirmed by 4H bias.</p>
+
+      <h4>When to Use</h4>
+      <ul style="list-style: none; padding: 0;">
+        <li style="padding: 8px 0; color: #c0c0c0;">→ Every day at NY open (9:30 AM ET)</li>
+        <li style="padding: 8px 0; color: #c0c0c0;">→ 4H bias is clear (you know which direction to favor)</li>
+        <li style="padding: 8px 0; color: #c0c0c0;">→ Opening range is reasonable (not too wide, not too tight)</li>
+      </ul>
+
+      <div class="diagram">
+        <div class="diagram-title">ORB Range Formation</div>
+        <svg width="700" height="380" viewBox="0 0 700 380">
+          <rect width="700" height="380" fill="#0a0a0f"/>
+
+          <!-- Time Labels -->
+          <text x="100" y="30" fill="#c0c0c0" font-size="11" text-anchor="middle">9:30 AM</text>
+          <line x1="100" y1="35" x2="100" y2="50" stroke="#c0c0c0" stroke-width="1"/>
+
+          <text x="280" y="30" fill="#c0c0c0" font-size="11" text-anchor="middle">9:45 AM</text>
+          <line x1="280" y1="35" x2="280" y2="50" stroke="#c0c0c0" stroke-width="1"/>
+
+          <text x="500" y="30" fill="#c0c0c0" font-size="11" text-anchor="middle">10:00+ AM</text>
+          <line x1="500" y1="35" x2="500" y2="50" stroke="#c0c0c0" stroke-width="1"/>
+
+          <!-- ORB High Line -->
+          <line x1="50" y1="100" x2="650" y2="100" stroke="#4da6ff" stroke-width="2"/>
+          <text x="40" y="90" fill="#4da6ff" font-size="11" font-weight="bold" text-anchor="end">ORB HIGH</text>
+
+          <!-- ORB Low Line -->
+          <line x1="50" y1="230" x2="650" y2="230" stroke="#4da6ff" stroke-width="2"/>
+          <text x="40" y="240" fill="#4da6ff" font-size="11" font-weight="bold" text-anchor="end">ORB LOW</text>
+
+          <!-- ORB Range Box (9:30-9:45) -->
+          <rect x="70" y="100" width="180" height="130" fill="rgba(77, 166, 255, 0.1)" stroke="#4da6ff" stroke-width="1" stroke-dasharray="4,2"/>
+
+          <!-- 15-minute candle (the opening range) -->
+          <line x1="140" y1="95" x2="140" y2="110" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="125" y="110" width="30" height="110" fill="rgba(0, 212, 170, 0.3)" stroke="#00d4aa" stroke-width="2"/>
+          <line x1="140" y1="220" x2="140" y2="235" stroke="#00d4aa" stroke-width="2"/>
+
+          <text x="180" y="155" fill="#c0c0c0" font-size="10">First 15-min</text>
+          <text x="180" y="170" fill="#c0c0c0" font-size="10">candle forms</text>
+          <text x="180" y="185" fill="#4da6ff" font-size="10" font-weight="bold">OPENING RANGE</text>
+
+          <!-- Phase label 1 -->
+          <text x="160" y="270" fill="#4da6ff" font-size="10" text-anchor="middle">Mark Range</text>
+
+          <!-- Waiting period candles (9:45-10:00) -->
+          <line x1="320" y1="130" x2="320" y2="145" stroke="#ff6b6b" stroke-width="2"/>
+          <rect x="310" y="145" width="20" height="35" fill="#ff6b6b"/>
+          <line x1="320" y1="180" x2="320" y2="195" stroke="#ff6b6b" stroke-width="2"/>
+
+          <line x1="360" y1="125" x2="360" y2="140" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="350" y="140" width="20" height="40" fill="#00d4aa"/>
+          <line x1="360" y1="180" x2="360" y2="195" stroke="#00d4aa" stroke-width="2"/>
+
+          <text x="340" y="215" fill="#c0c0c0" font-size="9" text-anchor="middle">Wait for breakout</text>
+          <text x="340" y="228" fill="#c0c0c0" font-size="9" text-anchor="middle">AND close beyond</text>
+
+          <!-- Phase label 2 -->
+          <text x="340" y="270" fill="#d4a000" font-size="10" text-anchor="middle">Confirm Breakout</text>
+
+          <!-- Breakout candle (closes above ORB High) -->
+          <line x1="440" y1="110" x2="440" y2="130" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="430" y="60" width="20" height="70" fill="#00d4aa"/>
+          <line x1="440" y1="45" x2="440" y2="60" stroke="#00d4aa" stroke-width="2"/>
+
+          <text x="470" y="70" fill="#00d4aa" font-size="10" font-weight="bold">Breakout!</text>
+          <text x="470" y="85" fill="#c0c0c0" font-size="9">Closes above</text>
+          <text x="470" y="98" fill="#c0c0c0" font-size="9">ORB High</text>
+
+          <!-- FVG Zone -->
+          <rect x="460" y="75" width="70" height="25" fill="rgba(212, 160, 0, 0.3)" stroke="#d4a000" stroke-width="2"/>
+          <text x="495" y="92" fill="#d4a000" font-size="9" font-weight="bold" text-anchor="middle">FVG</text>
+
+          <!-- Continuation candles -->
+          <line x1="560" y1="55" x2="560" y2="70" stroke="#00d4aa" stroke-width="2"/>
+          <rect x="550" y="35" width="20" height="35" fill="#00d4aa"/>
+          <line x1="560" y1="20" x2="560" y2="35" stroke="#00d4aa" stroke-width="2"/>
+
+          <!-- Entry arrow pointing to FVG -->
+          <path d="M 620 120 C 590 100, 560 90, 530 90" stroke="#00d4aa" stroke-width="2" stroke-dasharray="5,3" fill="none" marker-end="url(#arrowORB)"/>
+          <defs>
+            <marker id="arrowORB" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#00d4aa"/>
+            </marker>
+          </defs>
+          <text x="605" y="140" fill="#00d4aa" font-size="10">Enter on FVG</text>
+          <text x="605" y="155" fill="#00d4aa" font-size="10">retest</text>
+
+          <!-- Phase label 3 -->
+          <text x="530" y="270" fill="#00d4aa" font-size="10" text-anchor="middle">Enter Trade</text>
+
+          <!-- Phase separators -->
+          <line x1="280" y1="50" x2="280" y2="260" stroke="#333" stroke-width="1" stroke-dasharray="5,5"/>
+          <line x1="420" y1="50" x2="420" y2="260" stroke="#333" stroke-width="1" stroke-dasharray="5,5"/>
+        </svg>
+      </div>
+
+      <h4>ORB with TDA Filter</h4>
+      <p>ORB works best when filtered by the 4H bias:</p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>4H Bias</th>
+            <th>ORB Action</th>
+            <th>Expectation</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span style="color: #00d4aa;">Bullish</span></td>
+            <td>Only trade ORB HIGH breakouts</td>
+            <td>Ignore bearish breakouts or fade them</td>
+          </tr>
+          <tr>
+            <td><span style="color: #ff6b6b;">Bearish</span></td>
+            <td>Only trade ORB LOW breakouts</td>
+            <td>Ignore bullish breakouts or fade them</td>
+          </tr>
+          <tr>
+            <td><span style="color: #888;">Unclear</span></td>
+            <td>Skip ORB entirely</td>
+            <td>Wait for Sweep or Run setups instead</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h4>ORB Setup Checklist</h4>
+      <div class="checklist">
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>Range Marked:</strong> Mark the high and low of the 9:30-9:45 candle (15m timeframe)</div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>Range Width:</strong> Is the range reasonable? (Under 40 points ideal; over 60 = too wide, skip)</div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>4H Bias Known:</strong> Do you have a clear 4H directional bias?</div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>Breakout Confirmed:</strong> Did a candle CLOSE beyond the ORB level (not just wick)?</div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>Breakout Direction Aligned:</strong> Does the breakout match your 4H bias?</div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>FVG Present:</strong> Is there an FVG in the breakout move for entry on retest?</div>
+        </div>
+      </div>
+
+      <h4>Entry Options</h4>
+      <div class="grid-3">
+        <div class="mini-card">
+          <div class="mini-card-title">Option 1: Breakout Entry</div>
+          <div class="mini-card-desc">Enter as soon as candle closes beyond ORB level. Fastest but highest risk of false breakout.</div>
+        </div>
+        <div class="mini-card green">
+          <div class="mini-card-title">Option 2: Retest Entry (Preferred)</div>
+          <div class="mini-card-desc">Wait for price to pull back and retest the ORB level or FVG. Better R:R, less false breakouts.</div>
+        </div>
+        <div class="mini-card">
+          <div class="mini-card-title">Option 3: Confirmation Entry</div>
+          <div class="mini-card-desc">Wait for retest AND a new higher high/lower low. Most conservative, might miss some moves.</div>
+        </div>
+      </div>
+
+      <div class="key-point">
+        <strong>Primary Window:</strong> 9:45 - 10:30 AM ET. The ORB breakout typically happens within the first hour. If no breakout by 10:30, the setup weakens - consider Sweep or Run setups instead.
+      </div>
+    </div>
+
+    <!-- ========== PART 4: EXECUTION ========== -->
+    <h2 id="entry">Part 4: Execution</h2>
+    <p>You have the concepts and setups. Now here's how to actually execute trades.</p>
+
+    <div class="card" id="entry">
+      <div class="card-title">
+        <span class="badge">PROCESS</span>
+        4.1 Entry Execution Process
+      </div>
+
+      <p>Regardless of which setup you're trading, the entry process follows the same steps:</p>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <div class="step-title">Confirm HTF Bias</div>
+            <div class="step-desc">Check weekly → daily → 4H. Are they aligned? What's the most likely direction? If unclear, don't trade.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <div class="step-title">Identify Setup Type</div>
+            <div class="step-desc">What's happening at external liquidity? Sweep (reversal)? Run (continuation)? ORB breakout? This determines your approach.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <div class="step-title">Wait for Structure Confirmation</div>
+            <div class="step-desc">For Sweep: Wait for CHoCH. For Run: Wait for close beyond level. For ORB: Wait for close beyond range. Don't anticipate.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <div class="step-title">Locate Entry Zone</div>
+            <div class="step-desc">Find the FVG (or OB) that you'll use for entry. Is it in the correct zone (premium for shorts, discount for longs)? Is there a Golden Zone?</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">5</div>
+          <div class="step-content">
+            <div class="step-title">Define Stop Loss</div>
+            <div class="step-desc">Place stop beyond the FVG/OB (for longs: below; for shorts: above). Never risk more than 1-2% of account per trade.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">6</div>
+          <div class="step-content">
+            <div class="step-title">Define Target</div>
+            <div class="step-desc">Target the next external liquidity level. PDH/PDL, session high/low, or the next swing point. Calculate R:R before entering.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">7</div>
+          <div class="step-content">
+            <div class="step-title">Execute</div>
+            <div class="step-desc">Enter when price touches your entry zone. Set stop and target. Don't move stop to "give it room" - either the setup works or it doesn't.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="session">
+      <div class="card-title">
+        <span class="badge blue">TIMING</span>
+        4.2 Session Structure (9:30 AM - 1:30 PM ET)
+      </div>
+
+      <p>Your 4-hour trading window has distinct phases. Knowing what to expect when helps you prepare for the right setups.</p>
+
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-time">9:30 - 10:00</div>
+          <div class="timeline-content">
+            <div class="timeline-title">ORB Formation</div>
+            <div class="timeline-desc">Mark the 15m ORB range. Observe initial direction. <strong>Don't trade yet</strong> - let structure develop. Watch for early sweep attempts.</div>
+          </div>
+        </div>
+        <div class="timeline-item secondary">
+          <div class="timeline-time">10:00 - 10:30</div>
+          <div class="timeline-content">
+            <div class="timeline-title">Reversal Watch Zone</div>
+            <div class="timeline-desc">The famous "10 AM reversal" window. Watch for sweeps of overnight high/low or PDH/PDL. If ORB breaks, this is often when it happens. <strong>Primary Sweep setup window.</strong></div>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-time">10:30 - 12:00</div>
+          <div class="timeline-content">
+            <div class="timeline-title">Primary Trading Window</div>
+            <div class="timeline-desc">Structure has developed. Execute on confirmed setups. ORB retests, Sweep continuations, and Run entries all viable. <strong>This is where most of your trades happen.</strong></div>
+          </div>
+        </div>
+        <div class="timeline-item caution">
+          <div class="timeline-time">12:00 - 12:45</div>
+          <div class="timeline-content">
+            <div class="timeline-title">Lunch Lull (Caution)</div>
+            <div class="timeline-desc">Lower volume, choppier price action. <strong>Avoid new entries.</strong> Manage existing positions. If you're flat, stay flat until 12:45+.</div>
+          </div>
+        </div>
+        <div class="timeline-item secondary">
+          <div class="timeline-time">12:45 - 1:30</div>
+          <div class="timeline-content">
+            <div class="timeline-title">Closing Window</div>
+            <div class="timeline-desc">Consider taking profits on open positions. Watch for late continuation or end-of-session moves. 4H candle closes at 1:30 - can trigger volatility.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="checklist">
+      <div class="card-title">
+        <span class="badge">CHECKLIST</span>
+        4.3 Pre-Trade Checklist
+      </div>
+
+      <p>Run through this before every trade:</p>
+
+      <div class="checklist">
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>HTF Bias Clear?</strong> Weekly and Daily point the same direction. I know if I'm looking for longs or shorts.</div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>4H Aligned?</strong> 4H structure confirms the HTF bias. No conflicting CHoCH.</div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>Setup Identified?</strong> I know which setup I'm trading: Sweep, Run, or ORB.</div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>Structure Confirmed?</strong> CHoCH (for Sweep) or close beyond level (for Run/ORB) has occurred. Not anticipating.</div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>Entry Zone Valid?</strong> Fresh FVG or OB. In premium (shorts) or discount (longs). Golden Zone if available.</div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>Stop Defined?</strong> Stop is beyond the entry zone. Risk is within my rules ($200-400 for MFF).</div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>Target Defined?</strong> Clear external liquidity target. R:R is at least 1.5:1, ideally 2:1+.</div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div class="checklist-text"><strong>Timing Appropriate?</strong> Not in lunch lull (12:00-12:45). Within my session window (9:30-1:30).</div>
+        </div>
+      </div>
+
+      <div class="key-point warning">
+        <strong>If any box is unchecked, don't take the trade.</strong> There will always be another setup. Patience and discipline beat frequency.
+      </div>
+    </div>
+
+    <!-- ========== PART 5: EXAMPLES ========== -->
+    <h2 id="examples">Part 5: Trade Examples</h2>
+    <p>Let's walk through each setup type with a detailed example.</p>
+
+    <div class="trade-example">
+      <div class="trade-header">
+        <div class="trade-title">Example 1: Sweep Setup (Bearish Reversal)</div>
+        <div class="trade-stats">
+          <div class="trade-stat">
+            <div class="trade-stat-label">Type</div>
+            <div class="trade-stat-value">Sweep</div>
+          </div>
+          <div class="trade-stat">
+            <div class="trade-stat-label">Direction</div>
+            <div class="trade-stat-value">Short</div>
+          </div>
+          <div class="trade-stat">
+            <div class="trade-stat-label">R:R</div>
+            <div class="trade-stat-value">2.5:1</div>
+          </div>
+        </div>
+      </div>
+
+      <h4>Scenario</h4>
+      <p style="background: rgba(77, 166, 255, 0.1); padding: 15px; border-radius: 8px;">
+        It's 10:15 AM. Weekly is bearish (in a downtrend). Daily shows price pulled up into a bearish FVG yesterday. 4H shows price approaching PDH with momentum slowing. The 9:30 session opened and pushed up, now testing PDH.
+      </p>
+
+      <h4>What Happens</h4>
+      <div class="steps">
+        <div class="step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <div class="step-title">Sweep Occurs at 10:12 AM</div>
+            <div class="step-desc">Price wicks above PDH but the 5m candle closes back below. The sweep is confirmed - bulls failed to hold above the level.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <div class="step-title">CHoCH Forms at 10:18 AM</div>
+            <div class="step-desc">On the 5m chart, price breaks below the previous swing low, creating a CHoCH. A bearish FVG forms in the move down.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <div class="step-title">Entry Zone Identified</div>
+            <div class="step-desc">The FVG is in the premium zone (above 50% of the new range). There's also an OB overlapping - Golden Zone confirmed.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <div class="step-title">Entry at 10:25 AM</div>
+            <div class="step-desc">Price retraces into the Golden Zone. Enter short. Stop above the sweep high (15 points). Target PDL (37 points away). R:R = 2.5:1.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">5</div>
+          <div class="step-content">
+            <div class="step-title">Target Hit at 11:45 AM</div>
+            <div class="step-desc">Price continues lower, hits PDL. Trade closed for +37 points. Risk was 15 points = 2.5R profit.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="trade-example">
+      <div class="trade-header">
+        <div class="trade-title">Example 2: Run Setup (Bullish Continuation)</div>
+        <div class="trade-stats">
+          <div class="trade-stat">
+            <div class="trade-stat-label">Type</div>
+            <div class="trade-stat-value">Run</div>
+          </div>
+          <div class="trade-stat">
+            <div class="trade-stat-label">Direction</div>
+            <div class="trade-stat-value">Long</div>
+          </div>
+          <div class="trade-stat">
+            <div class="trade-stat-label">R:R</div>
+            <div class="trade-stat-value">3:1</div>
+          </div>
+        </div>
+      </div>
+
+      <h4>Scenario</h4>
+      <p style="background: rgba(77, 166, 255, 0.1); padding: 15px; border-radius: 8px;">
+        It's 10:45 AM. Weekly is bullish. Daily closed strong yesterday, just below PDH. 4H shows clear bullish BOS with price in an uptrend. The morning session already broke above PDH - this is a potential run, not a sweep.
+      </p>
+
+      <h4>What Happens</h4>
+      <div class="steps">
+        <div class="step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <div class="step-title">Run Confirmed at 10:30 AM</div>
+            <div class="step-desc">A 15m candle closes above PDH with a strong body. An FVG forms in the breakout candle, overlapping with PDH level.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <div class="step-title">Wait for Retest</div>
+            <div class="step-desc">Price continues up briefly, then pulls back toward the FVG/PDH level. This is the retest.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <div class="step-title">Entry at 10:52 AM</div>
+            <div class="step-desc">Price touches the FVG. Enter long. Stop below the FVG (12 points). Target next external liquidity - weekly swing high (36 points away). R:R = 3:1.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <div class="step-title">Target Hit at 12:30 PM</div>
+            <div class="step-desc">Price respects the FVG and continues higher. Weekly swing high reached. Trade closed for +36 points. Risk was 12 = 3R profit.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="trade-example">
+      <div class="trade-header">
+        <div class="trade-title">Example 3: ORB Setup (Bullish Breakout)</div>
+        <div class="trade-stats">
+          <div class="trade-stat">
+            <div class="trade-stat-label">Type</div>
+            <div class="trade-stat-value">ORB</div>
+          </div>
+          <div class="trade-stat">
+            <div class="trade-stat-label">Direction</div>
+            <div class="trade-stat-value">Long</div>
+          </div>
+          <div class="trade-stat">
+            <div class="trade-stat-label">R:R</div>
+            <div class="trade-stat-value">2:1</div>
+          </div>
+        </div>
+      </div>
+
+      <h4>Scenario</h4>
+      <p style="background: rgba(77, 166, 255, 0.1); padding: 15px; border-radius: 8px;">
+        It's 9:45 AM. The first 15m candle just closed. 4H bias is bullish (clear uptrend with bullish BOS). ORB range is 28 points (reasonable width). Price is consolidating within the range.
+      </p>
+
+      <h4>What Happens</h4>
+      <div class="steps">
+        <div class="step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <div class="step-title">ORB Range Marked</div>
+            <div class="step-desc">ORB High and ORB Low marked from the 9:30-9:45 candle. Range = 28 points. 4H is bullish, so we favor long breakouts.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <div class="step-title">Breakout at 10:05 AM</div>
+            <div class="step-desc">A 5m candle closes above the ORB High. An FVG forms in the breakout move. Breakout direction matches 4H bias - setup is valid.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <div class="step-title">Entry at 10:12 AM</div>
+            <div class="step-desc">Price pulls back to retest the ORB High / FVG zone. Enter long. Stop below ORB Low (14 points below entry). Target PDH (28 points away). R:R = 2:1.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <div class="step-title">Target Hit at 11:00 AM</div>
+            <div class="step-desc">Price respects the retest and continues higher. PDH reached. Trade closed for +28 points. Risk was 14 = 2R profit.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Decision Tree -->
+    <div class="card">
+      <div class="card-title">
+        <span class="badge gold">QUICK REFERENCE</span>
+        Setup Decision Tree
+      </div>
+
+      <div class="diagram">
+        <div class="diagram-title">Which Setup Do I Use?</div>
+        <div class="ascii">
+                                   <span class="white">START</span>
+                                      │
+                                      ▼
+                    ┌─────────────────────────────────────┐
+                    │  Is HTF bias clear (W/D aligned)?   │
+                    └─────────────────┬───────────────────┘
+                                      │
+                     ┌────────────────┴────────────────┐
+                     │                                 │
+                   <span class="green">YES</span>                               <span class="red">NO</span>
+                     │                                 │
+                     ▼                                 ▼
+    ┌─────────────────────────────┐          ┌─────────────────┐
+    │   Is price at key level?    │          │   <span class="red">NO TRADE</span>       │
+    │   (PDH/PDL/swing H/L)       │          │   Wait for      │
+    └─────────────┬───────────────┘          │   clarity       │
+                  │                          └─────────────────┘
+     ┌────────────┴────────────┐
+     │                         │
+   <span class="green">YES</span>                        <span class="blue">NO</span>
+     │                         │
+     ▼                         ▼
+┌─────────────────┐    ┌─────────────────────────┐
+│ Did price SWEEP │    │   Is it 9:30-10:00 AM?  │
+│ (wick through,  │    └───────────┬─────────────┘
+│ close back)?    │                │
+└────────┬────────┘       ┌────────┴────────┐
+         │                │                 │
+    ┌────┴────┐         <span class="green">YES</span>               <span class="blue">NO</span>
+    │         │           │                 │
+  <span class="green">YES</span>       <span class="blue">NO</span>           ▼                 ▼
+    │         │    ┌─────────────┐   ┌─────────────────┐
+    ▼         │    │ <span class="white">ORB SETUP</span>   │   │  Wait for setup │
+┌─────────┐   │    │ Mark range, │   │  or check for   │
+│ <span class="gold">SWEEP</span>   │   │    │ trade break │   │  Run at level   │
+│ <span class="gold">SETUP</span>   │   │    └─────────────┘   └─────────────────┘
+│ (CRT)   │   │
+└─────────┘   │
+              ▼
+    ┌─────────────────┐
+    │ Did price CLOSE │
+    │ beyond level    │
+    │ with FVG?       │
+    └────────┬────────┘
+             │
+        ┌────┴────┐
+        │         │
+      <span class="green">YES</span>       <span class="red">NO</span>
+        │         │
+        ▼         ▼
+  ┌─────────┐  ┌─────────────────┐
+  │ <span class="blue">RUN</span>     │  │   Wait for      │
+  │ <span class="blue">SETUP</span>   │  │   clearer setup │
+  └─────────┘  └─────────────────┘
+        </div>
+      </div>
+    </div>
+
+    <!-- Final Summary -->
+    <div class="card green">
+      <div class="card-title">
+        <span class="badge">SUMMARY</span>
+        The Complete Framework
+      </div>
+
+      <div class="key-point gold">
+        <strong>The One-Sentence Summary:</strong> Use Top-Down Analysis to find bias, identify what's happening at external liquidity (Sweep, Run, or ORB), then enter at internal liquidity (FVG/OB in the correct zone) and target the next external liquidity.
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>Question</th>
+            <th>Tools</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>1. Bias (TDA)</strong></td>
+            <td>Which direction should I trade?</td>
+            <td>Weekly → Daily → 4H structure</td>
+          </tr>
+          <tr>
+            <td><strong>2. Setup Type</strong></td>
+            <td>What's happening at external liquidity?</td>
+            <td>Sweep (reversal), Run (continuation), ORB (range break)</td>
+          </tr>
+          <tr>
+            <td><strong>3. Entry</strong></td>
+            <td>Where exactly do I enter?</td>
+            <td>FVG or OB in Premium (shorts) / Discount (longs). Golden Zone = best.</td>
+          </tr>
+          <tr>
+            <td><strong>4. Stop</strong></td>
+            <td>Where am I wrong?</td>
+            <td>Beyond entry zone (FVG/OB). Beyond sweep high/low for Sweep setups.</td>
+          </tr>
+          <tr>
+            <td><strong>5. Target</strong></td>
+            <td>Where do I take profit?</td>
+            <td>Next external liquidity (PDH/PDL, swing H/L, session levels)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p style="text-align: center; margin-top: 30px; color: #888;">
+        Master this framework. Practice it. Trust it.<br>
+        <span style="color: #00d4aa; font-weight: 600;">The edge is in the execution, not the complexity.</span>
+      </p>
+    </div>
+
+  </div>
+</body>
+</html>

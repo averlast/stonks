@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SMC Mastery Quiz - Endless Practice</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #0a0a0f 0%, #0d1117 100%);
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    .container { max-width: 800px; margin: 0 auto; }
+
+    h1 {
+      font-size: 2.5rem;
+      background: linear-gradient(135deg, #00d4aa 0%, #4da6ff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #888;
+      margin-bottom: 40px;
+    }
+
+    /* Stats Bar */
+    .stats-bar {
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      margin-bottom: 40px;
+      flex-wrap: wrap;
+    }
+
+    .stat {
+      background: #1a1a2e;
+      padding: 15px 25px;
+      border-radius: 12px;
+      text-align: center;
+      min-width: 100px;
+    }
+
+    .stat-value {
+      font-size: 1.8rem;
+      font-weight: bold;
+      color: #00d4aa;
+    }
+
+    .stat-value.wrong { color: #ff6b6b; }
+    .stat-value.streak { color: #d4a000; }
+
+    .stat-label {
+      font-size: 0.85rem;
+      color: #888;
+      margin-top: 5px;
+    }
+
+    /* Category Filter */
+    .category-filter {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      background: #1a1a2e;
+      border: 2px solid #2a2a4a;
+      color: #888;
+      padding: 8px 16px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+
+    .filter-btn:hover {
+      border-color: #4da6ff;
+      color: #4da6ff;
+    }
+
+    .filter-btn.active {
+      background: #4da6ff;
+      border-color: #4da6ff;
+      color: #0a0a0f;
+    }
+
+    /* Question Card */
+    .question-card {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      border-radius: 20px;
+      padding: 40px;
+      margin-bottom: 30px;
+      border: 1px solid #2a2a4a;
+    }
+
+    .question-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+    }
+
+    .question-number {
+      color: #888;
+      font-size: 0.9rem;
+    }
+
+    .question-category {
+      background: #4da6ff;
+      color: #0a0a0f;
+      padding: 4px 12px;
+      border-radius: 15px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .question-category.fvg { background: #00d4aa; }
+    .question-category.ob { background: #4da6ff; }
+    .question-category.structure { background: #9b59b6; }
+    .question-category.liquidity { background: #ff6b6b; }
+    .question-category.setup { background: #d4a000; }
+    .question-category.tda { background: #3498db; }
+    .question-category.zones { background: #e74c3c; }
+
+    .question-text {
+      font-size: 1.3rem;
+      color: #fff;
+      line-height: 1.6;
+      margin-bottom: 30px;
+    }
+
+    /* Diagram in question */
+    .question-diagram {
+      background: #0a0a0f;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 25px;
+      font-family: "Monaco", "Menlo", monospace;
+      font-size: 12px;
+      line-height: 1.4;
+      white-space: pre;
+      overflow-x: auto;
+      color: #888;
+    }
+
+    .question-diagram .green { color: #00d4aa; }
+    .question-diagram .red { color: #ff6b6b; }
+    .question-diagram .blue { color: #4da6ff; }
+    .question-diagram .gold { color: #d4a000; }
+    .question-diagram .white { color: #fff; }
+
+    /* Answer Options */
+    .options {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .option {
+      background: #0d0d15;
+      border: 2px solid #2a2a4a;
+      border-radius: 12px;
+      padding: 18px 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .option:hover:not(.disabled) {
+      border-color: #4da6ff;
+      background: rgba(77, 166, 255, 0.1);
+    }
+
+    .option.selected {
+      border-color: #4da6ff;
+      background: rgba(77, 166, 255, 0.15);
+    }
+
+    .option.correct {
+      border-color: #00d4aa;
+      background: rgba(0, 212, 170, 0.15);
+    }
+
+    .option.incorrect {
+      border-color: #ff6b6b;
+      background: rgba(255, 107, 107, 0.15);
+    }
+
+    .option.disabled {
+      cursor: default;
+      opacity: 0.7;
+    }
+
+    .option-letter {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #2a2a4a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      color: #888;
+      flex-shrink: 0;
+    }
+
+    .option.selected .option-letter {
+      background: #4da6ff;
+      color: #0a0a0f;
+    }
+
+    .option.correct .option-letter {
+      background: #00d4aa;
+      color: #0a0a0f;
+    }
+
+    .option.incorrect .option-letter {
+      background: #ff6b6b;
+      color: #0a0a0f;
+    }
+
+    .option-text {
+      color: #c0c0c0;
+      flex: 1;
+    }
+
+    /* Explanation */
+    .explanation {
+      background: linear-gradient(90deg, rgba(0, 212, 170, 0.1) 0%, transparent 100%);
+      border-left: 4px solid #00d4aa;
+      padding: 20px;
+      margin-top: 25px;
+      border-radius: 0 12px 12px 0;
+      display: none;
+    }
+
+    .explanation.wrong {
+      background: linear-gradient(90deg, rgba(255, 107, 107, 0.1) 0%, transparent 100%);
+      border-left-color: #ff6b6b;
+    }
+
+    .explanation.show { display: block; }
+
+    .explanation-title {
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #00d4aa;
+    }
+
+    .explanation.wrong .explanation-title { color: #ff6b6b; }
+
+    .explanation-text { color: #c0c0c0; line-height: 1.6; }
+
+    /* Next Button */
+    .next-btn {
+      display: none;
+      width: 100%;
+      background: linear-gradient(135deg, #00d4aa 0%, #00a888 100%);
+      border: none;
+      color: #0a0a0f;
+      padding: 18px;
+      border-radius: 12px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 25px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .next-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px rgba(0, 212, 170, 0.3);
+    }
+
+    .next-btn.show { display: block; }
+
+    /* Progress Ring */
+    .progress-section {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .progress-ring {
+      width: 120px;
+      height: 120px;
+      margin: 0 auto 15px;
+    }
+
+    .progress-ring-circle {
+      transition: stroke-dashoffset 0.5s;
+      transform: rotate(-90deg);
+      transform-origin: 50% 50%;
+    }
+
+    .progress-percentage {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #00d4aa;
+    }
+
+    .progress-label {
+      color: #888;
+      font-size: 0.9rem;
+    }
+
+    /* Reset Button */
+    .reset-btn {
+      background: transparent;
+      border: 2px solid #ff6b6b;
+      color: #ff6b6b;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      margin-top: 20px;
+      transition: all 0.2s;
+    }
+
+    .reset-btn:hover {
+      background: #ff6b6b;
+      color: #0a0a0f;
+    }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      .question-card { padding: 25px; }
+      .question-text { font-size: 1.1rem; }
+      .stats-bar { gap: 15px; }
+      .stat { padding: 12px 18px; min-width: 80px; }
+      .stat-value { font-size: 1.4rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>SMC Mastery Quiz</h1>
+    <p class="subtitle">Endless practice to solidify your understanding</p>
+
+    <!-- Stats -->
+    <div class="stats-bar">
+      <div class="stat">
+        <div class="stat-value" id="correct-count">0</div>
+        <div class="stat-label">Correct</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value wrong" id="wrong-count">0</div>
+        <div class="stat-label">Wrong</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value streak" id="streak-count">0</div>
+        <div class="stat-label">Streak</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="accuracy">0%</div>
+        <div class="stat-label">Accuracy</div>
+      </div>
+    </div>
+
+    <!-- Category Filter -->
+    <div class="category-filter">
+      <button class="filter-btn active" data-category="all">All Topics</button>
+      <button class="filter-btn" data-category="fvg">FVGs</button>
+      <button class="filter-btn" data-category="ob">Order Blocks</button>
+      <button class="filter-btn" data-category="structure">BOS/CHoCH</button>
+      <button class="filter-btn" data-category="liquidity">Liquidity</button>
+      <button class="filter-btn" data-category="setup">Setups</button>
+      <button class="filter-btn" data-category="tda">TDA</button>
+      <button class="filter-btn" data-category="zones">Zones</button>
+    </div>
+
+    <!-- Question Card -->
+    <div class="question-card">
+      <div class="question-header">
+        <span class="question-number">Question #<span id="q-num">1</span></span>
+        <span class="question-category" id="q-category">FVG</span>
+      </div>
+      <div class="question-text" id="q-text">Loading question...</div>
+      <div class="question-diagram" id="q-diagram" style="display: none;"></div>
+      <div class="options" id="options"></div>
+      <div class="explanation" id="explanation">
+        <div class="explanation-title" id="exp-title">Correct!</div>
+        <div class="explanation-text" id="exp-text"></div>
+      </div>
+      <button class="next-btn" id="next-btn">Next Question →</button>
+    </div>
+
+    <div style="text-align: center;">
+      <button class="reset-btn" id="reset-btn">Reset Progress</button>
+    </div>
+  </div>
+
+  <script>
+    // ===== QUESTION BANK =====
+    const questions = [
+      // FVG QUESTIONS
+      {
+        category: "fvg",
+        question: "What creates a Fair Value Gap (FVG)?",
+        options: [
+          "When the wicks of candle 1 and candle 3 don't overlap",
+          "When two consecutive candles are the same color",
+          "When price moves sideways for 3+ candles",
+          "When volume exceeds the daily average"
+        ],
+        correct: 0,
+        explanation: "An FVG forms when there's a gap between candle 1's wick and candle 3's wick in a 3-candle sequence. This imbalance zone acts as a magnet for price."
+      },
+      {
+        category: "fvg",
+        question: "In an UPTREND, which type of FVG should you use for entries?",
+        options: [
+          "Bearish FVGs",
+          "Bullish FVGs",
+          "Either type works equally well",
+          "Only FVGs near the 200 EMA"
+        ],
+        correct: 1,
+        explanation: "Always align FVGs with order flow. In an uptrend, use bullish FVGs for long entries. Trading bearish FVGs in an uptrend means trading against the trend."
+      },
+      {
+        category: "fvg",
+        question: "What happens when price touches an FVG, even briefly?",
+        options: [
+          "The FVG becomes stronger",
+          "Nothing changes",
+          "The FVG becomes mitigated/weakened",
+          "A new FVG automatically forms"
+        ],
+        correct: 2,
+        explanation: "Once price touches an FVG (even barely), it's considered mitigated and weakened. Only trade fresh, untouched FVGs for the highest probability setups."
+      },
+      {
+        category: "fvg",
+        question: "What is a 'Breakaway Gap'?",
+        options: [
+          "When the FVG forms during a news event",
+          "When the 3rd candle continues in the same direction as the move",
+          "When the 3rd candle reverses against the move",
+          "When two FVGs form back-to-back"
+        ],
+        correct: 1,
+        explanation: "A Breakaway Gap occurs when the 3rd candle continues in the direction of the move (e.g., bullish FVG followed by another bullish candle). These are the strongest FVGs to trade."
+      },
+      {
+        category: "fvg",
+        question: "What is a 'Rejection Gap' and what should you do with it?",
+        options: [
+          "A strong FVG - trade it aggressively",
+          "An FVG where the 3rd candle reverses - avoid trading it",
+          "An FVG that forms at support - always trade it",
+          "An FVG that has been retested once"
+        ],
+        correct: 1,
+        explanation: "A Rejection Gap forms when the 3rd candle reverses (e.g., bullish FVG but 3rd candle is bearish). This shows weakness - avoid these FVGs as they have lower probability."
+      },
+      {
+        category: "fvg",
+        question: "According to the rules, when are FVGs the STRONGEST?",
+        options: [
+          "During consolidation periods",
+          "When they form at round numbers",
+          "When they form during a liquidity run (breakout through key level)",
+          "When they're very large in size"
+        ],
+        correct: 2,
+        explanation: "FVGs that form during or right after a liquidity run (price breaking through a key level) are the highest probability. Institutions are defending the breakout."
+      },
+      {
+        category: "fvg",
+        question: "If two consecutive FVGs fail in both directions, what does this indicate?",
+        options: [
+          "A strong trend is about to start",
+          "You're in consolidation/chop - wait for clarity",
+          "You should trade the next FVG with larger size",
+          "Switch to a lower timeframe"
+        ],
+        correct: 1,
+        explanation: "When FVGs keep failing in both directions, you're in a consolidation area. Wait until you see two consecutive FVGs being respected before trading again."
+      },
+      {
+        category: "fvg",
+        question: "How can you get a more precise entry when trading a 4H FVG?",
+        options: [
+          "Enter immediately when price touches the 4H FVG",
+          "Wait for price to completely fill the FVG",
+          "Drop to 15m/5m and find a smaller FVG inside the 4H FVG",
+          "Only enter at the exact 50% level"
+        ],
+        correct: 2,
+        explanation: "Stack timeframes for precision. Find a higher TF FVG (like 4H), then drop to a lower TF (15m/5m) to find a smaller FVG within it. This gives you HTF confluence with LTF precision."
+      },
+
+      // ORDER BLOCK QUESTIONS
+      {
+        category: "ob",
+        question: "What candle color makes up a BULLISH Order Block?",
+        options: [
+          "Bullish (green) candles",
+          "Bearish (red) candles",
+          "A mix of both colors",
+          "Only doji candles"
+        ],
+        correct: 1,
+        explanation: "A bullish OB is made of BEARISH candles - it's the last sellers before buyers took over. This is counter-intuitive but crucial to understand."
+      },
+      {
+        category: "ob",
+        question: "When is an Order Block officially validated?",
+        options: [
+          "As soon as the opposing candles form",
+          "When price returns to the zone",
+          "After a Break of Structure (BOS) through the highest/lowest wick",
+          "When volume confirms the zone"
+        ],
+        correct: 2,
+        explanation: "An OB is only validated AFTER a BOS occurs. For a bullish OB, price must break above the highest wick of the bearish candles. Before BOS, it's just candles - not an OB."
+      },
+      {
+        category: "ob",
+        question: "How should you mark out an Order Block zone?",
+        options: [
+          "From wick to wick",
+          "From the first candle's open to the last candle's close (bodies only)",
+          "From the highest high to the lowest low",
+          "Only mark the largest candle"
+        ],
+        correct: 1,
+        explanation: "Mark OBs from the first candle's OPEN to the last candle's CLOSE - using bodies, not wicks. The bodies define the zone where orders were placed."
+      },
+      {
+        category: "ob",
+        question: "What invalidates an Order Block sequence?",
+        options: [
+          "Having more than 3 candles",
+          "An opposing colored candle in between the sequence",
+          "The candles being too small",
+          "Forming during low volume"
+        ],
+        correct: 1,
+        explanation: "OB candles must be sequential with no opposing colored candles in between. If a bullish candle interrupts a sequence of bearish candles, the sequence is broken."
+      },
+      {
+        category: "ob",
+        question: "Can you use an Order Block more than once?",
+        options: [
+          "Yes, OBs can be used multiple times",
+          "Only if the first touch was a wick",
+          "No - once mitigated, the orders are filled and it's 'used up'",
+          "Yes, but only on higher timeframes"
+        ],
+        correct: 2,
+        explanation: "Once price touches an OB, it's mitigated - the orders have been filled. Never trade the same OB twice as there's no longer a reason for price to react there."
+      },
+      {
+        category: "ob",
+        question: "Which part of an Order Block typically sees the strongest reaction?",
+        options: [
+          "The top of the OB",
+          "The bottom of the OB",
+          "The 50% midpoint level",
+          "The wicks outside the body zone"
+        ],
+        correct: 2,
+        explanation: "The 50% midpoint of an OB is typically where the strongest reactions occur. This is where the most concentrated order flow sits. Consider this your optimal entry point within the OB."
+      },
+      {
+        category: "ob",
+        question: "What creates a high-probability Order Block?",
+        options: [
+          "Large candles with big wicks",
+          "OBs that form from a previous PD array (sweep, FVG rejection, key level)",
+          "OBs that form during news events",
+          "Any OB on the 1-minute chart"
+        ],
+        correct: 1,
+        explanation: "High-probability OBs form after sweeps, at FVG rejections, or at key levels. Random OBs without context from a PD array are lower probability."
+      },
+
+      // GOLDEN ZONE QUESTIONS
+      {
+        category: "zones",
+        question: "What creates a 'Golden Zone'?",
+        options: [
+          "When price reaches the 61.8% Fibonacci level",
+          "When an Order Block and Fair Value Gap overlap",
+          "When two FVGs form at the same level",
+          "When price is at the daily open"
+        ],
+        correct: 1,
+        explanation: "A Golden Zone occurs when an OB has an FVG overlapping it. This is the highest probability entry zone - institutions have both unfilled orders AND an imbalance to fill."
+      },
+      {
+        category: "zones",
+        question: "How should you treat Golden Zone setups compared to regular FVGs?",
+        options: [
+          "Avoid them - they're too crowded",
+          "Trade them the same way",
+          "Prioritize them with more confidence - use tighter stops or larger size",
+          "Only trade them on daily timeframe"
+        ],
+        correct: 2,
+        explanation: "Golden Zones are the highest probability setups. Prioritize them above regular FVGs or OBs. You can trade with more confidence - tighter stops and/or larger size (within risk rules)."
+      },
+
+      // PREMIUM/DISCOUNT QUESTIONS
+      {
+        category: "zones",
+        question: "For a LONG trade, where should your entry FVG ideally be?",
+        options: [
+          "In the premium zone (above 50%)",
+          "In the discount zone (below 50%)",
+          "Exactly at the 50% level",
+          "Anywhere in the range"
+        ],
+        correct: 1,
+        explanation: "For longs, enter in the DISCOUNT zone (below 50% of the range). Price is 'cheap' here. For shorts, enter in the PREMIUM zone (above 50%) where price is 'expensive'."
+      },
+      {
+        category: "zones",
+        question: "What does 'Premium' zone mean?",
+        options: [
+          "A paid subscription area",
+          "The area below 50% of the range - price is cheap",
+          "The area above 50% of the range - price is expensive",
+          "The strongest part of an FVG"
+        ],
+        correct: 2,
+        explanation: "Premium = above 50% = price is 'expensive' = ideal for SHORT entries. Discount = below 50% = price is 'cheap' = ideal for LONG entries."
+      },
+
+      // BOS/CHOCH QUESTIONS
+      {
+        category: "structure",
+        question: "What does BOS (Break of Structure) confirm?",
+        options: [
+          "A potential reversal is coming",
+          "Trend CONTINUATION - the current trend remains valid",
+          "You should exit all positions",
+          "Consolidation is starting"
+        ],
+        correct: 1,
+        explanation: "BOS confirms trend CONTINUATION. A bullish BOS (breaking above swing high) confirms the uptrend continues. A bearish BOS (breaking below swing low) confirms the downtrend continues."
+      },
+      {
+        category: "structure",
+        question: "What does CHoCH (Change of Character) signal?",
+        options: [
+          "Trend continuation confirmed",
+          "The FIRST break against the current trend - potential reversal warning",
+          "Strong momentum in the current direction",
+          "Time to add to your position"
+        ],
+        correct: 1,
+        explanation: "CHoCH is the FIRST break against the current trend. It signals a potential reversal but is not confirmation yet - it's a warning. Wait for further confirmation before trading the reversal."
+      },
+      {
+        category: "structure",
+        question: "In an uptrend, where would a bearish CHoCH form?",
+        options: [
+          "Above the previous swing high",
+          "Below the previous swing low",
+          "At the 50% level",
+          "At the daily open"
+        ],
+        correct: 1,
+        explanation: "In an uptrend, a bearish CHoCH forms when price breaks BELOW a swing low for the first time. This is the first sign the uptrend may be reversing."
+      },
+      {
+        category: "structure",
+        question: "What is the 'Silver Bullet' FVG?",
+        options: [
+          "Any FVG on the 1-minute chart",
+          "The first FVG that forms after a CHoCH (during the reversal move)",
+          "An FVG that spans multiple timeframes",
+          "A very small FVG"
+        ],
+        correct: 1,
+        explanation: "The Silver Bullet is the first FVG that forms after a CHoCH, during the move that creates the CHoCH. It marks the start of the new trend and is the highest probability entry FVG."
+      },
+
+      // LIQUIDITY QUESTIONS
+      {
+        category: "liquidity",
+        question: "What is External Liquidity?",
+        options: [
+          "FVGs and Order Blocks",
+          "Swing highs and lows where stop losses cluster - these are TARGETS",
+          "Moving averages",
+          "Volume profile levels"
+        ],
+        correct: 1,
+        explanation: "External Liquidity = swing highs/lows, PDH/PDL, session highs/lows. These are where stop losses cluster and are TARGETS for price movement. You EXIT trades at external liquidity."
+      },
+      {
+        category: "liquidity",
+        question: "What is Internal Liquidity?",
+        options: [
+          "Previous day high and low",
+          "FVGs and Order Blocks - these are ENTRY zones",
+          "Swing highs and lows",
+          "VWAP levels"
+        ],
+        correct: 1,
+        explanation: "Internal Liquidity = FVGs and OBs. These are imbalance zones that act as ENTRY points. Price uses internal liquidity as fuel to reach external liquidity."
+      },
+      {
+        category: "liquidity",
+        question: "Complete this principle: 'Price moves FROM _____ TO _____'",
+        options: [
+          "External liquidity TO Internal liquidity",
+          "Internal liquidity TO External liquidity",
+          "Support TO Resistance",
+          "Low volume TO High volume"
+        ],
+        correct: 1,
+        explanation: "Price moves FROM internal liquidity (FVG/OB - your entry) TO external liquidity (PDH/PDL/swings - your target). This is the master principle of SMC."
+      },
+      {
+        category: "liquidity",
+        question: "What is a Liquidity SWEEP?",
+        options: [
+          "Price closes beyond a key level and continues",
+          "Price wicks through a key level but closes back inside - REVERSAL signal",
+          "Price consolidates at a level",
+          "Price gaps through a level"
+        ],
+        correct: 1,
+        explanation: "A SWEEP occurs when price wicks through external liquidity but FAILS to close beyond it. This signals a reversal - the level rejected price. Look for CHoCH and short/long the reversal."
+      },
+      {
+        category: "liquidity",
+        question: "What is a Liquidity RUN?",
+        options: [
+          "Price wicks through but closes back inside",
+          "Price CLOSES beyond a key level with an FVG - CONTINUATION signal",
+          "Price moves very quickly",
+          "A failed breakout"
+        ],
+        correct: 1,
+        explanation: "A RUN occurs when price CLOSES beyond external liquidity, often with an FVG forming. This confirms continuation - trade the pullback to the FVG for continuation in that direction."
+      },
+
+      // SETUP QUESTIONS
+      {
+        category: "setup",
+        question: "What is the AMD framework?",
+        options: [
+          "Advanced Market Dynamics",
+          "Accumulation, Manipulation, Distribution - the 3 phases of a setup",
+          "A type of order block",
+          "A volume indicator"
+        ],
+        correct: 1,
+        explanation: "AMD = Accumulation (range forms), Manipulation (sweep/fake-out), Distribution (the real move). Sweep setups follow this pattern - enter during Distribution after Manipulation confirms."
+      },
+      {
+        category: "setup",
+        question: "In a Sweep setup, when should you enter?",
+        options: [
+          "As soon as price touches the key level",
+          "After the sweep AND CHoCH, at the FVG formed during the reversal move",
+          "Before the sweep occurs",
+          "Only if price sweeps twice"
+        ],
+        correct: 1,
+        explanation: "Wait for: 1) Sweep of external liquidity (price fails to close beyond), 2) CHoCH confirmation, 3) Enter at the FVG that formed during the CHoCH move. Don't anticipate - wait for confirmation."
+      },
+      {
+        category: "setup",
+        question: "What's the key difference between a Sweep and a Run?",
+        options: [
+          "Sweeps are faster than Runs",
+          "Sweep = wicks through, closes back (reversal). Run = closes through (continuation)",
+          "Runs only happen at PDH/PDL",
+          "Sweeps only happen in downtrends"
+        ],
+        correct: 1,
+        explanation: "SWEEP: Wicks through level, closes back inside → REVERSAL setup. RUN: Closes through level with FVG → CONTINUATION setup. The close location determines everything."
+      },
+      {
+        category: "setup",
+        question: "For the ORB setup, which candle defines the range?",
+        options: [
+          "The last candle of the previous day",
+          "The first 15-minute candle after 9:30 AM ET",
+          "Any candle with high volume",
+          "The pre-market high and low"
+        ],
+        correct: 1,
+        explanation: "The ORB (Opening Range Breakout) uses the first 15-minute candle after 9:30 AM ET. Mark the high and low of this candle - these become your ORB levels."
+      },
+      {
+        category: "setup",
+        question: "How should you filter ORB breakouts?",
+        options: [
+          "Trade every breakout",
+          "Only trade breakouts that align with the 4H bias direction",
+          "Only trade against the overnight move",
+          "Wait for 3 breakouts before trading"
+        ],
+        correct: 1,
+        explanation: "Filter ORB breakouts using 4H bias. If 4H is bullish, only trade ORB HIGH breakouts. If 4H is bearish, only trade ORB LOW breakouts. Ignore breakouts that conflict with 4H direction."
+      },
+      {
+        category: "setup",
+        question: "What's the best entry method for ORB trades?",
+        options: [
+          "Enter immediately when price breaks the level",
+          "Wait for the retest of the ORB level or FVG that formed during breakout",
+          "Enter before the breakout in anticipation",
+          "Only enter at session close"
+        ],
+        correct: 1,
+        explanation: "The retest entry is preferred. Wait for price to break the ORB level, then pull back to retest it (or retest the FVG formed during the break). This reduces false breakout risk and improves R:R."
+      },
+
+      // TDA QUESTIONS
+      {
+        category: "tda",
+        question: "In Top-Down Analysis, which timeframe takes priority?",
+        options: [
+          "The entry timeframe (5m)",
+          "The highest timeframe always takes priority",
+          "Whatever timeframe has the clearest pattern",
+          "The timeframe with the most volume"
+        ],
+        correct: 1,
+        explanation: "Higher timeframes ALWAYS take priority. If the weekly is bearish, a bullish 15m setup is fighting the current. Always align with the bigger picture first."
+      },
+      {
+        category: "tda",
+        question: "What is the purpose of the Weekly/Daily timeframes in TDA?",
+        options: [
+          "To find precise entries",
+          "To establish directional BIAS and identify key levels",
+          "To set stop losses",
+          "To count candles"
+        ],
+        correct: 1,
+        explanation: "Weekly/Daily = Higher timeframes = BIAS. They tell you which direction to trade and where major levels are. You don't enter trades on these - just determine direction."
+      },
+      {
+        category: "tda",
+        question: "What is the purpose of the 4H/1H timeframes in TDA?",
+        options: [
+          "To establish the overall trend",
+          "To find trade SETUPS that align with higher TF bias",
+          "To execute entries",
+          "Only for swing traders"
+        ],
+        correct: 1,
+        explanation: "4H/1H = Medium timeframes = SETUP IDENTIFICATION. Look for FVGs, OBs, and structure (BOS/CHoCH) that align with your HTF bias. This is where you identify potential trades."
+      },
+      {
+        category: "tda",
+        question: "What is the purpose of the 15m/5m timeframes in TDA?",
+        options: [
+          "To determine weekly bias",
+          "To find key levels",
+          "To EXECUTE entries with precision timing",
+          "To identify swing highs and lows"
+        ],
+        correct: 2,
+        explanation: "15m/5m = Lower timeframes = ENTRY EXECUTION. Once you have HTF bias and MTF setup, drop to LTF to find your exact entry FVG and time your trade precisely."
+      },
+      {
+        category: "tda",
+        question: "What should you do if your timeframes are misaligned (e.g., Daily bullish, 4H bearish)?",
+        options: [
+          "Trade the lower timeframe direction",
+          "Trade the higher timeframe direction",
+          "Don't trade - wait for alignment",
+          "Trade both directions with smaller size"
+        ],
+        correct: 2,
+        explanation: "If timeframes are misaligned, DON'T TRADE. Wait for the 4H to realign with the Daily (or for the Daily to change). Conflicting timeframes create losing trades."
+      },
+      {
+        category: "tda",
+        question: "For day trading NQ in a 4-hour session, which TF cascade is recommended?",
+        options: [
+          "Monthly → Weekly → Daily",
+          "Weekly/Daily (bias) → 4H (setup) → 15m/5m (entry)",
+          "5m → 1m → Tick chart",
+          "Only use one timeframe for simplicity"
+        ],
+        correct: 1,
+        explanation: "For day trading: Weekly/Daily for macro bias → 4H for setup identification → 15m/5m for entry execution. This gives you the full picture from context to precision."
+      },
+
+      // SESSION/TIMING QUESTIONS
+      {
+        category: "setup",
+        question: "What typically happens around 10:00 AM ET?",
+        options: [
+          "Markets close for lunch",
+          "The famous '10 AM reversal' - common time for sweeps and direction changes",
+          "Volume drops to zero",
+          "Only continuation moves occur"
+        ],
+        correct: 1,
+        explanation: "The 10 AM reversal is a well-documented phenomenon. The morning move often sweeps overnight highs/lows around this time before reversing. This is a prime Sweep setup window."
+      },
+      {
+        category: "setup",
+        question: "When should you AVOID trading during the 9:30-1:30 session?",
+        options: [
+          "9:30-10:00 AM (let structure develop)",
+          "10:30-12:00 PM (primary trading window)",
+          "12:00-12:45 PM (lunch lull - choppy, low volume)",
+          "Both A and C"
+        ],
+        correct: 3,
+        explanation: "Avoid: 9:30-10:00 (don't trade yet, let structure form) AND 12:00-12:45 (lunch lull - choppy, avoid new entries). Primary trading window is 10:30-12:00."
+      },
+      {
+        category: "setup",
+        question: "What's the primary trading window during the NY session?",
+        options: [
+          "9:30-10:00 AM",
+          "10:30 AM - 12:00 PM",
+          "12:00-1:30 PM",
+          "Pre-market only"
+        ],
+        correct: 1,
+        explanation: "10:30 AM - 12:00 PM is the primary trading window. By then, structure has developed from the open, reversals have played out, and you can execute on confirmed setups."
+      },
+
+      // SCENARIO QUESTIONS
+      {
+        category: "setup",
+        question: "Scenario: Weekly is bullish, Daily pulled into a bullish FVG, 4H just made a bullish CHoCH. What do you do?",
+        options: [
+          "Look for short entries",
+          "Look for long entries at the 15m/5m FVG",
+          "Wait for more confirmation - CHoCH isn't enough",
+          "No trade - timeframes are misaligned"
+        ],
+        correct: 1,
+        explanation: "All timeframes are aligned bullish! Weekly bullish + Daily in FVG + 4H CHoCH to bull = look for long entries. Drop to 15m/5m to find an entry FVG and execute."
+      },
+      {
+        category: "setup",
+        question: "Scenario: Price swept PDH but closed back below. On the 5m, you see a CHoCH down and a bearish FVG. What setup is this?",
+        options: [
+          "Run setup - continuation long",
+          "ORB setup",
+          "Sweep setup - potential short entry at the bearish FVG",
+          "No setup - wait for more confirmation"
+        ],
+        correct: 2,
+        explanation: "This is a textbook Sweep setup! Sweep of PDH (wicked above, closed below) + CHoCH down + bearish FVG = short entry at the FVG, targeting PDL or lower."
+      },
+      {
+        category: "setup",
+        question: "Scenario: A 15m candle closes above PDH with a bullish FVG forming during the breakout. What setup is this?",
+        options: [
+          "Sweep setup - look to short",
+          "Run setup - wait for retest of FVG to go long",
+          "ORB setup",
+          "Failed breakout"
+        ],
+        correct: 1,
+        explanation: "This is a Run setup! Price CLOSED above PDH (not just wicked) and formed an FVG. Wait for price to retest the FVG, then enter long targeting the next external liquidity above."
+      },
+      {
+        category: "tda",
+        question: "Scenario: You have a bearish setup on the 15m but the 4H just made a bullish CHoCH. Should you take the trade?",
+        options: [
+          "Yes - 15m setup overrides 4H",
+          "No - 4H CHoCH bullish conflicts with bearish 15m setup. Wait.",
+          "Yes - but with half size",
+          "Only if there's a Golden Zone"
+        ],
+        correct: 1,
+        explanation: "NO - timeframes are misaligned. The 4H CHoCH to bullish means the intermediate trend may be reversing up. Your bearish 15m setup is now fighting the 4H. Wait for realignment."
+      },
+      {
+        category: "zones",
+        question: "Scenario: You find a bullish FVG. It's in the premium zone (above 50%) of the current swing. Is this ideal for a long entry?",
+        options: [
+          "Yes - FVGs in premium are strongest",
+          "No - for longs, you want FVGs in the DISCOUNT zone (below 50%)",
+          "It doesn't matter where in the range the FVG is",
+          "Only if it overlaps with an OB"
+        ],
+        correct: 1,
+        explanation: "No! For LONGS, you want FVGs in the DISCOUNT zone (below 50%) where price is 'cheap'. An FVG in premium is better suited for SHORT entries. Zone matters for optimal R:R."
+      }
+    ];
+
+    // ===== STATE =====
+    let currentQuestion = null;
+    let questionNumber = 0;
+    let correct = 0;
+    let wrong = 0;
+    let streak = 0;
+    let maxStreak = 0;
+    let answered = false;
+    let currentCategory = 'all';
+    let usedQuestions = [];
+
+    // ===== DOM ELEMENTS =====
+    const qNumEl = document.getElementById('q-num');
+    const qCategoryEl = document.getElementById('q-category');
+    const qTextEl = document.getElementById('q-text');
+    const qDiagramEl = document.getElementById('q-diagram');
+    const optionsEl = document.getElementById('options');
+    const explanationEl = document.getElementById('explanation');
+    const expTitleEl = document.getElementById('exp-title');
+    const expTextEl = document.getElementById('exp-text');
+    const nextBtnEl = document.getElementById('next-btn');
+    const correctCountEl = document.getElementById('correct-count');
+    const wrongCountEl = document.getElementById('wrong-count');
+    const streakCountEl = document.getElementById('streak-count');
+    const accuracyEl = document.getElementById('accuracy');
+    const resetBtnEl = document.getElementById('reset-btn');
+    const filterBtns = document.querySelectorAll('.filter-btn');
+
+    // ===== FUNCTIONS =====
+    function getFilteredQuestions() {
+      if (currentCategory === 'all') return questions;
+      return questions.filter(q => q.category === currentCategory);
+    }
+
+    function getRandomQuestion() {
+      const filtered = getFilteredQuestions();
+      if (filtered.length === 0) return null;
+
+      // Reset used questions if we've gone through all
+      const availableIndices = filtered.map((_, i) => i).filter(i => !usedQuestions.includes(filtered[i]));
+
+      if (availableIndices.length === 0) {
+        usedQuestions = [];
+        return filtered[Math.floor(Math.random() * filtered.length)];
+      }
+
+      const randomIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)];
+      const question = filtered[randomIndex];
+      usedQuestions.push(question);
+      return question;
+    }
+
+    function shuffleOptions(question) {
+      // Create array of options with their original indices
+      const optionsWithIndex = question.options.map((opt, idx) => ({ text: opt, originalIndex: idx }));
+
+      // Shuffle
+      for (let i = optionsWithIndex.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [optionsWithIndex[i], optionsWithIndex[j]] = [optionsWithIndex[j], optionsWithIndex[i]];
+      }
+
+      // Find new correct index
+      const newCorrectIndex = optionsWithIndex.findIndex(opt => opt.originalIndex === question.correct);
+
+      return {
+        options: optionsWithIndex.map(opt => opt.text),
+        correct: newCorrectIndex
+      };
+    }
+
+    function loadQuestion() {
+      answered = false;
+      currentQuestion = getRandomQuestion();
+
+      if (!currentQuestion) {
+        qTextEl.textContent = "No questions available for this category.";
+        optionsEl.innerHTML = '';
+        return;
+      }
+
+      // Shuffle options
+      const shuffled = shuffleOptions(currentQuestion);
+      currentQuestion.shuffledOptions = shuffled.options;
+      currentQuestion.shuffledCorrect = shuffled.correct;
+
+      questionNumber++;
+      qNumEl.textContent = questionNumber;
+      qCategoryEl.textContent = currentQuestion.category.toUpperCase();
+      qCategoryEl.className = 'question-category ' + currentQuestion.category;
+      qTextEl.textContent = currentQuestion.question;
+
+      // Hide diagram for now (can be extended later)
+      qDiagramEl.style.display = 'none';
+
+      // Render options
+      optionsEl.innerHTML = '';
+      const letters = ['A', 'B', 'C', 'D'];
+      shuffled.options.forEach((option, index) => {
+        const optionEl = document.createElement('div');
+        optionEl.className = 'option';
+        optionEl.dataset.index = index;
+        optionEl.innerHTML = `
+          <div class="option-letter">${letters[index]}</div>
+          <div class="option-text">${option}</div>
+        `;
+        optionEl.addEventListener('click', () => selectOption(index));
+        optionsEl.appendChild(optionEl);
+      });
+
+      // Hide explanation and next button
+      explanationEl.classList.remove('show', 'wrong');
+      nextBtnEl.classList.remove('show');
+    }
+
+    function selectOption(index) {
+      if (answered) return;
+      answered = true;
+
+      const options = document.querySelectorAll('.option');
+      const isCorrect = index === currentQuestion.shuffledCorrect;
+
+      options.forEach((opt, i) => {
+        opt.classList.add('disabled');
+        if (i === currentQuestion.shuffledCorrect) {
+          opt.classList.add('correct');
+        } else if (i === index && !isCorrect) {
+          opt.classList.add('incorrect');
+        }
+      });
+
+      // Update stats
+      if (isCorrect) {
+        correct++;
+        streak++;
+        if (streak > maxStreak) maxStreak = streak;
+        expTitleEl.textContent = 'Correct!';
+        explanationEl.classList.remove('wrong');
+      } else {
+        wrong++;
+        streak = 0;
+        expTitleEl.textContent = 'Incorrect';
+        explanationEl.classList.add('wrong');
+      }
+
+      expTextEl.textContent = currentQuestion.explanation;
+      explanationEl.classList.add('show');
+      nextBtnEl.classList.add('show');
+      updateStats();
+    }
+
+    function updateStats() {
+      correctCountEl.textContent = correct;
+      wrongCountEl.textContent = wrong;
+      streakCountEl.textContent = streak;
+
+      const total = correct + wrong;
+      const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+      accuracyEl.textContent = accuracy + '%';
+
+      // Save to localStorage
+      localStorage.setItem('smc-quiz-stats', JSON.stringify({ correct, wrong, streak, maxStreak, questionNumber }));
+    }
+
+    function loadStats() {
+      const saved = localStorage.getItem('smc-quiz-stats');
+      if (saved) {
+        const stats = JSON.parse(saved);
+        correct = stats.correct || 0;
+        wrong = stats.wrong || 0;
+        streak = stats.streak || 0;
+        maxStreak = stats.maxStreak || 0;
+        questionNumber = stats.questionNumber || 0;
+        updateStats();
+      }
+    }
+
+    function resetStats() {
+      if (confirm('Reset all progress? This cannot be undone.')) {
+        correct = 0;
+        wrong = 0;
+        streak = 0;
+        maxStreak = 0;
+        questionNumber = 0;
+        usedQuestions = [];
+        localStorage.removeItem('smc-quiz-stats');
+        updateStats();
+        loadQuestion();
+      }
+    }
+
+    // ===== EVENT LISTENERS =====
+    nextBtnEl.addEventListener('click', loadQuestion);
+    resetBtnEl.addEventListener('click', resetStats);
+
+    filterBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentCategory = btn.dataset.category;
+        usedQuestions = [];
+        loadQuestion();
+      });
+    });
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+      if (!answered) {
+        const keyMap = { '1': 0, '2': 1, '3': 2, '4': 3, 'a': 0, 'b': 1, 'c': 2, 'd': 3 };
+        if (keyMap[e.key.toLowerCase()] !== undefined) {
+          selectOption(keyMap[e.key.toLowerCase()]);
+        }
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        loadQuestion();
+      }
+    });
+
+    // ===== INIT =====
+    loadStats();
+    loadQuestion();
+  </script>
+</body>
+</html>

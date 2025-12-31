@@ -1,0 +1,215 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © SMC Mastery Guide
+
+//@version=5
+indicator("Order Blocks (SMC Definition)", overlay=true, max_boxes_count=500, max_lines_count=500)
+
+// ==================== INPUTS ====================
+showBullishOB = input.bool(true, "Show Bullish OBs", group="Display")
+showBearishOB = input.bool(true, "Show Bearish OBs", group="Display")
+showMitigated = input.bool(false, "Show Mitigated OBs", group="Display")
+showMidline = input.bool(true, "Show 50% Midline", group="Display")
+maxOBs = input.int(15, "Max OBs to Display", minval=1, maxval=30, group="Display")
+
+bullOBColor = input.color(color.new(#00d4aa, 75), "Bullish OB Color", group="Colors")
+bearOBColor = input.color(color.new(#ff6b6b, 75), "Bearish OB Color", group="Colors")
+midlineColor = input.color(color.new(#ffffff, 50), "Midline Color", group="Colors")
+mitigatedColor = input.color(color.new(#888888, 90), "Mitigated Color", group="Colors")
+
+swingLookback = input.int(5, "Swing Detection Lookback", minval=2, maxval=20, group="Settings")
+extendBars = input.int(50, "Extend OB Boxes (bars)", minval=5, maxval=200, group="Settings")
+
+// ==================== SWING DETECTION ====================
+// Detect swing highs and lows for BOS confirmation
+swingHigh = ta.pivothigh(high, swingLookback, swingLookback)
+swingLow = ta.pivotlow(low, swingLookback, swingLookback)
+
+// Track recent swing levels
+var float lastSwingHigh = na
+var float lastSwingLow = na
+var int lastSwingHighBar = na
+var int lastSwingLowBar = na
+
+if not na(swingHigh)
+    lastSwingHigh := swingHigh
+    lastSwingHighBar := bar_index - swingLookback
+
+if not na(swingLow)
+    lastSwingLow := swingLow
+    lastSwingLowBar := bar_index - swingLookback
+
+// ==================== BOS DETECTION ====================
+// Bullish BOS: Price breaks above the last swing high
+bullishBOS = not na(lastSwingHigh) and close > lastSwingHigh and close[1] <= lastSwingHigh
+
+// Bearish BOS: Price breaks below the last swing low
+bearishBOS = not na(lastSwingLow) and close < lastSwingLow and close[1] >= lastSwingLow
+
+// ==================== ORDER BLOCK STORAGE ====================
+var box[] bullOBBoxes = array.new_box()
+var line[] bullOBMidlines = array.new_line()
+var float[] bullOBTops = array.new_float()
+var float[] bullOBBottoms = array.new_float()
+var bool[] bullOBMitigated = array.new_bool()
+
+var box[] bearOBBoxes = array.new_box()
+var line[] bearOBMidlines = array.new_line()
+var float[] bearOBTops = array.new_float()
+var float[] bearOBBottoms = array.new_float()
+var bool[] bearOBMitigated = array.new_bool()
+
+// ==================== HELPER FUNCTIONS ====================
+removeOldestOB(boxes, lines, tops, bottoms, mitigated) =>
+    if array.size(boxes) > maxOBs
+        box.delete(array.shift(boxes))
+        line.delete(array.shift(lines))
+        array.shift(tops)
+        array.shift(bottoms)
+        array.shift(mitigated)
+
+// Find the last bearish candle(s) before bullish BOS
+findBullishOB() =>
+    obTop = float(na)
+    obBottom = float(na)
+    obBar = int(na)
+
+    // Look back to find the last bearish candle before the impulse
+    for i = 1 to 20
+        if close[i] < open[i]  // Bearish candle found
+            // Check if the candles before it are also bearish (sequential)
+            obTop := open[i]      // Open of first bearish candle (top)
+            obBottom := close[i]  // Close of last bearish candle (bottom)
+            obBar := bar_index - i
+
+            // Extend if previous candles are also bearish and sequential
+            for j = i + 1 to math.min(i + 5, 25)
+                if close[j] < open[j]  // Another bearish candle
+                    obTop := math.max(obTop, open[j])
+                    obBottom := math.min(obBottom, close[j])
+                    obBar := bar_index - j
+                else
+                    break
+            break
+    [obTop, obBottom, obBar]
+
+// Find the last bullish candle(s) before bearish BOS
+findBearishOB() =>
+    obTop = float(na)
+    obBottom = float(na)
+    obBar = int(na)
+
+    // Look back to find the last bullish candle before the impulse
+    for i = 1 to 20
+        if close[i] > open[i]  // Bullish candle found
+            // Check if the candles before it are also bullish (sequential)
+            obBottom := open[i]   // Open of first bullish candle (bottom)
+            obTop := close[i]     // Close of last bullish candle (top)
+            obBar := bar_index - i
+
+            // Extend if previous candles are also bullish and sequential
+            for j = i + 1 to math.min(i + 5, 25)
+                if close[j] > open[j]  // Another bullish candle
+                    obBottom := math.min(obBottom, open[j])
+                    obTop := math.max(obTop, close[j])
+                    obBar := bar_index - j
+                else
+                    break
+            break
+    [obTop, obBottom, obBar]
+
+// ==================== CREATE ORDER BLOCKS ON BOS ====================
+if bullishBOS and showBullishOB
+    [obTop, obBottom, obBar] = findBullishOB()
+
+    if not na(obTop) and not na(obBottom) and obTop > obBottom
+        obMid = (obTop + obBottom) / 2
+
+        // Create OB box from body open to body close
+        obBox = box.new(obBar, obTop, bar_index + extendBars, obBottom,
+                        border_color=color.new(#00d4aa, 40), bgcolor=bullOBColor,
+                        border_width=2)
+
+        // 50% midline
+        midLine = line.new(obBar, obMid, bar_index + extendBars, obMid,
+                           color=midlineColor, style=line.style_dashed, width=1)
+        if not showMidline
+            line.set_color(midLine, color.new(color.white, 100))
+
+        array.push(bullOBBoxes, obBox)
+        array.push(bullOBMidlines, midLine)
+        array.push(bullOBTops, obTop)
+        array.push(bullOBBottoms, obBottom)
+        array.push(bullOBMitigated, false)
+
+        removeOldestOB(bullOBBoxes, bullOBMidlines, bullOBTops, bullOBBottoms, bullOBMitigated)
+
+if bearishBOS and showBearishOB
+    [obTop, obBottom, obBar] = findBearishOB()
+
+    if not na(obTop) and not na(obBottom) and obTop > obBottom
+        obMid = (obTop + obBottom) / 2
+
+        // Create OB box from body open to body close
+        obBox = box.new(obBar, obTop, bar_index + extendBars, obBottom,
+                        border_color=color.new(#ff6b6b, 40), bgcolor=bearOBColor,
+                        border_width=2)
+
+        // 50% midline
+        midLine = line.new(obBar, obMid, bar_index + extendBars, obMid,
+                           color=midlineColor, style=line.style_dashed, width=1)
+        if not showMidline
+            line.set_color(midLine, color.new(color.white, 100))
+
+        array.push(bearOBBoxes, obBox)
+        array.push(bearOBMidlines, midLine)
+        array.push(bearOBTops, obTop)
+        array.push(bearOBBottoms, obBottom)
+        array.push(bearOBMitigated, false)
+
+        removeOldestOB(bearOBBoxes, bearOBMidlines, bearOBTops, bearOBBottoms, bearOBMitigated)
+
+// ==================== CHECK MITIGATION ====================
+// Bullish OB mitigation: price enters the zone from above (low touches OB)
+for i = 0 to array.size(bullOBTops) - 1
+    if i < array.size(bullOBTops) and not array.get(bullOBMitigated, i)
+        top = array.get(bullOBTops, i)
+        bottom = array.get(bullOBBottoms, i)
+        if low <= top and low >= bottom
+            array.set(bullOBMitigated, i, true)
+            if showMitigated
+                box.set_bgcolor(array.get(bullOBBoxes, i), mitigatedColor)
+                box.set_border_color(array.get(bullOBBoxes, i), color.new(#888888, 70))
+                line.set_color(array.get(bullOBMidlines, i), color.new(#888888, 70))
+            else
+                box.set_bgcolor(array.get(bullOBBoxes, i), color.new(color.white, 100))
+                box.set_border_color(array.get(bullOBBoxes, i), color.new(color.white, 100))
+                line.set_color(array.get(bullOBMidlines, i), color.new(color.white, 100))
+
+// Bearish OB mitigation: price enters the zone from below (high touches OB)
+for i = 0 to array.size(bearOBTops) - 1
+    if i < array.size(bearOBTops) and not array.get(bearOBMitigated, i)
+        top = array.get(bearOBTops, i)
+        bottom = array.get(bearOBBottoms, i)
+        if high >= bottom and high <= top
+            array.set(bearOBMitigated, i, true)
+            if showMitigated
+                box.set_bgcolor(array.get(bearOBBoxes, i), mitigatedColor)
+                box.set_border_color(array.get(bearOBBoxes, i), color.new(#888888, 70))
+                line.set_color(array.get(bearOBMidlines, i), color.new(#888888, 70))
+            else
+                box.set_bgcolor(array.get(bearOBBoxes, i), color.new(color.white, 100))
+                box.set_border_color(array.get(bearOBBoxes, i), color.new(color.white, 100))
+                line.set_color(array.get(bearOBMidlines, i), color.new(color.white, 100))
+
+// ==================== BOS LABELS ====================
+if bullishBOS
+    label.new(bar_index, high, "BOS", color=color.new(#00d4aa, 20), textcolor=color.white,
+              style=label.style_label_down, size=size.tiny)
+
+if bearishBOS
+    label.new(bar_index, low, "BOS", color=color.new(#ff6b6b, 20), textcolor=color.white,
+              style=label.style_label_up, size=size.tiny)
+
+// ==================== ALERTS ====================
+alertcondition(bullishBOS, "Bullish BOS", "Bullish Break of Structure - New Bullish OB formed")
+alertcondition(bearishBOS, "Bearish BOS", "Bearish Break of Structure - New Bearish OB formed")

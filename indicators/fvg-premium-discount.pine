@@ -1,0 +1,162 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © SMC Mastery Guide
+
+//@version=5
+indicator("FVG with Premium/Discount Zones", overlay=true, max_boxes_count=500, max_lines_count=500)
+
+// ==================== INPUTS ====================
+showBullishFVG = input.bool(true, "Show Bullish FVGs", group="Display")
+showBearishFVG = input.bool(true, "Show Bearish FVGs", group="Display")
+showMitigated = input.bool(false, "Show Mitigated FVGs", group="Display")
+showMidline = input.bool(true, "Show 50% Midline", group="Display")
+maxFVGs = input.int(20, "Max FVGs to Display", minval=1, maxval=50, group="Display")
+
+bullPremiumColor = input.color(color.new(#00d4aa, 85), "Bullish Premium", group="Colors")
+bullDiscountColor = input.color(color.new(#00d4aa, 70), "Bullish Discount", group="Colors")
+bearPremiumColor = input.color(color.new(#ff6b6b, 70), "Bearish Premium", group="Colors")
+bearDiscountColor = input.color(color.new(#ff6b6b, 85), "Bearish Discount", group="Colors")
+midlineColor = input.color(color.new(#ffffff, 50), "Midline Color", group="Colors")
+mitigatedColor = input.color(color.new(#888888, 90), "Mitigated Color", group="Colors")
+
+extendBars = input.int(50, "Extend FVG Boxes (bars)", minval=5, maxval=200, group="Settings")
+
+// ==================== FVG DETECTION ====================
+// Bullish FVG: Gap between candle 1's high and candle 3's low
+bullishFVG = low > high[2] and close[1] > open[1]
+bullFVGTop = low
+bullFVGBottom = high[2]
+
+// Bearish FVG: Gap between candle 1's low and candle 3's high
+bearishFVG = high < low[2] and close[1] < open[1]
+bearFVGTop = low[2]
+bearFVGBottom = high
+
+// ==================== FVG STORAGE ====================
+var box[] bullBoxesPremium = array.new_box()
+var box[] bullBoxesDiscount = array.new_box()
+var line[] bullMidlines = array.new_line()
+var float[] bullTops = array.new_float()
+var float[] bullBottoms = array.new_float()
+var int[] bullBars = array.new_int()
+var bool[] bullMitigated = array.new_bool()
+
+var box[] bearBoxesPremium = array.new_box()
+var box[] bearBoxesDiscount = array.new_box()
+var line[] bearMidlines = array.new_line()
+var float[] bearTops = array.new_float()
+var float[] bearBottoms = array.new_float()
+var int[] bearBars = array.new_int()
+var bool[] bearMitigated = array.new_bool()
+
+// ==================== HELPER FUNCTIONS ====================
+removeOldest(boxes1, boxes2, lines, tops, bottoms, bars, mitigated) =>
+    if array.size(boxes1) > maxFVGs
+        box.delete(array.shift(boxes1))
+        box.delete(array.shift(boxes2))
+        line.delete(array.shift(lines))
+        array.shift(tops)
+        array.shift(bottoms)
+        array.shift(bars)
+        array.shift(mitigated)
+
+// ==================== CREATE NEW FVGs ====================
+if bullishFVG and showBullishFVG
+    fvgMid = (bullFVGTop + bullFVGBottom) / 2
+
+    // Premium zone (upper half) - for this bullish FVG, less ideal for longs
+    premiumBox = box.new(bar_index - 2, bullFVGTop, bar_index + extendBars, fvgMid,
+                         border_color=color.new(#00d4aa, 60), bgcolor=bullPremiumColor,
+                         border_width=1, border_style=line.style_dotted)
+
+    // Discount zone (lower half) - ideal for long entries
+    discountBox = box.new(bar_index - 2, fvgMid, bar_index + extendBars, bullFVGBottom,
+                          border_color=color.new(#00d4aa, 40), bgcolor=bullDiscountColor,
+                          border_width=1)
+
+    // Midline
+    midLine = line.new(bar_index - 2, fvgMid, bar_index + extendBars, fvgMid,
+                       color=midlineColor, style=line.style_dashed, width=1)
+    if not showMidline
+        line.set_color(midLine, color.new(color.white, 100))
+
+    array.push(bullBoxesPremium, premiumBox)
+    array.push(bullBoxesDiscount, discountBox)
+    array.push(bullMidlines, midLine)
+    array.push(bullTops, bullFVGTop)
+    array.push(bullBottoms, bullFVGBottom)
+    array.push(bullBars, bar_index - 2)
+    array.push(bullMitigated, false)
+
+    removeOldest(bullBoxesPremium, bullBoxesDiscount, bullMidlines, bullTops, bullBottoms, bullBars, bullMitigated)
+
+if bearishFVG and showBearishFVG
+    fvgMid = (bearFVGTop + bearFVGBottom) / 2
+
+    // Premium zone (upper half) - ideal for short entries
+    premiumBox = box.new(bar_index - 2, bearFVGTop, bar_index + extendBars, fvgMid,
+                         border_color=color.new(#ff6b6b, 40), bgcolor=bearPremiumColor,
+                         border_width=1)
+
+    // Discount zone (lower half) - less ideal for shorts
+    discountBox = box.new(bar_index - 2, fvgMid, bar_index + extendBars, bearFVGBottom,
+                          border_color=color.new(#ff6b6b, 60), bgcolor=bearDiscountColor,
+                          border_width=1, border_style=line.style_dotted)
+
+    // Midline
+    midLine = line.new(bar_index - 2, fvgMid, bar_index + extendBars, fvgMid,
+                       color=midlineColor, style=line.style_dashed, width=1)
+    if not showMidline
+        line.set_color(midLine, color.new(color.white, 100))
+
+    array.push(bearBoxesPremium, premiumBox)
+    array.push(bearBoxesDiscount, discountBox)
+    array.push(bearMidlines, midLine)
+    array.push(bearTops, bearFVGTop)
+    array.push(bearBottoms, bearFVGBottom)
+    array.push(bearBars, bar_index - 2)
+    array.push(bearMitigated, false)
+
+    removeOldest(bearBoxesPremium, bearBoxesDiscount, bearMidlines, bearTops, bearBottoms, bearBars, bearMitigated)
+
+// ==================== CHECK MITIGATION ====================
+// Bullish FVG mitigation: price touches the FVG (low enters the zone)
+for i = 0 to array.size(bullTops) - 1
+    if i < array.size(bullTops) and not array.get(bullMitigated, i)
+        top = array.get(bullTops, i)
+        bottom = array.get(bullBottoms, i)
+        if low <= top and low >= bottom
+            array.set(bullMitigated, i, true)
+            if showMitigated
+                box.set_bgcolor(array.get(bullBoxesPremium, i), mitigatedColor)
+                box.set_bgcolor(array.get(bullBoxesDiscount, i), mitigatedColor)
+                box.set_border_color(array.get(bullBoxesPremium, i), color.new(#888888, 70))
+                box.set_border_color(array.get(bullBoxesDiscount, i), color.new(#888888, 70))
+            else
+                box.set_bgcolor(array.get(bullBoxesPremium, i), color.new(color.white, 100))
+                box.set_bgcolor(array.get(bullBoxesDiscount, i), color.new(color.white, 100))
+                box.set_border_color(array.get(bullBoxesPremium, i), color.new(color.white, 100))
+                box.set_border_color(array.get(bullBoxesDiscount, i), color.new(color.white, 100))
+                line.set_color(array.get(bullMidlines, i), color.new(color.white, 100))
+
+// Bearish FVG mitigation: price touches the FVG (high enters the zone)
+for i = 0 to array.size(bearTops) - 1
+    if i < array.size(bearTops) and not array.get(bearMitigated, i)
+        top = array.get(bearTops, i)
+        bottom = array.get(bearBottoms, i)
+        if high >= bottom and high <= top
+            array.set(bearMitigated, i, true)
+            if showMitigated
+                box.set_bgcolor(array.get(bearBoxesPremium, i), mitigatedColor)
+                box.set_bgcolor(array.get(bearBoxesDiscount, i), mitigatedColor)
+                box.set_border_color(array.get(bearBoxesPremium, i), color.new(#888888, 70))
+                box.set_border_color(array.get(bearBoxesDiscount, i), color.new(#888888, 70))
+            else
+                box.set_bgcolor(array.get(bearBoxesPremium, i), color.new(color.white, 100))
+                box.set_bgcolor(array.get(bearBoxesDiscount, i), color.new(color.white, 100))
+                box.set_border_color(array.get(bearBoxesPremium, i), color.new(color.white, 100))
+                box.set_border_color(array.get(bearBoxesDiscount, i), color.new(color.white, 100))
+                line.set_color(array.get(bearMidlines, i), color.new(color.white, 100))
+
+// ==================== ALERTS ====================
+alertcondition(bullishFVG, "Bullish FVG Formed", "New Bullish Fair Value Gap detected")
+alertcondition(bearishFVG, "Bearish FVG Formed", "New Bearish Fair Value Gap detected")
