@@ -91,22 +91,22 @@ if newDay
 
     // Create new lines
     if showPDH and not na(pdh)
-        pdhLine := line.new(bar_index, pdh, bar_index + 1, pdh, color=pdhColor, width=2, style=line.style_solid, extend=extend.right)
-        pdhLabel := label.new(bar_index, pdh, "PDH", color=color.new(color.white, 100), textcolor=pdhColor, style=label.style_label_left, size=size.normal)
+        pdhLine := line.new(bar_index, pdh, bar_index + 1, pdh, xloc=xloc.bar_index, color=pdhColor, width=2, style=line.style_solid, extend=extend.right)
+        pdhLabel := label.new(bar_index, pdh, "PDH", xloc=xloc.bar_index, color=color.new(color.white, 100), textcolor=pdhColor, style=label.style_label_left, size=size.normal)
 
     if showPDL and not na(pdl)
-        pdlLine := line.new(bar_index, pdl, bar_index + 1, pdl, color=pdlColor, width=2, style=line.style_solid, extend=extend.right)
-        pdlLabel := label.new(bar_index, pdl, "PDL", color=color.new(color.white, 100), textcolor=pdlColor, style=label.style_label_left, size=size.normal)
+        pdlLine := line.new(bar_index, pdl, bar_index + 1, pdl, xloc=xloc.bar_index, color=pdlColor, width=2, style=line.style_solid, extend=extend.right)
+        pdlLabel := label.new(bar_index, pdl, "PDL", xloc=xloc.bar_index, color=color.new(color.white, 100), textcolor=pdlColor, style=label.style_label_left, size=size.normal)
 
     if showPDO and not na(pdo)
-        pdoLine := line.new(bar_index, pdo, bar_index + 1, pdo, color=pdoColor, width=1, style=line.style_dashed, extend=extend.right)
+        pdoLine := line.new(bar_index, pdo, bar_index + 1, pdo, xloc=xloc.bar_index, color=pdoColor, width=1, style=line.style_dashed, extend=extend.right)
 
     if showPDC and not na(pdc)
-        pdcLine := line.new(bar_index, pdc, bar_index + 1, pdc, color=pdcColor, width=1, style=line.style_dashed, extend=extend.right)
+        pdcLine := line.new(bar_index, pdc, bar_index + 1, pdc, xloc=xloc.bar_index, color=pdcColor, width=1, style=line.style_dashed, extend=extend.right)
 
     if showPDMid and not na(pdMid)
-        pdMidLine := line.new(bar_index, pdMid, bar_index + 1, pdMid, color=pdMidColor, width=1, style=line.style_dotted, extend=extend.right)
-        pdMidLabel := label.new(bar_index, pdMid, "PD 50%", color=color.new(color.white, 100), textcolor=pdMidColor, style=label.style_label_left, size=size.normal)
+        pdMidLine := line.new(bar_index, pdMid, bar_index + 1, pdMid, xloc=xloc.bar_index, color=pdMidColor, width=1, style=line.style_dotted, extend=extend.right)
+        pdMidLabel := label.new(bar_index, pdMid, "PD 50%", xloc=xloc.bar_index, color=color.new(color.white, 100), textcolor=pdMidColor, style=label.style_label_left, size=size.normal)
 
 // ==================== OPENING RANGE (ORB) ====================
 var float orbHigh = na
@@ -154,15 +154,15 @@ if not inORBSession and not na(orbHigh) and not na(orbLow) and not orbSet and sh
     orbSet := true
 
     // Create ORB lines
-    orbHighLine := line.new(orbStartBar, orbHigh, bar_index + 100, orbHigh, color=orbHighColor, width=2, style=line.style_solid)
-    orbLowLine := line.new(orbStartBar, orbLow, bar_index + 100, orbLow, color=orbLowColor, width=2, style=line.style_solid)
+    orbHighLine := line.new(orbStartBar, orbHigh, bar_index + 100, orbHigh, xloc=xloc.bar_index, color=orbHighColor, width=2, style=line.style_solid)
+    orbLowLine := line.new(orbStartBar, orbLow, bar_index + 100, orbLow, xloc=xloc.bar_index, color=orbLowColor, width=2, style=line.style_solid)
 
     // Create ORB box
-    orbBox := box.new(orbStartBar, orbHigh, bar_index + 100, orbLow, border_color=color.new(#4da6ff, 70), bgcolor=orbFillColor, border_width=1)
+    orbBox := box.new(orbStartBar, orbHigh, bar_index + 100, orbLow, xloc=xloc.bar_index, border_color=color.new(#4da6ff, 70), bgcolor=orbFillColor, border_width=1)
 
     // Labels
-    orbHighLabel := label.new(bar_index, orbHigh, "ORB High", color=color.new(color.white, 100), textcolor=orbHighColor, style=label.style_label_left, size=size.normal)
-    orbLowLabel := label.new(bar_index, orbLow, "ORB Low", color=color.new(color.white, 100), textcolor=orbLowColor, style=label.style_label_left, size=size.normal)
+    orbHighLabel := label.new(bar_index, orbHigh, "ORB High", xloc=xloc.bar_index, color=color.new(color.white, 100), textcolor=orbHighColor, style=label.style_label_left, size=size.normal)
+    orbLowLabel := label.new(bar_index, orbLow, "ORB Low", xloc=xloc.bar_index, color=color.new(color.white, 100), textcolor=orbLowColor, style=label.style_label_left, size=size.normal)
 
 // ==================== UPDATE LABEL POSITIONS ====================
 // Move labels to follow current bar (stay at right edge)
