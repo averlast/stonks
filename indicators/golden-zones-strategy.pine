@@ -1,7 +1,7 @@
 // This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
 // © SMC Mastery Guide
 
-//@version=5
+//@version=6
 strategy("Golden Zones Strategy (OB + FVG)", overlay=true, max_boxes_count=500, max_lines_count=500,
          default_qty_type=strategy.percent_of_equity, default_qty_value=100,
          initial_capital=10000, commission_type=strategy.commission.cash_per_contract, commission_value=0.62)
@@ -44,7 +44,7 @@ canTrade = useSessionFilter ? isNYSession : true
 
 // Track daily trades
 var int dailyTrades = 0
-newDay = ta.change(time("D")) != 0
+newDay = ta.change(time("1D")) != 0
 if newDay
     dailyTrades := 0
 
@@ -210,7 +210,8 @@ var bool shortSignal = false
 var float entryPrice = na
 
 // Check for long entries at bullish Golden Zones
-for i = 0 to array.size(bullGZTops) - 1
+int bullGZEntryCount = array.size(bullGZTops) - 1
+for i = 0 to bullGZEntryCount
     if i < array.size(bullGZTops)
         isUnmitigated = not array.get(bullGZMitigated, i)
         if (not requireUnmitigated or isUnmitigated) and canTrade and dailyTrades < maxTradesPerDay
@@ -232,7 +233,8 @@ for i = 0 to array.size(bullGZTops) - 1
                 entryPrice := close
 
 // Check for short entries at bearish Golden Zones
-for i = 0 to array.size(bearGZTops) - 1
+int bearGZEntryCount = array.size(bearGZTops) - 1
+for i = 0 to bearGZEntryCount
     if i < array.size(bearGZTops)
         isUnmitigated = not array.get(bearGZMitigated, i)
         if (not requireUnmitigated or isUnmitigated) and canTrade and dailyTrades < maxTradesPerDay
@@ -276,7 +278,8 @@ if strategy.position_size < 0 and useStopLoss
                   limit=useTakeProfit ? entryPrice * (1 - takeProfitPercent/100) : na)
 
 // ==================== CHECK MITIGATION ====================
-for i = 0 to array.size(bullGZTops) - 1
+int bullGZMitCount = array.size(bullGZTops) - 1
+for i = 0 to bullGZMitCount
     if i < array.size(bullGZTops) and not array.get(bullGZMitigated, i)
         top = array.get(bullGZTops, i)
         bottom = array.get(bullGZBottoms, i)
@@ -293,7 +296,8 @@ for i = 0 to array.size(bullGZTops) - 1
                 box.set_bgcolor(array.get(bullOBBoxes, i), color.new(color.white, 100))
                 box.set_border_color(array.get(bullOBBoxes, i), color.new(color.white, 100))
 
-for i = 0 to array.size(bearGZTops) - 1
+int bearGZMitCount = array.size(bearGZTops) - 1
+for i = 0 to bearGZMitCount
     if i < array.size(bearGZTops) and not array.get(bearGZMitigated, i)
         top = array.get(bearGZTops, i)
         bottom = array.get(bearGZBottoms, i)

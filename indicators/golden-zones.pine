@@ -1,7 +1,7 @@
 // This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
 // © SMC Mastery Guide
 
-//@version=5
+//@version=6
 indicator("Golden Zones (OB + FVG Overlap)", overlay=true, max_boxes_count=500, max_lines_count=500)
 
 // ==================== INPUTS ====================
@@ -199,7 +199,8 @@ if bearishBOS and bearishFVG and showBearishGZ
             removeOldestGZ(bearGoldenBoxes, bearFVGBoxes, bearOBBoxes, bearGZTops, bearGZBottoms, bearGZMitigated)
 
 // ==================== CHECK MITIGATION ====================
-for i = 0 to array.size(bullGZTops) - 1
+int bullGZCount = array.size(bullGZTops) - 1
+for i = 0 to bullGZCount
     if i < array.size(bullGZTops) and not array.get(bullGZMitigated, i)
         top = array.get(bullGZTops, i)
         bottom = array.get(bullGZBottoms, i)
@@ -216,7 +217,8 @@ for i = 0 to array.size(bullGZTops) - 1
                 box.set_bgcolor(array.get(bullOBBoxes, i), color.new(color.white, 100))
                 box.set_border_color(array.get(bullOBBoxes, i), color.new(color.white, 100))
 
-for i = 0 to array.size(bearGZTops) - 1
+int bearGZCount = array.size(bearGZTops) - 1
+for i = 0 to bearGZCount
     if i < array.size(bearGZTops) and not array.get(bearGZMitigated, i)
         top = array.get(bearGZTops, i)
         bottom = array.get(bearGZBottoms, i)

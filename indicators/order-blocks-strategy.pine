@@ -1,7 +1,7 @@
 // This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
 // © SMC Mastery Guide
 
-//@version=5
+//@version=6
 strategy("Order Blocks Strategy (SMC)", overlay=true, max_boxes_count=500, max_lines_count=500,
          default_qty_type=strategy.percent_of_equity, default_qty_value=100,
          initial_capital=10000, commission_type=strategy.commission.cash_per_contract, commission_value=0.62)
@@ -44,7 +44,7 @@ canTrade = useSessionFilter ? isNYSession : true
 
 // Track daily trades
 var int dailyTrades = 0
-newDay = ta.change(time("D")) != 0
+newDay = ta.change(time("1D")) != 0
 if newDay
     dailyTrades := 0
 
@@ -183,7 +183,8 @@ var float stopPrice = na
 var float targetPrice = na
 
 // Check for long entries at bullish OBs
-for i = 0 to array.size(bullOBTops) - 1
+int bullOBEntryCount = array.size(bullOBTops) - 1
+for i = 0 to bullOBEntryCount
     if i < array.size(bullOBTops)
         isUnmitigated = not array.get(bullOBMitigated, i)
         if (not requireUnmitigated or isUnmitigated) and canTrade and dailyTrades < maxTradesPerDay
@@ -209,7 +210,8 @@ for i = 0 to array.size(bullOBTops) - 1
                 targetPrice := close + ((close - stopPrice) * riskRewardRatio)
 
 // Check for short entries at bearish OBs
-for i = 0 to array.size(bearOBTops) - 1
+int bearOBEntryCount = array.size(bearOBTops) - 1
+for i = 0 to bearOBEntryCount
     if i < array.size(bearOBTops)
         isUnmitigated = not array.get(bearOBMitigated, i)
         if (not requireUnmitigated or isUnmitigated) and canTrade and dailyTrades < maxTradesPerDay
@@ -257,7 +259,8 @@ if strategy.position_size < 0 and useStopLoss
                   limit=useTakeProfit ? entryPrice * (1 - takeProfitPercent/100) : na)
 
 // ==================== CHECK MITIGATION ====================
-for i = 0 to array.size(bullOBTops) - 1
+int bullOBMitCount = array.size(bullOBTops) - 1
+for i = 0 to bullOBMitCount
     if i < array.size(bullOBTops) and not array.get(bullOBMitigated, i)
         top = array.get(bullOBTops, i)
         bottom = array.get(bullOBBottoms, i)
@@ -272,7 +275,8 @@ for i = 0 to array.size(bullOBTops) - 1
                 box.set_border_color(array.get(bullOBBoxes, i), color.new(color.white, 100))
                 line.set_color(array.get(bullOBMidlines, i), color.new(color.white, 100))
 
-for i = 0 to array.size(bearOBTops) - 1
+int bearOBMitCount = array.size(bearOBTops) - 1
+for i = 0 to bearOBMitCount
     if i < array.size(bearOBTops) and not array.get(bearOBMitigated, i)
         top = array.get(bearOBTops, i)
         bottom = array.get(bearOBBottoms, i)

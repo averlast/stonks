@@ -1,7 +1,7 @@
 // This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
 // © SMC Mastery Guide
 
-//@version=5
+//@version=6
 indicator("FVG with Premium/Discount Zones", overlay=true, max_boxes_count=500, max_lines_count=500)
 
 // ==================== INPUTS ====================
@@ -120,7 +120,8 @@ if bearishFVG and showBearishFVG
 
 // ==================== CHECK MITIGATION ====================
 // Bullish FVG mitigation: price touches the FVG (low enters the zone)
-for i = 0 to array.size(bullTops) - 1
+int bullFVGCount = array.size(bullTops) - 1
+for i = 0 to bullFVGCount
     if i < array.size(bullTops) and not array.get(bullMitigated, i)
         top = array.get(bullTops, i)
         bottom = array.get(bullBottoms, i)
@@ -139,7 +140,8 @@ for i = 0 to array.size(bullTops) - 1
                 line.set_color(array.get(bullMidlines, i), color.new(color.white, 100))
 
 // Bearish FVG mitigation: price touches the FVG (high enters the zone)
-for i = 0 to array.size(bearTops) - 1
+int bearFVGCount = array.size(bearTops) - 1
+for i = 0 to bearFVGCount
     if i < array.size(bearTops) and not array.get(bearMitigated, i)
         top = array.get(bearTops, i)
         bottom = array.get(bearBottoms, i)

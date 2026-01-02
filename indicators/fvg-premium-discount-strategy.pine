@@ -1,7 +1,7 @@
 // This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
 // © SMC Mastery Guide
 
-//@version=5
+//@version=6
 strategy("FVG Premium/Discount Strategy", overlay=true, max_boxes_count=500, max_lines_count=500,
          default_qty_type=strategy.percent_of_equity, default_qty_value=100,
          initial_capital=10000, commission_type=strategy.commission.cash_per_contract, commission_value=0.62)
@@ -45,7 +45,7 @@ canTrade = useSessionFilter ? isNYSession : true
 
 // Track daily trades
 var int dailyTrades = 0
-newDay = ta.change(time("D")) != 0
+newDay = ta.change(time("1D")) != 0
 if newDay
     dailyTrades := 0
 
@@ -147,7 +147,8 @@ var bool shortSignal = false
 var float entryPrice = na
 
 // Check for long entries at bullish FVGs (enter at discount zone)
-for i = 0 to array.size(bullTops) - 1
+int bullFVGEntryCount = array.size(bullTops) - 1
+for i = 0 to bullFVGEntryCount
     if i < array.size(bullTops)
         isUnmitigated = not array.get(bullMitigated, i)
         if (not requireUnmitigated or isUnmitigated) and canTrade and dailyTrades < maxTradesPerDay
@@ -170,7 +171,8 @@ for i = 0 to array.size(bullTops) - 1
                 entryPrice := close
 
 // Check for short entries at bearish FVGs (enter at premium zone)
-for i = 0 to array.size(bearTops) - 1
+int bearFVGEntryCount = array.size(bearTops) - 1
+for i = 0 to bearFVGEntryCount
     if i < array.size(bearTops)
         isUnmitigated = not array.get(bearMitigated, i)
         if (not requireUnmitigated or isUnmitigated) and canTrade and dailyTrades < maxTradesPerDay
@@ -215,7 +217,8 @@ if strategy.position_size < 0 and useStopLoss
                   limit=useTakeProfit ? entryPrice * (1 - takeProfitPercent/100) : na)
 
 // ==================== CHECK MITIGATION ====================
-for i = 0 to array.size(bullTops) - 1
+int bullFVGMitCount = array.size(bullTops) - 1
+for i = 0 to bullFVGMitCount
     if i < array.size(bullTops) and not array.get(bullMitigated, i)
         top = array.get(bullTops, i)
         bottom = array.get(bullBottoms, i)
@@ -233,7 +236,8 @@ for i = 0 to array.size(bullTops) - 1
                 box.set_border_color(array.get(bullBoxesDiscount, i), color.new(color.white, 100))
                 line.set_color(array.get(bullMidlines, i), color.new(color.white, 100))
 
-for i = 0 to array.size(bearTops) - 1
+int bearFVGMitCount = array.size(bearTops) - 1
+for i = 0 to bearFVGMitCount
     if i < array.size(bearTops) and not array.get(bearMitigated, i)
         top = array.get(bearTops, i)
         bottom = array.get(bearBottoms, i)

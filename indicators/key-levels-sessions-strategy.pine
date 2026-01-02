@@ -1,7 +1,7 @@
 // This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
 // © SMC Mastery Guide
 
-//@version=5
+//@version=6
 strategy("ORB + Key Levels Strategy", overlay=true, max_lines_count=500, max_boxes_count=100, max_labels_count=50,
          default_qty_type=strategy.percent_of_equity, default_qty_value=100,
          initial_capital=10000, commission_type=strategy.commission.cash_per_contract, commission_value=0.62)
@@ -86,9 +86,9 @@ var label pdhLabel = na
 var label pdlLabel = na
 var label pdMidLabel = na
 
-[prevHigh, prevLow, prevOpen, prevClose] = request.security(syminfo.tickerid, "D", [high[1], low[1], open[1], close[1]], lookahead=barmerge.lookahead_on)
+[prevHigh, prevLow, prevOpen, prevClose] = request.security(syminfo.tickerid, "1D", [high[1], low[1], open[1], close[1]], lookahead=barmerge.lookahead_on)
 
-newDay = ta.change(time("D")) != 0
+newDay = ta.change(time("1D")) != 0
 
 // Track daily trades
 var int dailyTrades = 0

@@ -1,7 +1,7 @@
 // This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
 // © SMC Mastery Guide
 
-//@version=5
+//@version=6
 indicator("Order Blocks (SMC Definition)", overlay=true, max_boxes_count=500, max_lines_count=500)
 
 // ==================== INPUTS ====================
@@ -170,7 +170,8 @@ if bearishBOS and showBearishOB
 
 // ==================== CHECK MITIGATION ====================
 // Bullish OB mitigation: price enters the zone from above (low touches OB)
-for i = 0 to array.size(bullOBTops) - 1
+int bullOBCount = array.size(bullOBTops) - 1
+for i = 0 to bullOBCount
     if i < array.size(bullOBTops) and not array.get(bullOBMitigated, i)
         top = array.get(bullOBTops, i)
         bottom = array.get(bullOBBottoms, i)
@@ -186,7 +187,8 @@ for i = 0 to array.size(bullOBTops) - 1
                 line.set_color(array.get(bullOBMidlines, i), color.new(color.white, 100))
 
 // Bearish OB mitigation: price enters the zone from below (high touches OB)
-for i = 0 to array.size(bearOBTops) - 1
+int bearOBCount = array.size(bearOBTops) - 1
+for i = 0 to bearOBCount
     if i < array.size(bearOBTops) and not array.get(bearOBMitigated, i)
         top = array.get(bearOBTops, i)
         bottom = array.get(bearOBBottoms, i)
