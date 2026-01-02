@@ -1,0 +1,277 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © SMC Mastery Guide
+
+//@version=5
+strategy("FVG Premium/Discount Strategy", overlay=true, max_boxes_count=500, max_lines_count=500,
+         default_qty_type=strategy.percent_of_equity, default_qty_value=100,
+         initial_capital=10000, commission_type=strategy.commission.cash_per_contract, commission_value=0.62)
+
+// ==================== STRATEGY INPUTS ====================
+useStopLoss = input.bool(true, "Use Stop Loss", group="Risk Management")
+stopLossPercent = input.float(1.0, "Stop Loss %", minval=0.1, maxval=10.0, step=0.1, group="Risk Management")
+useTakeProfit = input.bool(true, "Use Take Profit", group="Risk Management")
+takeProfitPercent = input.float(2.0, "Take Profit %", minval=0.1, maxval=20.0, step=0.1, group="Risk Management")
+riskRewardRatio = input.float(2.0, "Risk:Reward Ratio", minval=0.5, maxval=5.0, step=0.5, group="Risk Management")
+
+entryZone = input.string("Discount Zone Only", "Entry Zone Preference",
+            options=["Any Zone", "Discount Zone Only", "50% Midline"], group="Entry Settings")
+requireUnmitigated = input.bool(true, "Only Trade Unmitigated FVGs", group="Entry Settings")
+maxTradesPerDay = input.int(3, "Max Trades Per Day", minval=1, maxval=10, group="Entry Settings")
+minFVGSize = input.float(0.0, "Minimum FVG Size (points)", minval=0, group="Entry Settings")
+
+// Session Filter
+useSessionFilter = input.bool(true, "Only Trade During NY Session", group="Session Filter")
+
+// ==================== DISPLAY INPUTS ====================
+showBullishFVG = input.bool(true, "Show Bullish FVGs", group="Display")
+showBearishFVG = input.bool(true, "Show Bearish FVGs", group="Display")
+showMitigated = input.bool(false, "Show Mitigated FVGs", group="Display")
+showMidline = input.bool(true, "Show 50% Midline", group="Display")
+maxFVGs = input.int(20, "Max FVGs to Display", minval=1, maxval=50, group="Display")
+
+bullPremiumColor = input.color(color.new(#00d4aa, 85), "Bullish Premium", group="Colors")
+bullDiscountColor = input.color(color.new(#00d4aa, 70), "Bullish Discount", group="Colors")
+bearPremiumColor = input.color(color.new(#ff6b6b, 70), "Bearish Premium", group="Colors")
+bearDiscountColor = input.color(color.new(#ff6b6b, 85), "Bearish Discount", group="Colors")
+midlineColor = input.color(color.new(#ffffff, 50), "Midline Color", group="Colors")
+mitigatedColor = input.color(color.new(#888888, 90), "Mitigated Color", group="Colors")
+
+extendBars = input.int(50, "Extend FVG Boxes (bars)", minval=5, maxval=200, group="Settings")
+
+// ==================== SESSION FILTER ====================
+inSession(sess) => not na(time(timeframe.period, sess, "America/New_York"))
+isNYSession = inSession("0930-1330")
+canTrade = useSessionFilter ? isNYSession : true
+
+// Track daily trades
+var int dailyTrades = 0
+newDay = ta.change(time("D")) != 0
+if newDay
+    dailyTrades := 0
+
+// ==================== FVG DETECTION ====================
+bullishFVG = low > high[2] and close[1] > open[1]
+bullFVGTop = low
+bullFVGBottom = high[2]
+bullFVGSize = bullFVGTop - bullFVGBottom
+
+bearishFVG = high < low[2] and close[1] < open[1]
+bearFVGTop = low[2]
+bearFVGBottom = high
+bearFVGSize = bearFVGTop - bearFVGBottom
+
+// ==================== FVG STORAGE ====================
+var box[] bullBoxesPremium = array.new_box()
+var box[] bullBoxesDiscount = array.new_box()
+var line[] bullMidlines = array.new_line()
+var float[] bullTops = array.new_float()
+var float[] bullBottoms = array.new_float()
+var int[] bullBars = array.new_int()
+var bool[] bullMitigated = array.new_bool()
+
+var box[] bearBoxesPremium = array.new_box()
+var box[] bearBoxesDiscount = array.new_box()
+var line[] bearMidlines = array.new_line()
+var float[] bearTops = array.new_float()
+var float[] bearBottoms = array.new_float()
+var int[] bearBars = array.new_int()
+var bool[] bearMitigated = array.new_bool()
+
+// ==================== HELPER FUNCTIONS ====================
+removeOldest(boxes1, boxes2, lines, tops, bottoms, bars, mitigated) =>
+    if array.size(boxes1) > maxFVGs
+        box.delete(array.shift(boxes1))
+        box.delete(array.shift(boxes2))
+        line.delete(array.shift(lines))
+        array.shift(tops)
+        array.shift(bottoms)
+        array.shift(bars)
+        array.shift(mitigated)
+
+// ==================== CREATE NEW FVGs ====================
+if bullishFVG and showBullishFVG and bullFVGSize >= minFVGSize
+    fvgMid = (bullFVGTop + bullFVGBottom) / 2
+
+    premiumBox = box.new(bar_index - 2, bullFVGTop, bar_index + extendBars, fvgMid,
+                         border_color=color.new(#00d4aa, 60), bgcolor=bullPremiumColor,
+                         border_width=1, border_style=line.style_dotted)
+
+    discountBox = box.new(bar_index - 2, fvgMid, bar_index + extendBars, bullFVGBottom,
+                          border_color=color.new(#00d4aa, 40), bgcolor=bullDiscountColor,
+                          border_width=1)
+
+    midLine = line.new(bar_index - 2, fvgMid, bar_index + extendBars, fvgMid,
+                       color=midlineColor, style=line.style_dashed, width=1)
+    if not showMidline
+        line.set_color(midLine, color.new(color.white, 100))
+
+    array.push(bullBoxesPremium, premiumBox)
+    array.push(bullBoxesDiscount, discountBox)
+    array.push(bullMidlines, midLine)
+    array.push(bullTops, bullFVGTop)
+    array.push(bullBottoms, bullFVGBottom)
+    array.push(bullBars, bar_index - 2)
+    array.push(bullMitigated, false)
+
+    removeOldest(bullBoxesPremium, bullBoxesDiscount, bullMidlines, bullTops, bullBottoms, bullBars, bullMitigated)
+
+if bearishFVG and showBearishFVG and bearFVGSize >= minFVGSize
+    fvgMid = (bearFVGTop + bearFVGBottom) / 2
+
+    premiumBox = box.new(bar_index - 2, bearFVGTop, bar_index + extendBars, fvgMid,
+                         border_color=color.new(#ff6b6b, 40), bgcolor=bearPremiumColor,
+                         border_width=1)
+
+    discountBox = box.new(bar_index - 2, fvgMid, bar_index + extendBars, bearFVGBottom,
+                          border_color=color.new(#ff6b6b, 60), bgcolor=bearDiscountColor,
+                          border_width=1, border_style=line.style_dotted)
+
+    midLine = line.new(bar_index - 2, fvgMid, bar_index + extendBars, fvgMid,
+                       color=midlineColor, style=line.style_dashed, width=1)
+    if not showMidline
+        line.set_color(midLine, color.new(color.white, 100))
+
+    array.push(bearBoxesPremium, premiumBox)
+    array.push(bearBoxesDiscount, discountBox)
+    array.push(bearMidlines, midLine)
+    array.push(bearTops, bearFVGTop)
+    array.push(bearBottoms, bearFVGBottom)
+    array.push(bearBars, bar_index - 2)
+    array.push(bearMitigated, false)
+
+    removeOldest(bearBoxesPremium, bearBoxesDiscount, bearMidlines, bearTops, bearBottoms, bearBars, bearMitigated)
+
+// ==================== STRATEGY ENTRY LOGIC ====================
+var bool longSignal = false
+var bool shortSignal = false
+var float entryPrice = na
+
+// Check for long entries at bullish FVGs (enter at discount zone)
+for i = 0 to array.size(bullTops) - 1
+    if i < array.size(bullTops)
+        isUnmitigated = not array.get(bullMitigated, i)
+        if (not requireUnmitigated or isUnmitigated) and canTrade and dailyTrades < maxTradesPerDay
+            top = array.get(bullTops, i)
+            bottom = array.get(bullBottoms, i)
+            mid = (top + bottom) / 2
+
+            // Entry conditions based on zone preference
+            touchAnyZone = low <= top and low >= bottom
+            touchDiscountZone = low <= mid and low >= bottom
+            touchMidline = low <= mid * 1.001 and low >= mid * 0.999
+
+            entryCondition = switch entryZone
+                "Any Zone" => touchAnyZone
+                "Discount Zone Only" => touchDiscountZone
+                "50% Midline" => touchMidline
+
+            if entryCondition and strategy.position_size == 0
+                longSignal := true
+                entryPrice := close
+
+// Check for short entries at bearish FVGs (enter at premium zone)
+for i = 0 to array.size(bearTops) - 1
+    if i < array.size(bearTops)
+        isUnmitigated = not array.get(bearMitigated, i)
+        if (not requireUnmitigated or isUnmitigated) and canTrade and dailyTrades < maxTradesPerDay
+            top = array.get(bearTops, i)
+            bottom = array.get(bearBottoms, i)
+            mid = (top + bottom) / 2
+
+            // Entry conditions based on zone preference
+            touchAnyZone = high >= bottom and high <= top
+            touchPremiumZone = high >= mid and high <= top
+            touchMidline = high >= mid * 0.999 and high <= mid * 1.001
+
+            entryCondition = switch entryZone
+                "Any Zone" => touchAnyZone
+                "Discount Zone Only" => touchPremiumZone  // Premium for shorts
+                "50% Midline" => touchMidline
+
+            if entryCondition and strategy.position_size == 0
+                shortSignal := true
+                entryPrice := close
+
+// Execute trades
+if longSignal and strategy.position_size == 0
+    strategy.entry("Long FVG", strategy.long)
+    dailyTrades += 1
+    longSignal := false
+
+if shortSignal and strategy.position_size == 0
+    strategy.entry("Short FVG", strategy.short)
+    dailyTrades += 1
+    shortSignal := false
+
+// Exit logic
+if strategy.position_size > 0 and useStopLoss
+    strategy.exit("Long Exit", "Long FVG",
+                  stop=entryPrice * (1 - stopLossPercent/100),
+                  limit=useTakeProfit ? entryPrice * (1 + takeProfitPercent/100) : na)
+
+if strategy.position_size < 0 and useStopLoss
+    strategy.exit("Short Exit", "Short FVG",
+                  stop=entryPrice * (1 + stopLossPercent/100),
+                  limit=useTakeProfit ? entryPrice * (1 - takeProfitPercent/100) : na)
+
+// ==================== CHECK MITIGATION ====================
+for i = 0 to array.size(bullTops) - 1
+    if i < array.size(bullTops) and not array.get(bullMitigated, i)
+        top = array.get(bullTops, i)
+        bottom = array.get(bullBottoms, i)
+        if low <= top and low >= bottom
+            array.set(bullMitigated, i, true)
+            if showMitigated
+                box.set_bgcolor(array.get(bullBoxesPremium, i), mitigatedColor)
+                box.set_bgcolor(array.get(bullBoxesDiscount, i), mitigatedColor)
+                box.set_border_color(array.get(bullBoxesPremium, i), color.new(#888888, 70))
+                box.set_border_color(array.get(bullBoxesDiscount, i), color.new(#888888, 70))
+            else
+                box.set_bgcolor(array.get(bullBoxesPremium, i), color.new(color.white, 100))
+                box.set_bgcolor(array.get(bullBoxesDiscount, i), color.new(color.white, 100))
+                box.set_border_color(array.get(bullBoxesPremium, i), color.new(color.white, 100))
+                box.set_border_color(array.get(bullBoxesDiscount, i), color.new(color.white, 100))
+                line.set_color(array.get(bullMidlines, i), color.new(color.white, 100))
+
+for i = 0 to array.size(bearTops) - 1
+    if i < array.size(bearTops) and not array.get(bearMitigated, i)
+        top = array.get(bearTops, i)
+        bottom = array.get(bearBottoms, i)
+        if high >= bottom and high <= top
+            array.set(bearMitigated, i, true)
+            if showMitigated
+                box.set_bgcolor(array.get(bearBoxesPremium, i), mitigatedColor)
+                box.set_bgcolor(array.get(bearBoxesDiscount, i), mitigatedColor)
+                box.set_border_color(array.get(bearBoxesPremium, i), color.new(#888888, 70))
+                box.set_border_color(array.get(bearBoxesDiscount, i), color.new(#888888, 70))
+            else
+                box.set_bgcolor(array.get(bearBoxesPremium, i), color.new(color.white, 100))
+                box.set_bgcolor(array.get(bearBoxesDiscount, i), color.new(color.white, 100))
+                box.set_border_color(array.get(bearBoxesPremium, i), color.new(color.white, 100))
+                box.set_border_color(array.get(bearBoxesDiscount, i), color.new(color.white, 100))
+                line.set_color(array.get(bearMidlines, i), color.new(color.white, 100))
+
+// ==================== FVG LABELS ====================
+if bullishFVG and bullFVGSize >= minFVGSize
+    label.new(bar_index - 1, bullFVGBottom, "FVG", color=color.new(#00d4aa, 40), textcolor=color.white,
+              style=label.style_label_up, size=size.tiny)
+
+if bearishFVG and bearFVGSize >= minFVGSize
+    label.new(bar_index - 1, bearFVGTop, "FVG", color=color.new(#ff6b6b, 40), textcolor=color.white,
+              style=label.style_label_down, size=size.tiny)
+
+// ==================== PERFORMANCE TABLE ====================
+var table perfTable = table.new(position.bottom_right, 2, 5, bgcolor=color.new(#1a1a2e, 20), border_width=1)
+
+if barstate.islast
+    winRate = strategy.wintrades / math.max(strategy.closedtrades, 1) * 100
+    table.cell(perfTable, 0, 0, "Total Trades", text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 1, 0, str.tostring(strategy.closedtrades), text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 0, 1, "Win Rate", text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 1, 1, str.tostring(winRate, "#.##") + "%", text_color=winRate > 50 ? color.green : color.red, text_size=size.small)
+    table.cell(perfTable, 0, 2, "Net Profit", text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 1, 2, str.tostring(strategy.netprofit, "#.##"), text_color=strategy.netprofit > 0 ? color.green : color.red, text_size=size.small)
+    table.cell(perfTable, 0, 3, "Profit Factor", text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 1, 3, str.tostring(strategy.grossprofit / math.max(math.abs(strategy.grossloss), 1), "#.##"), text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 0, 4, "Max Drawdown", text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 1, 4, str.tostring(strategy.max_drawdown, "#.##"), text_color=color.red, text_size=size.small)

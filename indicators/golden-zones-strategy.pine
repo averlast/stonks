@@ -1,0 +1,332 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © SMC Mastery Guide
+
+//@version=5
+strategy("Golden Zones Strategy (OB + FVG)", overlay=true, max_boxes_count=500, max_lines_count=500,
+         default_qty_type=strategy.percent_of_equity, default_qty_value=100,
+         initial_capital=10000, commission_type=strategy.commission.cash_per_contract, commission_value=0.62)
+
+// ==================== STRATEGY INPUTS ====================
+useStopLoss = input.bool(true, "Use Stop Loss", group="Risk Management")
+stopLossPercent = input.float(1.0, "Stop Loss %", minval=0.1, maxval=10.0, step=0.1, group="Risk Management")
+useTakeProfit = input.bool(true, "Use Take Profit", group="Risk Management")
+takeProfitPercent = input.float(2.5, "Take Profit %", minval=0.1, maxval=20.0, step=0.1, group="Risk Management")
+riskRewardRatio = input.float(2.5, "Risk:Reward Ratio", minval=0.5, maxval=5.0, step=0.5, group="Risk Management")
+
+entryType = input.string("Touch Golden Zone", "Entry Type",
+            options=["Touch Golden Zone", "Close Inside Zone", "Wick Into Zone"], group="Entry Settings")
+requireUnmitigated = input.bool(true, "Only Trade Unmitigated Zones", group="Entry Settings")
+maxTradesPerDay = input.int(2, "Max Trades Per Day", minval=1, maxval=10, group="Entry Settings")
+
+// Session Filter
+useSessionFilter = input.bool(true, "Only Trade During NY Session", group="Session Filter")
+
+// ==================== DISPLAY INPUTS ====================
+showBullishGZ = input.bool(true, "Show Bullish Golden Zones", group="Display")
+showBearishGZ = input.bool(true, "Show Bearish Golden Zones", group="Display")
+showComponentZones = input.bool(true, "Show FVG & OB Components", group="Display")
+showMitigated = input.bool(false, "Show Mitigated Zones", group="Display")
+maxZones = input.int(10, "Max Golden Zones to Display", minval=1, maxval=20, group="Display")
+
+goldenColor = input.color(color.new(#d4a000, 60), "Golden Zone Color", group="Colors")
+goldenBorderColor = input.color(color.new(#d4a000, 20), "Golden Zone Border", group="Colors")
+fvgColor = input.color(color.new(#4da6ff, 85), "FVG Component Color", group="Colors")
+obColor = input.color(color.new(#9b59b6, 85), "OB Component Color", group="Colors")
+mitigatedColor = input.color(color.new(#888888, 90), "Mitigated Color", group="Colors")
+
+swingLookback = input.int(5, "Swing Detection Lookback", minval=2, maxval=20, group="Settings")
+extendBars = input.int(50, "Extend Boxes (bars)", minval=5, maxval=200, group="Settings")
+
+// ==================== SESSION FILTER ====================
+inSession(sess) => not na(time(timeframe.period, sess, "America/New_York"))
+isNYSession = inSession("0930-1330")
+canTrade = useSessionFilter ? isNYSession : true
+
+// Track daily trades
+var int dailyTrades = 0
+newDay = ta.change(time("D")) != 0
+if newDay
+    dailyTrades := 0
+
+// ==================== DETECTION ====================
+// FVG Detection
+bullishFVG = low > high[2] and close[1] > open[1]
+bullFVGTop = low
+bullFVGBottom = high[2]
+
+bearishFVG = high < low[2] and close[1] < open[1]
+bearFVGTop = low[2]
+bearFVGBottom = high
+
+// Swing Detection for BOS
+swingHigh = ta.pivothigh(high, swingLookback, swingLookback)
+swingLow = ta.pivotlow(low, swingLookback, swingLookback)
+
+var float lastSwingHigh = na
+var float lastSwingLow = na
+
+if not na(swingHigh)
+    lastSwingHigh := swingHigh
+if not na(swingLow)
+    lastSwingLow := swingLow
+
+// BOS Detection
+bullishBOS = not na(lastSwingHigh) and close > lastSwingHigh and close[1] <= lastSwingHigh
+bearishBOS = not na(lastSwingLow) and close < lastSwingLow and close[1] >= lastSwingLow
+
+// ==================== STORAGE ====================
+var box[] bullGoldenBoxes = array.new_box()
+var box[] bullFVGBoxes = array.new_box()
+var box[] bullOBBoxes = array.new_box()
+var float[] bullGZTops = array.new_float()
+var float[] bullGZBottoms = array.new_float()
+var bool[] bullGZMitigated = array.new_bool()
+
+var box[] bearGoldenBoxes = array.new_box()
+var box[] bearFVGBoxes = array.new_box()
+var box[] bearOBBoxes = array.new_box()
+var float[] bearGZTops = array.new_float()
+var float[] bearGZBottoms = array.new_float()
+var bool[] bearGZMitigated = array.new_bool()
+
+// ==================== HELPER FUNCTIONS ====================
+removeOldestGZ(goldenBoxes, fvgBoxes, obBoxes, tops, bottoms, mitigated) =>
+    if array.size(goldenBoxes) > maxZones
+        box.delete(array.shift(goldenBoxes))
+        box.delete(array.shift(fvgBoxes))
+        box.delete(array.shift(obBoxes))
+        array.shift(tops)
+        array.shift(bottoms)
+        array.shift(mitigated)
+
+findBullishOBForGolden() =>
+    obTop = float(na)
+    obBottom = float(na)
+    obBar = int(na)
+    for i = 1 to 15
+        if close[i] < open[i]
+            obTop := open[i]
+            obBottom := close[i]
+            obBar := bar_index - i
+            for j = i + 1 to math.min(i + 4, 19)
+                if close[j] < open[j]
+                    obTop := math.max(obTop, open[j])
+                    obBottom := math.min(obBottom, close[j])
+                    obBar := bar_index - j
+                else
+                    break
+            break
+    [obTop, obBottom, obBar]
+
+findBearishOBForGolden() =>
+    obTop = float(na)
+    obBottom = float(na)
+    obBar = int(na)
+    for i = 1 to 15
+        if close[i] > open[i]
+            obBottom := open[i]
+            obTop := close[i]
+            obBar := bar_index - i
+            for j = i + 1 to math.min(i + 4, 19)
+                if close[j] > open[j]
+                    obBottom := math.min(obBottom, open[j])
+                    obTop := math.max(obTop, close[j])
+                    obBar := bar_index - j
+                else
+                    break
+            break
+    [obTop, obBottom, obBar]
+
+zonesOverlap(top1, bottom1, top2, bottom2) =>
+    overlapTop = math.min(top1, top2)
+    overlapBottom = math.max(bottom1, bottom2)
+    hasOverlap = overlapTop > overlapBottom
+    [hasOverlap, overlapTop, overlapBottom]
+
+// ==================== GOLDEN ZONE DETECTION ====================
+if bullishBOS and bullishFVG and showBullishGZ
+    [obTop, obBottom, obBar] = findBullishOBForGolden()
+
+    if not na(obTop) and not na(obBottom)
+        [hasOverlap, overlapTop, overlapBottom] = zonesOverlap(obTop, obBottom, bullFVGTop, bullFVGBottom)
+
+        if hasOverlap
+            goldenBox = box.new(obBar, overlapTop, bar_index + extendBars, overlapBottom,
+                               border_color=goldenBorderColor, bgcolor=goldenColor, border_width=3)
+
+            fvgBox = box.new(bar_index - 2, bullFVGTop, bar_index + extendBars, bullFVGBottom,
+                            border_color=color.new(#4da6ff, 60), bgcolor=showComponentZones ? fvgColor : color.new(color.white, 100),
+                            border_width=1, border_style=line.style_dotted)
+
+            obBox = box.new(obBar, obTop, bar_index + extendBars, obBottom,
+                           border_color=color.new(#9b59b6, 60), bgcolor=showComponentZones ? obColor : color.new(color.white, 100),
+                           border_width=1, border_style=line.style_dotted)
+
+            array.push(bullGoldenBoxes, goldenBox)
+            array.push(bullFVGBoxes, fvgBox)
+            array.push(bullOBBoxes, obBox)
+            array.push(bullGZTops, overlapTop)
+            array.push(bullGZBottoms, overlapBottom)
+            array.push(bullGZMitigated, false)
+
+            label.new(bar_index, overlapTop, "GOLDEN\nZONE", color=color.new(#d4a000, 20),
+                     textcolor=color.white, style=label.style_label_down, size=size.small)
+
+            removeOldestGZ(bullGoldenBoxes, bullFVGBoxes, bullOBBoxes, bullGZTops, bullGZBottoms, bullGZMitigated)
+
+if bearishBOS and bearishFVG and showBearishGZ
+    [obTop, obBottom, obBar] = findBearishOBForGolden()
+
+    if not na(obTop) and not na(obBottom)
+        [hasOverlap, overlapTop, overlapBottom] = zonesOverlap(obTop, obBottom, bearFVGTop, bearFVGBottom)
+
+        if hasOverlap
+            goldenBox = box.new(obBar, overlapTop, bar_index + extendBars, overlapBottom,
+                               border_color=goldenBorderColor, bgcolor=goldenColor, border_width=3)
+
+            fvgBox = box.new(bar_index - 2, bearFVGTop, bar_index + extendBars, bearFVGBottom,
+                            border_color=color.new(#4da6ff, 60), bgcolor=showComponentZones ? fvgColor : color.new(color.white, 100),
+                            border_width=1, border_style=line.style_dotted)
+
+            obBox = box.new(obBar, obTop, bar_index + extendBars, obBottom,
+                           border_color=color.new(#9b59b6, 60), bgcolor=showComponentZones ? obColor : color.new(color.white, 100),
+                           border_width=1, border_style=line.style_dotted)
+
+            array.push(bearGoldenBoxes, goldenBox)
+            array.push(bearFVGBoxes, fvgBox)
+            array.push(bearOBBoxes, obBox)
+            array.push(bearGZTops, overlapTop)
+            array.push(bearGZBottoms, overlapBottom)
+            array.push(bearGZMitigated, false)
+
+            label.new(bar_index, overlapBottom, "GOLDEN\nZONE", color=color.new(#d4a000, 20),
+                     textcolor=color.white, style=label.style_label_up, size=size.small)
+
+            removeOldestGZ(bearGoldenBoxes, bearFVGBoxes, bearOBBoxes, bearGZTops, bearGZBottoms, bearGZMitigated)
+
+// ==================== STRATEGY ENTRY LOGIC ====================
+var bool longSignal = false
+var bool shortSignal = false
+var float entryPrice = na
+
+// Check for long entries at bullish Golden Zones
+for i = 0 to array.size(bullGZTops) - 1
+    if i < array.size(bullGZTops)
+        isUnmitigated = not array.get(bullGZMitigated, i)
+        if (not requireUnmitigated or isUnmitigated) and canTrade and dailyTrades < maxTradesPerDay
+            top = array.get(bullGZTops, i)
+            bottom = array.get(bullGZBottoms, i)
+
+            // Entry conditions based on type
+            touchZone = low <= top and low >= bottom
+            closeInside = close <= top and close >= bottom
+            wickInto = low <= top and low >= bottom and close > top
+
+            entryCondition = switch entryType
+                "Touch Golden Zone" => touchZone
+                "Close Inside Zone" => closeInside
+                "Wick Into Zone" => wickInto
+
+            if entryCondition and strategy.position_size == 0
+                longSignal := true
+                entryPrice := close
+
+// Check for short entries at bearish Golden Zones
+for i = 0 to array.size(bearGZTops) - 1
+    if i < array.size(bearGZTops)
+        isUnmitigated = not array.get(bearGZMitigated, i)
+        if (not requireUnmitigated or isUnmitigated) and canTrade and dailyTrades < maxTradesPerDay
+            top = array.get(bearGZTops, i)
+            bottom = array.get(bearGZBottoms, i)
+
+            // Entry conditions based on type
+            touchZone = high >= bottom and high <= top
+            closeInside = close >= bottom and close <= top
+            wickInto = high >= bottom and high <= top and close < bottom
+
+            entryCondition = switch entryType
+                "Touch Golden Zone" => touchZone
+                "Close Inside Zone" => closeInside
+                "Wick Into Zone" => wickInto
+
+            if entryCondition and strategy.position_size == 0
+                shortSignal := true
+                entryPrice := close
+
+// Execute trades
+if longSignal and strategy.position_size == 0
+    strategy.entry("Long GZ", strategy.long)
+    dailyTrades += 1
+    longSignal := false
+
+if shortSignal and strategy.position_size == 0
+    strategy.entry("Short GZ", strategy.short)
+    dailyTrades += 1
+    shortSignal := false
+
+// Exit logic
+if strategy.position_size > 0 and useStopLoss
+    strategy.exit("Long Exit", "Long GZ",
+                  stop=entryPrice * (1 - stopLossPercent/100),
+                  limit=useTakeProfit ? entryPrice * (1 + takeProfitPercent/100) : na)
+
+if strategy.position_size < 0 and useStopLoss
+    strategy.exit("Short Exit", "Short GZ",
+                  stop=entryPrice * (1 + stopLossPercent/100),
+                  limit=useTakeProfit ? entryPrice * (1 - takeProfitPercent/100) : na)
+
+// ==================== CHECK MITIGATION ====================
+for i = 0 to array.size(bullGZTops) - 1
+    if i < array.size(bullGZTops) and not array.get(bullGZMitigated, i)
+        top = array.get(bullGZTops, i)
+        bottom = array.get(bullGZBottoms, i)
+        if low <= top and low >= bottom
+            array.set(bullGZMitigated, i, true)
+            if showMitigated
+                box.set_bgcolor(array.get(bullGoldenBoxes, i), mitigatedColor)
+                box.set_border_color(array.get(bullGoldenBoxes, i), color.new(#888888, 50))
+            else
+                box.set_bgcolor(array.get(bullGoldenBoxes, i), color.new(color.white, 100))
+                box.set_border_color(array.get(bullGoldenBoxes, i), color.new(color.white, 100))
+                box.set_bgcolor(array.get(bullFVGBoxes, i), color.new(color.white, 100))
+                box.set_border_color(array.get(bullFVGBoxes, i), color.new(color.white, 100))
+                box.set_bgcolor(array.get(bullOBBoxes, i), color.new(color.white, 100))
+                box.set_border_color(array.get(bullOBBoxes, i), color.new(color.white, 100))
+
+for i = 0 to array.size(bearGZTops) - 1
+    if i < array.size(bearGZTops) and not array.get(bearGZMitigated, i)
+        top = array.get(bearGZTops, i)
+        bottom = array.get(bearGZBottoms, i)
+        if high >= bottom and high <= top
+            array.set(bearGZMitigated, i, true)
+            if showMitigated
+                box.set_bgcolor(array.get(bearGoldenBoxes, i), mitigatedColor)
+                box.set_border_color(array.get(bearGoldenBoxes, i), color.new(#888888, 50))
+            else
+                box.set_bgcolor(array.get(bearGoldenBoxes, i), color.new(color.white, 100))
+                box.set_border_color(array.get(bearGoldenBoxes, i), color.new(color.white, 100))
+                box.set_bgcolor(array.get(bearFVGBoxes, i), color.new(color.white, 100))
+                box.set_border_color(array.get(bearFVGBoxes, i), color.new(color.white, 100))
+                box.set_bgcolor(array.get(bearOBBoxes, i), color.new(color.white, 100))
+                box.set_border_color(array.get(bearOBBoxes, i), color.new(color.white, 100))
+
+// ==================== PERFORMANCE TABLE ====================
+var table perfTable = table.new(position.bottom_right, 2, 6, bgcolor=color.new(#1a1a2e, 20), border_width=1)
+
+if barstate.islast
+    winRate = strategy.wintrades / math.max(strategy.closedtrades, 1) * 100
+    avgWin = strategy.grossprofit / math.max(strategy.wintrades, 1)
+    avgLoss = math.abs(strategy.grossloss) / math.max(strategy.losstrades, 1)
+
+    table.cell(perfTable, 0, 0, "Total Trades", text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 1, 0, str.tostring(strategy.closedtrades), text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 0, 1, "Win Rate", text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 1, 1, str.tostring(winRate, "#.##") + "%", text_color=winRate > 50 ? color.green : color.red, text_size=size.small)
+    table.cell(perfTable, 0, 2, "Net Profit", text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 1, 2, str.tostring(strategy.netprofit, "#.##"), text_color=strategy.netprofit > 0 ? color.green : color.red, text_size=size.small)
+    table.cell(perfTable, 0, 3, "Profit Factor", text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 1, 3, str.tostring(strategy.grossprofit / math.max(math.abs(strategy.grossloss), 1), "#.##"), text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 0, 4, "Avg Win/Loss", text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 1, 4, str.tostring(avgWin / math.max(avgLoss, 1), "#.##") + "R", text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 0, 5, "Max Drawdown", text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 1, 5, str.tostring(strategy.max_drawdown, "#.##"), text_color=color.red, text_size=size.small)

@@ -1,0 +1,313 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © SMC Mastery Guide
+
+//@version=5
+strategy("Order Blocks Strategy (SMC)", overlay=true, max_boxes_count=500, max_lines_count=500,
+         default_qty_type=strategy.percent_of_equity, default_qty_value=100,
+         initial_capital=10000, commission_type=strategy.commission.cash_per_contract, commission_value=0.62)
+
+// ==================== STRATEGY INPUTS ====================
+useStopLoss = input.bool(true, "Use Stop Loss", group="Risk Management")
+stopLossPercent = input.float(1.0, "Stop Loss %", minval=0.1, maxval=10.0, step=0.1, group="Risk Management")
+useTakeProfit = input.bool(true, "Use Take Profit", group="Risk Management")
+takeProfitPercent = input.float(2.0, "Take Profit %", minval=0.1, maxval=20.0, step=0.1, group="Risk Management")
+riskRewardRatio = input.float(2.0, "Risk:Reward Ratio", minval=0.5, maxval=5.0, step=0.5, group="Risk Management")
+
+entryType = input.string("Touch OB Zone", "Entry Type", options=["Touch OB Zone", "Touch 50% Midline", "Close Inside OB"], group="Entry Settings")
+requireUnmitigated = input.bool(true, "Only Trade Unmitigated OBs", group="Entry Settings")
+maxTradesPerDay = input.int(3, "Max Trades Per Day", minval=1, maxval=10, group="Entry Settings")
+
+// Session Filter
+useSessionFilter = input.bool(true, "Only Trade During NY Session", group="Session Filter")
+sessionStart = input.int(930, "Session Start (HHMM)", group="Session Filter")
+sessionEnd = input.int(1330, "Session End (HHMM)", group="Session Filter")
+
+// ==================== DISPLAY INPUTS ====================
+showBullishOB = input.bool(true, "Show Bullish OBs", group="Display")
+showBearishOB = input.bool(true, "Show Bearish OBs", group="Display")
+showMitigated = input.bool(false, "Show Mitigated OBs", group="Display")
+showMidline = input.bool(true, "Show 50% Midline", group="Display")
+maxOBs = input.int(15, "Max OBs to Display", minval=1, maxval=30, group="Display")
+
+bullOBColor = input.color(color.new(#00d4aa, 75), "Bullish OB Color", group="Colors")
+bearOBColor = input.color(color.new(#ff6b6b, 75), "Bearish OB Color", group="Colors")
+midlineColor = input.color(color.new(#ffffff, 50), "Midline Color", group="Colors")
+mitigatedColor = input.color(color.new(#888888, 90), "Mitigated Color", group="Colors")
+
+swingLookback = input.int(5, "Swing Detection Lookback", minval=2, maxval=20, group="Settings")
+extendBars = input.int(50, "Extend OB Boxes (bars)", minval=5, maxval=200, group="Settings")
+
+// ==================== SESSION FILTER ====================
+inSession(sess) => not na(time(timeframe.period, sess, "America/New_York"))
+isNYSession = inSession("0930-1330")
+canTrade = useSessionFilter ? isNYSession : true
+
+// Track daily trades
+var int dailyTrades = 0
+newDay = ta.change(time("D")) != 0
+if newDay
+    dailyTrades := 0
+
+// ==================== SWING DETECTION ====================
+swingHigh = ta.pivothigh(high, swingLookback, swingLookback)
+swingLow = ta.pivotlow(low, swingLookback, swingLookback)
+
+var float lastSwingHigh = na
+var float lastSwingLow = na
+var int lastSwingHighBar = na
+var int lastSwingLowBar = na
+
+if not na(swingHigh)
+    lastSwingHigh := swingHigh
+    lastSwingHighBar := bar_index - swingLookback
+
+if not na(swingLow)
+    lastSwingLow := swingLow
+    lastSwingLowBar := bar_index - swingLookback
+
+// ==================== BOS DETECTION ====================
+bullishBOS = not na(lastSwingHigh) and close > lastSwingHigh and close[1] <= lastSwingHigh
+bearishBOS = not na(lastSwingLow) and close < lastSwingLow and close[1] >= lastSwingLow
+
+// ==================== ORDER BLOCK STORAGE ====================
+var box[] bullOBBoxes = array.new_box()
+var line[] bullOBMidlines = array.new_line()
+var float[] bullOBTops = array.new_float()
+var float[] bullOBBottoms = array.new_float()
+var bool[] bullOBMitigated = array.new_bool()
+var int[] bullOBBars = array.new_int()
+
+var box[] bearOBBoxes = array.new_box()
+var line[] bearOBMidlines = array.new_line()
+var float[] bearOBTops = array.new_float()
+var float[] bearOBBottoms = array.new_float()
+var bool[] bearOBMitigated = array.new_bool()
+var int[] bearOBBars = array.new_int()
+
+// ==================== HELPER FUNCTIONS ====================
+removeOldestOB(boxes, lines, tops, bottoms, mitigated, bars) =>
+    if array.size(boxes) > maxOBs
+        box.delete(array.shift(boxes))
+        line.delete(array.shift(lines))
+        array.shift(tops)
+        array.shift(bottoms)
+        array.shift(mitigated)
+        array.shift(bars)
+
+findBullishOB() =>
+    obTop = float(na)
+    obBottom = float(na)
+    obBar = int(na)
+    for i = 1 to 20
+        if close[i] < open[i]
+            obTop := open[i]
+            obBottom := close[i]
+            obBar := bar_index - i
+            for j = i + 1 to math.min(i + 5, 25)
+                if close[j] < open[j]
+                    obTop := math.max(obTop, open[j])
+                    obBottom := math.min(obBottom, close[j])
+                    obBar := bar_index - j
+                else
+                    break
+            break
+    [obTop, obBottom, obBar]
+
+findBearishOB() =>
+    obTop = float(na)
+    obBottom = float(na)
+    obBar = int(na)
+    for i = 1 to 20
+        if close[i] > open[i]
+            obBottom := open[i]
+            obTop := close[i]
+            obBar := bar_index - i
+            for j = i + 1 to math.min(i + 5, 25)
+                if close[j] > open[j]
+                    obBottom := math.min(obBottom, open[j])
+                    obTop := math.max(obTop, close[j])
+                    obBar := bar_index - j
+                else
+                    break
+            break
+    [obTop, obBottom, obBar]
+
+// ==================== CREATE ORDER BLOCKS ON BOS ====================
+if bullishBOS and showBullishOB
+    [obTop, obBottom, obBar] = findBullishOB()
+
+    if not na(obTop) and not na(obBottom) and obTop > obBottom
+        obMid = (obTop + obBottom) / 2
+        obBox = box.new(obBar, obTop, bar_index + extendBars, obBottom,
+                        border_color=color.new(#00d4aa, 40), bgcolor=bullOBColor, border_width=2)
+        midLine = line.new(obBar, obMid, bar_index + extendBars, obMid,
+                           color=midlineColor, style=line.style_dashed, width=1)
+        if not showMidline
+            line.set_color(midLine, color.new(color.white, 100))
+
+        array.push(bullOBBoxes, obBox)
+        array.push(bullOBMidlines, midLine)
+        array.push(bullOBTops, obTop)
+        array.push(bullOBBottoms, obBottom)
+        array.push(bullOBMitigated, false)
+        array.push(bullOBBars, obBar)
+
+        removeOldestOB(bullOBBoxes, bullOBMidlines, bullOBTops, bullOBBottoms, bullOBMitigated, bullOBBars)
+
+if bearishBOS and showBearishOB
+    [obTop, obBottom, obBar] = findBearishOB()
+
+    if not na(obTop) and not na(obBottom) and obTop > obBottom
+        obMid = (obTop + obBottom) / 2
+        obBox = box.new(obBar, obTop, bar_index + extendBars, obBottom,
+                        border_color=color.new(#ff6b6b, 40), bgcolor=bearOBColor, border_width=2)
+        midLine = line.new(obBar, obMid, bar_index + extendBars, obMid,
+                           color=midlineColor, style=line.style_dashed, width=1)
+        if not showMidline
+            line.set_color(midLine, color.new(color.white, 100))
+
+        array.push(bearOBBoxes, obBox)
+        array.push(bearOBMidlines, midLine)
+        array.push(bearOBTops, obTop)
+        array.push(bearOBBottoms, obBottom)
+        array.push(bearOBMitigated, false)
+        array.push(bearOBBars, obBar)
+
+        removeOldestOB(bearOBBoxes, bearOBMidlines, bearOBTops, bearOBBottoms, bearOBMitigated, bearOBBars)
+
+// ==================== STRATEGY ENTRY LOGIC ====================
+var bool longSignal = false
+var bool shortSignal = false
+var float entryPrice = na
+var float stopPrice = na
+var float targetPrice = na
+
+// Check for long entries at bullish OBs
+for i = 0 to array.size(bullOBTops) - 1
+    if i < array.size(bullOBTops)
+        isUnmitigated = not array.get(bullOBMitigated, i)
+        if (not requireUnmitigated or isUnmitigated) and canTrade and dailyTrades < maxTradesPerDay
+            top = array.get(bullOBTops, i)
+            bottom = array.get(bullOBBottoms, i)
+            mid = (top + bottom) / 2
+
+            // Entry conditions based on type
+            touchZone = low <= top and low >= bottom
+            touchMidline = low <= mid and low >= bottom
+            closeInside = close <= top and close >= bottom
+
+            entryCondition = switch entryType
+                "Touch OB Zone" => touchZone
+                "Touch 50% Midline" => touchMidline
+                "Close Inside OB" => closeInside
+
+            if entryCondition and strategy.position_size == 0
+                longSignal := true
+                entryPrice := close
+                obHeight = top - bottom
+                stopPrice := bottom - (obHeight * 0.2)  // Stop below OB with buffer
+                targetPrice := close + ((close - stopPrice) * riskRewardRatio)
+
+// Check for short entries at bearish OBs
+for i = 0 to array.size(bearOBTops) - 1
+    if i < array.size(bearOBTops)
+        isUnmitigated = not array.get(bearOBMitigated, i)
+        if (not requireUnmitigated or isUnmitigated) and canTrade and dailyTrades < maxTradesPerDay
+            top = array.get(bearOBTops, i)
+            bottom = array.get(bearOBBottoms, i)
+            mid = (top + bottom) / 2
+
+            // Entry conditions based on type
+            touchZone = high >= bottom and high <= top
+            touchMidline = high >= mid and high <= top
+            closeInside = close >= bottom and close <= top
+
+            entryCondition = switch entryType
+                "Touch OB Zone" => touchZone
+                "Touch 50% Midline" => touchMidline
+                "Close Inside OB" => closeInside
+
+            if entryCondition and strategy.position_size == 0
+                shortSignal := true
+                entryPrice := close
+                obHeight = top - bottom
+                stopPrice := top + (obHeight * 0.2)  // Stop above OB with buffer
+                targetPrice := close - ((stopPrice - close) * riskRewardRatio)
+
+// Execute trades
+if longSignal and strategy.position_size == 0
+    strategy.entry("Long OB", strategy.long)
+    dailyTrades += 1
+    longSignal := false
+
+if shortSignal and strategy.position_size == 0
+    strategy.entry("Short OB", strategy.short)
+    dailyTrades += 1
+    shortSignal := false
+
+// Exit logic
+if strategy.position_size > 0 and useStopLoss
+    strategy.exit("Long Exit", "Long OB",
+                  stop=entryPrice * (1 - stopLossPercent/100),
+                  limit=useTakeProfit ? entryPrice * (1 + takeProfitPercent/100) : na)
+
+if strategy.position_size < 0 and useStopLoss
+    strategy.exit("Short Exit", "Short OB",
+                  stop=entryPrice * (1 + stopLossPercent/100),
+                  limit=useTakeProfit ? entryPrice * (1 - takeProfitPercent/100) : na)
+
+// ==================== CHECK MITIGATION ====================
+for i = 0 to array.size(bullOBTops) - 1
+    if i < array.size(bullOBTops) and not array.get(bullOBMitigated, i)
+        top = array.get(bullOBTops, i)
+        bottom = array.get(bullOBBottoms, i)
+        if low <= top and low >= bottom
+            array.set(bullOBMitigated, i, true)
+            if showMitigated
+                box.set_bgcolor(array.get(bullOBBoxes, i), mitigatedColor)
+                box.set_border_color(array.get(bullOBBoxes, i), color.new(#888888, 70))
+                line.set_color(array.get(bullOBMidlines, i), color.new(#888888, 70))
+            else
+                box.set_bgcolor(array.get(bullOBBoxes, i), color.new(color.white, 100))
+                box.set_border_color(array.get(bullOBBoxes, i), color.new(color.white, 100))
+                line.set_color(array.get(bullOBMidlines, i), color.new(color.white, 100))
+
+for i = 0 to array.size(bearOBTops) - 1
+    if i < array.size(bearOBTops) and not array.get(bearOBMitigated, i)
+        top = array.get(bearOBTops, i)
+        bottom = array.get(bearOBBottoms, i)
+        if high >= bottom and high <= top
+            array.set(bearOBMitigated, i, true)
+            if showMitigated
+                box.set_bgcolor(array.get(bearOBBoxes, i), mitigatedColor)
+                box.set_border_color(array.get(bearOBBoxes, i), color.new(#888888, 70))
+                line.set_color(array.get(bearOBMidlines, i), color.new(#888888, 70))
+            else
+                box.set_bgcolor(array.get(bearOBBoxes, i), color.new(color.white, 100))
+                box.set_border_color(array.get(bearOBBoxes, i), color.new(color.white, 100))
+                line.set_color(array.get(bearOBMidlines, i), color.new(color.white, 100))
+
+// ==================== BOS LABELS ====================
+if bullishBOS
+    label.new(bar_index, high, "BOS", color=color.new(#00d4aa, 20), textcolor=color.white,
+              style=label.style_label_down, size=size.tiny)
+
+if bearishBOS
+    label.new(bar_index, low, "BOS", color=color.new(#ff6b6b, 20), textcolor=color.white,
+              style=label.style_label_up, size=size.tiny)
+
+// ==================== PERFORMANCE TABLE ====================
+var table perfTable = table.new(position.bottom_right, 2, 5, bgcolor=color.new(#1a1a2e, 20), border_width=1)
+
+if barstate.islast
+    winRate = strategy.wintrades / math.max(strategy.closedtrades, 1) * 100
+    table.cell(perfTable, 0, 0, "Total Trades", text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 1, 0, str.tostring(strategy.closedtrades), text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 0, 1, "Win Rate", text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 1, 1, str.tostring(winRate, "#.##") + "%", text_color=winRate > 50 ? color.green : color.red, text_size=size.small)
+    table.cell(perfTable, 0, 2, "Net Profit", text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 1, 2, str.tostring(strategy.netprofit, "#.##"), text_color=strategy.netprofit > 0 ? color.green : color.red, text_size=size.small)
+    table.cell(perfTable, 0, 3, "Profit Factor", text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 1, 3, str.tostring(strategy.grossprofit / math.max(math.abs(strategy.grossloss), 1), "#.##"), text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 0, 4, "Max Drawdown", text_color=color.white, text_size=size.small)
+    table.cell(perfTable, 1, 4, str.tostring(strategy.max_drawdown, "#.##"), text_color=color.red, text_size=size.small)
