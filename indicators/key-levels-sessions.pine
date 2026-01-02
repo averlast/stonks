@@ -92,11 +92,11 @@ if newDay
     // Create new lines
     if showPDH and not na(pdh)
         pdhLine := line.new(bar_index, pdh, bar_index + 1, pdh, color=pdhColor, width=2, style=line.style_solid, extend=extend.right)
-        pdhLabel := label.new(bar_index, pdh, "PDH", color=color.new(color.white, 100), textcolor=pdhColor, style=label.style_label_left, size=size.small)
+        pdhLabel := label.new(bar_index, pdh, "PDH", color=color.new(color.white, 100), textcolor=pdhColor, style=label.style_label_left, size=size.normal)
 
     if showPDL and not na(pdl)
         pdlLine := line.new(bar_index, pdl, bar_index + 1, pdl, color=pdlColor, width=2, style=line.style_solid, extend=extend.right)
-        pdlLabel := label.new(bar_index, pdl, "PDL", color=color.new(color.white, 100), textcolor=pdlColor, style=label.style_label_left, size=size.small)
+        pdlLabel := label.new(bar_index, pdl, "PDL", color=color.new(color.white, 100), textcolor=pdlColor, style=label.style_label_left, size=size.normal)
 
     if showPDO and not na(pdo)
         pdoLine := line.new(bar_index, pdo, bar_index + 1, pdo, color=pdoColor, width=1, style=line.style_dashed, extend=extend.right)
@@ -106,7 +106,7 @@ if newDay
 
     if showPDMid and not na(pdMid)
         pdMidLine := line.new(bar_index, pdMid, bar_index + 1, pdMid, color=pdMidColor, width=1, style=line.style_dotted, extend=extend.right)
-        pdMidLabel := label.new(bar_index, pdMid, "PD 50%", color=color.new(color.white, 100), textcolor=pdMidColor, style=label.style_label_left, size=size.tiny)
+        pdMidLabel := label.new(bar_index, pdMid, "PD 50%", color=color.new(color.white, 100), textcolor=pdMidColor, style=label.style_label_left, size=size.normal)
 
 // ==================== OPENING RANGE (ORB) ====================
 var float orbHigh = na
@@ -161,8 +161,8 @@ if not inORBSession and not na(orbHigh) and not na(orbLow) and not orbSet and sh
     orbBox := box.new(orbStartBar, orbHigh, bar_index + 100, orbLow, border_color=color.new(#4da6ff, 70), bgcolor=orbFillColor, border_width=1)
 
     // Labels
-    orbHighLabel := label.new(bar_index, orbHigh, "ORB High", color=color.new(color.white, 100), textcolor=orbHighColor, style=label.style_label_left, size=size.tiny)
-    orbLowLabel := label.new(bar_index, orbLow, "ORB Low", color=color.new(color.white, 100), textcolor=orbLowColor, style=label.style_label_left, size=size.tiny)
+    orbHighLabel := label.new(bar_index, orbHigh, "ORB High", color=color.new(color.white, 100), textcolor=orbHighColor, style=label.style_label_left, size=size.normal)
+    orbLowLabel := label.new(bar_index, orbLow, "ORB Low", color=color.new(color.white, 100), textcolor=orbLowColor, style=label.style_label_left, size=size.normal)
 
 // ==================== UPDATE LABEL POSITIONS ====================
 // Move labels to follow current bar (stay at right edge)
@@ -191,16 +191,16 @@ bgcolor(showReversalWindow and isReversalWindow ? reversalColor : na, title="Rev
 // Mark session start
 var bool sessionStartMarked = false
 if isNYSession and not isNYSession[1] and showNYSession
-    label.new(bar_index, low, "NY\nOpen", color=color.new(#00d4aa, 30), textcolor=color.white, style=label.style_label_up, size=size.tiny)
+    label.new(bar_index, low, "NY\nOpen", color=color.new(#00d4aa, 30), textcolor=color.white, style=label.style_label_up, size=size.normal)
     sessionStartMarked := true
 
 // Mark reversal window start
 if isReversalWindow and not isReversalWindow[1] and showReversalWindow
-    label.new(bar_index, high, "10AM\nReversal", color=color.new(#d4a000, 30), textcolor=color.white, style=label.style_label_down, size=size.tiny)
+    label.new(bar_index, high, "10AM\nReversal", color=color.new(#d4a000, 30), textcolor=color.white, style=label.style_label_down, size=size.normal)
 
 // Mark lunch lull start
 if isLunchLull and not isLunchLull[1] and showLunchLull
-    label.new(bar_index, high, "Lunch\nLull", color=color.new(#ff6b6b, 30), textcolor=color.white, style=label.style_label_down, size=size.tiny)
+    label.new(bar_index, high, "Lunch\nLull", color=color.new(#ff6b6b, 30), textcolor=color.white, style=label.style_label_down, size=size.normal)
 
 // ==================== ORB BREAKOUT ALERTS ====================
 orbBreakoutUp = orbSet and close > orbHigh and close[1] <= orbHigh
@@ -208,43 +208,43 @@ orbBreakoutDown = orbSet and close < orbLow and close[1] >= orbLow
 
 // Visual markers for breakouts
 if orbBreakoutUp
-    label.new(bar_index, low, "ORB\nBREAK", color=color.new(#00d4aa, 20), textcolor=color.white, style=label.style_label_up, size=size.small)
+    label.new(bar_index, low, "ORB\nBREAK", color=color.new(#00d4aa, 20), textcolor=color.white, style=label.style_label_up, size=size.normal)
 
 if orbBreakoutDown
-    label.new(bar_index, high, "ORB\nBREAK", color=color.new(#ff6b6b, 20), textcolor=color.white, style=label.style_label_down, size=size.small)
+    label.new(bar_index, high, "ORB\nBREAK", color=color.new(#ff6b6b, 20), textcolor=color.white, style=label.style_label_down, size=size.normal)
 
 // ==================== INFO TABLE ====================
 var table infoTable = table.new(position.top_right, 2, 6, bgcolor=color.new(#1a1a2e, 20), border_width=1)
 
 if barstate.islast
     // Header
-    table.cell(infoTable, 0, 0, "Level", text_color=color.white, text_size=size.small)
-    table.cell(infoTable, 1, 0, "Price", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 0, 0, "Level", text_color=color.white, text_size=size.normal)
+    table.cell(infoTable, 1, 0, "Price", text_color=color.white, text_size=size.normal)
 
     // PDH
     if showPDH and not na(pdh)
-        table.cell(infoTable, 0, 1, "PDH", text_color=pdhColor, text_size=size.small)
-        table.cell(infoTable, 1, 1, str.tostring(pdh, format.mintick), text_color=pdhColor, text_size=size.small)
+        table.cell(infoTable, 0, 1, "PDH", text_color=pdhColor, text_size=size.normal)
+        table.cell(infoTable, 1, 1, str.tostring(pdh, format.mintick), text_color=pdhColor, text_size=size.normal)
 
     // PDL
     if showPDL and not na(pdl)
-        table.cell(infoTable, 0, 2, "PDL", text_color=pdlColor, text_size=size.small)
-        table.cell(infoTable, 1, 2, str.tostring(pdl, format.mintick), text_color=pdlColor, text_size=size.small)
+        table.cell(infoTable, 0, 2, "PDL", text_color=pdlColor, text_size=size.normal)
+        table.cell(infoTable, 1, 2, str.tostring(pdl, format.mintick), text_color=pdlColor, text_size=size.normal)
 
     // PD Mid
     if showPDMid and not na(pdMid)
-        table.cell(infoTable, 0, 3, "PD 50%", text_color=pdMidColor, text_size=size.small)
-        table.cell(infoTable, 1, 3, str.tostring(pdMid, format.mintick), text_color=pdMidColor, text_size=size.small)
+        table.cell(infoTable, 0, 3, "PD 50%", text_color=pdMidColor, text_size=size.normal)
+        table.cell(infoTable, 1, 3, str.tostring(pdMid, format.mintick), text_color=pdMidColor, text_size=size.normal)
 
     // ORB High
     if showORB and not na(orbHigh)
-        table.cell(infoTable, 0, 4, "ORB H", text_color=orbHighColor, text_size=size.small)
-        table.cell(infoTable, 1, 4, str.tostring(orbHigh, format.mintick), text_color=orbHighColor, text_size=size.small)
+        table.cell(infoTable, 0, 4, "ORB H", text_color=orbHighColor, text_size=size.normal)
+        table.cell(infoTable, 1, 4, str.tostring(orbHigh, format.mintick), text_color=orbHighColor, text_size=size.normal)
 
     // ORB Low
     if showORB and not na(orbLow)
-        table.cell(infoTable, 0, 5, "ORB L", text_color=orbLowColor, text_size=size.small)
-        table.cell(infoTable, 1, 5, str.tostring(orbLow, format.mintick), text_color=orbLowColor, text_size=size.small)
+        table.cell(infoTable, 0, 5, "ORB L", text_color=orbLowColor, text_size=size.normal)
+        table.cell(infoTable, 1, 5, str.tostring(orbLow, format.mintick), text_color=orbLowColor, text_size=size.normal)
 
 // ==================== ALERTS ====================
 alertcondition(orbBreakoutUp, "ORB Breakout Up", "Price closed above ORB High")
