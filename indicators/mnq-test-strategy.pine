@@ -1,0 +1,403 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © SMC Mastery Guide
+
+//@version=6
+strategy("ORB + Key Levels Strategy", overlay=true, max_lines_count=500, max_boxes_count=100, max_labels_count=50,
+         default_qty_type=strategy.percent_of_equity, default_qty_value=100,
+         initial_capital=10000, commission_type=strategy.commission.cash_per_contract, commission_value=0.62)
+
+// ==================== STRATEGY INPUTS ====================
+useStopLoss = input.bool(true, "Use Stop Loss", group="Risk Management")
+stopType = input.string("Opposite ORB Level", "Stop Loss Type",
+           options=["Opposite ORB Level", "Percentage", "ATR Based"], group="Risk Management")
+stopLossPercent = input.float(1.0, "Stop Loss % (if percentage)", minval=0.1, maxval=10.0, step=0.1, group="Risk Management")
+atrMultiplier = input.float(1.5, "ATR Multiplier (if ATR based)", minval=0.5, maxval=5.0, step=0.5, group="Risk Management")
+
+useTakeProfit = input.bool(true, "Use Take Profit", group="Risk Management")
+tpType = input.string("Previous Day Level", "Take Profit Type",
+         options=["Previous Day Level", "Risk Multiple", "Percentage"], group="Risk Management")
+takeProfitPercent = input.float(2.0, "Take Profit % (if percentage)", minval=0.1, maxval=20.0, step=0.1, group="Risk Management")
+riskRewardRatio = input.float(2.0, "Risk:Reward (if risk multiple)", minval=0.5, maxval=5.0, step=0.5, group="Risk Management")
+
+entryType = input.string("Breakout Close", "Entry Type",
+            options=["Breakout Close", "Retest of ORB", "Breakout + FVG Confluence"], group="Entry Settings")
+requirePDConfluence = input.bool(false, "Require PD Level Confluence", group="Entry Settings")
+maxTradesPerDay = input.int(2, "Max Trades Per Day", minval=1, maxval=5, group="Entry Settings")
+
+avoidLunchLull = input.bool(true, "Avoid Lunch Lull (12:00-12:45)", group="Session Filter")
+avoidAfter1PM = input.bool(true, "No New Trades After 1PM ET", group="Session Filter")
+
+// ==================== DISPLAY INPUTS ====================
+// Previous Day Levels
+showPDH = input.bool(true, "Show PDH (Previous Day High)", group="Previous Day Levels")
+showPDL = input.bool(true, "Show PDL (Previous Day Low)", group="Previous Day Levels")
+showPDO = input.bool(false, "Show PDO (Previous Day Open)", group="Previous Day Levels")
+showPDC = input.bool(false, "Show PDC (Previous Day Close)", group="Previous Day Levels")
+showPDMid = input.bool(true, "Show PD Midpoint (50%)", group="Previous Day Levels")
+
+pdhColor = input.color(color.new(#ff6b6b, 30), "PDH Color", group="Previous Day Levels")
+pdlColor = input.color(color.new(#00d4aa, 30), "PDL Color", group="Previous Day Levels")
+pdoColor = input.color(color.new(#888888, 50), "PDO Color", group="Previous Day Levels")
+pdcColor = input.color(color.new(#4da6ff, 50), "PDC Color", group="Previous Day Levels")
+pdMidColor = input.color(color.new(#d4a000, 50), "PD Mid Color", group="Previous Day Levels")
+
+// Opening Range
+showORB = input.bool(true, "Show Opening Range (ORB)", group="Opening Range")
+orbMinutes = input.int(15, "ORB Duration (minutes)", options=[5, 15, 30, 60], group="Opening Range")
+orbHighColor = input.color(color.new(#ff6b6b, 40), "ORB High Color", group="Opening Range")
+orbLowColor = input.color(color.new(#00d4aa, 40), "ORB Low Color", group="Opening Range")
+orbFillColor = input.color(color.new(#4da6ff, 90), "ORB Fill Color", group="Opening Range")
+
+// Session Highlights
+showNYSession = input.bool(true, "Highlight NY Session", group="Sessions")
+showLunchLull = input.bool(true, "Highlight Lunch Lull (Caution)", group="Sessions")
+showReversalWindow = input.bool(true, "Highlight 10AM Reversal Window", group="Sessions")
+
+nySessionColor = input.color(color.new(#00d4aa, 95), "NY Session Color", group="Sessions")
+lunchColor = input.color(color.new(#ff6b6b, 93), "Lunch Lull Color", group="Sessions")
+reversalColor = input.color(color.new(#d4a000, 93), "Reversal Window Color", group="Sessions")
+
+// ==================== TIME FUNCTIONS ====================
+inSession(sess) => not na(time(timeframe.period, sess, "America/New_York"))
+
+isNYSession = inSession("0930-1330")
+isLunchLull = inSession("1200-1245")
+isReversalWindow = inSession("1000-1030")
+isAfter1PM = inSession("1300-1600")
+
+// ==================== ATR FOR STOPS ====================
+atrLength = input.int(14, "ATR Length", group="Settings")
+atr = ta.atr(atrLength)
+
+// ==================== PREVIOUS DAY LEVELS ====================
+var float pdh = na
+var float pdl = na
+var float pdo = na
+var float pdc = na
+var float pdMid = na
+
+var line pdhLine = na
+var line pdlLine = na
+var line pdoLine = na
+var line pdcLine = na
+var line pdMidLine = na
+
+var label pdhLabel = na
+var label pdlLabel = na
+var label pdMidLabel = na
+
+[prevHigh, prevLow, prevOpen, prevClose] = request.security(syminfo.tickerid, "1D", [high[1], low[1], open[1], close[1]], lookahead=barmerge.lookahead_on)
+
+newDay = ta.change(time("1D")) != 0
+
+// Track daily trades
+var int dailyTrades = 0
+
+if newDay
+    pdh := prevHigh
+    pdl := prevLow
+    pdo := prevOpen
+    pdc := prevClose
+    pdMid := (prevHigh + prevLow) / 2
+    dailyTrades := 0
+
+    // Delete old lines
+    line.delete(pdhLine)
+    line.delete(pdlLine)
+    line.delete(pdoLine)
+    line.delete(pdcLine)
+    line.delete(pdMidLine)
+    label.delete(pdhLabel)
+    label.delete(pdlLabel)
+    label.delete(pdMidLabel)
+
+    if showPDH and not na(pdh)
+        pdhLine := line.new(bar_index, pdh, bar_index + 1, pdh, xloc=xloc.bar_index, color=pdhColor, width=2, style=line.style_solid, extend=extend.right)
+        pdhLabel := label.new(bar_index, pdh, "PDH", xloc=xloc.bar_index, color=color.new(color.white, 100), textcolor=pdhColor, style=label.style_label_left, size=size.normal)
+
+    if showPDL and not na(pdl)
+        pdlLine := line.new(bar_index, pdl, bar_index + 1, pdl, xloc=xloc.bar_index, color=pdlColor, width=2, style=line.style_solid, extend=extend.right)
+        pdlLabel := label.new(bar_index, pdl, "PDL", xloc=xloc.bar_index, color=color.new(color.white, 100), textcolor=pdlColor, style=label.style_label_left, size=size.normal)
+
+    if showPDO and not na(pdo)
+        pdoLine := line.new(bar_index, pdo, bar_index + 1, pdo, xloc=xloc.bar_index, color=pdoColor, width=1, style=line.style_dashed, extend=extend.right)
+
+    if showPDC and not na(pdc)
+        pdcLine := line.new(bar_index, pdc, bar_index + 1, pdc, xloc=xloc.bar_index, color=pdcColor, width=1, style=line.style_dashed, extend=extend.right)
+
+    if showPDMid and not na(pdMid)
+        pdMidLine := line.new(bar_index, pdMid, bar_index + 1, pdMid, xloc=xloc.bar_index, color=pdMidColor, width=1, style=line.style_dotted, extend=extend.right)
+        pdMidLabel := label.new(bar_index, pdMid, "PD 50%", xloc=xloc.bar_index, color=color.new(color.white, 100), textcolor=pdMidColor, style=label.style_label_left, size=size.normal)
+
+// ==================== OPENING RANGE (ORB) ====================
+var float orbHigh = na
+var float orbLow = na
+var bool orbSet = false
+var int orbStartBar = na
+
+var line orbHighLine = na
+var line orbLowLine = na
+var box orbBox = na
+var label orbHighLabel = na
+var label orbLowLabel = na
+
+if newDay
+    orbHigh := na
+    orbLow := na
+    orbSet := false
+    orbStartBar := na
+    line.delete(orbHighLine)
+    line.delete(orbLowLine)
+    box.delete(orbBox)
+    label.delete(orbHighLabel)
+    label.delete(orbLowLabel)
+
+orbSession = switch orbMinutes
+    5 => "0930-0935"
+    15 => "0930-0945"
+    30 => "0930-1000"
+    60 => "0930-1030"
+
+inORBSession = inSession(orbSession)
+
+if inORBSession and showORB
+    if na(orbHigh) or high > orbHigh
+        orbHigh := high
+    if na(orbLow) or low < orbLow
+        orbLow := low
+    if na(orbStartBar)
+        orbStartBar := bar_index
+
+if not inORBSession and not na(orbHigh) and not na(orbLow) and not orbSet and showORB
+    orbSet := true
+
+    orbHighLine := line.new(orbStartBar, orbHigh, bar_index + 100, orbHigh, xloc=xloc.bar_index, color=orbHighColor, width=2, style=line.style_solid)
+    orbLowLine := line.new(orbStartBar, orbLow, bar_index + 100, orbLow, xloc=xloc.bar_index, color=orbLowColor, width=2, style=line.style_solid)
+    orbBox := box.new(orbStartBar, orbHigh, bar_index + 100, orbLow, xloc=xloc.bar_index, border_color=color.new(#4da6ff, 70), bgcolor=orbFillColor, border_width=1)
+
+    orbHighLabel := label.new(bar_index, orbHigh, "ORB High", xloc=xloc.bar_index, color=color.new(color.white, 100), textcolor=orbHighColor, style=label.style_label_left, size=size.normal)
+    orbLowLabel := label.new(bar_index, orbLow, "ORB Low", xloc=xloc.bar_index, color=color.new(color.white, 100), textcolor=orbLowColor, style=label.style_label_left, size=size.normal)
+
+// ==================== UPDATE LABEL POSITIONS ====================
+// Move labels to follow current bar (stay at right edge)
+if not na(pdhLabel)
+    label.set_x(pdhLabel, bar_index)
+if not na(pdlLabel)
+    label.set_x(pdlLabel, bar_index)
+if not na(pdMidLabel)
+    label.set_x(pdMidLabel, bar_index)
+if not na(orbHighLabel)
+    label.set_x(orbHighLabel, bar_index)
+if not na(orbLowLabel)
+    label.set_x(orbLowLabel, bar_index)
+
+// ==================== SESSION BACKGROUNDS ====================
+bgcolor(showNYSession and isNYSession ? nySessionColor : na, title="NY Session")
+bgcolor(showLunchLull and isLunchLull ? lunchColor : na, title="Lunch Lull")
+bgcolor(showReversalWindow and isReversalWindow ? reversalColor : na, title="Reversal Window")
+
+// ==================== ORB BREAKOUT DETECTION ====================
+orbBreakoutUp = orbSet and close > orbHigh and close[1] <= orbHigh
+orbBreakoutDown = orbSet and close < orbLow and close[1] >= orbLow
+
+// Retest conditions (price returns to ORB level after breakout)
+var bool hadBreakoutUp = false
+var bool hadBreakoutDown = false
+var bool retestLongReady = false
+var bool retestShortReady = false
+
+if orbBreakoutUp
+    hadBreakoutUp := true
+if orbBreakoutDown
+    hadBreakoutDown := true
+
+// Retest detection
+retestLong = hadBreakoutUp and low <= orbHigh and close > orbHigh
+retestShort = hadBreakoutDown and high >= orbLow and close < orbLow
+
+if retestLong
+    retestLongReady := true
+if retestShort
+    retestShortReady := true
+
+// Reset on new day
+if newDay
+    hadBreakoutUp := false
+    hadBreakoutDown := false
+    retestLongReady := false
+    retestShortReady := false
+
+// ==================== FVG DETECTION FOR CONFLUENCE ====================
+bullishFVG = low > high[2] and close[1] > open[1]
+bearishFVG = high < low[2] and close[1] < open[1]
+
+// ==================== ENTRY CONDITIONS ====================
+canTrade = isNYSession and dailyTrades < maxTradesPerDay
+if avoidLunchLull and isLunchLull
+    canTrade := false
+if avoidAfter1PM and isAfter1PM
+    canTrade := false
+
+// PD Level confluence check
+nearPDH = not na(pdh) and math.abs(close - pdh) < atr * 0.5
+nearPDL = not na(pdl) and math.abs(close - pdl) < atr * 0.5
+hasPDConfluence = nearPDH or nearPDL or not requirePDConfluence
+
+// Entry signals based on type
+var bool longSignal = false
+var bool shortSignal = false
+var float entryPrice = na
+var float stopPrice = na
+var float targetPrice = na
+
+if canTrade and strategy.position_size == 0 and orbSet
+    // Long entry conditions
+    longEntry = switch entryType
+        "Breakout Close" => orbBreakoutUp
+        "Retest of ORB" => retestLongReady and retestLong
+        "Breakout + FVG Confluence" => orbBreakoutUp and bullishFVG
+
+    // Short entry conditions
+    shortEntry = switch entryType
+        "Breakout Close" => orbBreakoutDown
+        "Retest of ORB" => retestShortReady and retestShort
+        "Breakout + FVG Confluence" => orbBreakoutDown and bearishFVG
+
+    if longEntry and hasPDConfluence
+        longSignal := true
+        entryPrice := close
+
+        // Calculate stop based on type
+        stopPrice := switch stopType
+            "Opposite ORB Level" => orbLow - (atr * 0.2)
+            "Percentage" => close * (1 - stopLossPercent/100)
+            "ATR Based" => close - (atr * atrMultiplier)
+
+        // Calculate target based on type
+        targetPrice := switch tpType
+            "Previous Day Level" => not na(pdh) and close < pdh ? pdh : close * (1 + takeProfitPercent/100)
+            "Risk Multiple" => close + ((close - stopPrice) * riskRewardRatio)
+            "Percentage" => close * (1 + takeProfitPercent/100)
+
+    if shortEntry and hasPDConfluence
+        shortSignal := true
+        entryPrice := close
+
+        // Calculate stop based on type
+        stopPrice := switch stopType
+            "Opposite ORB Level" => orbHigh + (atr * 0.2)
+            "Percentage" => close * (1 + stopLossPercent/100)
+            "ATR Based" => close + (atr * atrMultiplier)
+
+        // Calculate target based on type
+        targetPrice := switch tpType
+            "Previous Day Level" => not na(pdl) and close > pdl ? pdl : close * (1 - takeProfitPercent/100)
+            "Risk Multiple" => close - ((stopPrice - close) * riskRewardRatio)
+            "Percentage" => close * (1 - takeProfitPercent/100)
+
+// ==================== EXECUTE TRADES ====================
+if longSignal and strategy.position_size == 0
+    strategy.entry("Long ORB", strategy.long)
+    // Place exit order immediately with entry to ensure stop/target are set
+    if useStopLoss or useTakeProfit
+        strategy.exit("Long Exit", "Long ORB",
+             stop=useStopLoss ? stopPrice : na,
+             limit=useTakeProfit ? targetPrice : na)
+    dailyTrades += 1
+    longSignal := false
+    retestLongReady := false
+
+if shortSignal and strategy.position_size == 0
+    strategy.entry("Short ORB", strategy.short)
+    // Place exit order immediately with entry to ensure stop/target are set
+    if useStopLoss or useTakeProfit
+        strategy.exit("Short Exit", "Short ORB",
+             stop=useStopLoss ? stopPrice : na,
+             limit=useTakeProfit ? targetPrice : na)
+    dailyTrades += 1
+    shortSignal := false
+    retestShortReady := false
+
+// Maintain exit orders on subsequent bars (in case they need updating)
+if strategy.position_size > 0 and (useStopLoss or useTakeProfit)
+    strategy.exit("Long Exit", "Long ORB",
+         stop=useStopLoss ? stopPrice : na,
+         limit=useTakeProfit ? targetPrice : na)
+
+if strategy.position_size < 0 and (useStopLoss or useTakeProfit)
+    strategy.exit("Short Exit", "Short ORB",
+         stop=useStopLoss ? stopPrice : na,
+         limit=useTakeProfit ? targetPrice : na)
+
+// ==================== VISUAL MARKERS ====================
+if orbBreakoutUp
+    label.new(bar_index, low, "ORB\nBREAK", color=color.new(#00d4aa, 20), textcolor=color.white, style=label.style_label_up, size=size.normal)
+
+if orbBreakoutDown
+    label.new(bar_index, high, "ORB\nBREAK", color=color.new(#ff6b6b, 20), textcolor=color.white, style=label.style_label_down, size=size.normal)
+
+// Session markers
+var bool sessionStartMarked = false
+if isNYSession and not isNYSession[1] and showNYSession
+    label.new(bar_index, low, "NY\nOpen", color=color.new(#00d4aa, 30), textcolor=color.white, style=label.style_label_up, size=size.normal)
+    sessionStartMarked := true
+
+if isReversalWindow and not isReversalWindow[1] and showReversalWindow
+    label.new(bar_index, high, "10AM\nReversal", color=color.new(#d4a000, 30), textcolor=color.white, style=label.style_label_down, size=size.normal)
+
+if isLunchLull and not isLunchLull[1] and showLunchLull
+    label.new(bar_index, high, "Lunch\nLull", color=color.new(#ff6b6b, 30), textcolor=color.white, style=label.style_label_down, size=size.normal)
+
+// ==================== INFO TABLE ====================
+var table infoTable = table.new(position.top_right, 2, 6, bgcolor=color.new(#1a1a2e, 20), border_width=1)
+
+if barstate.islast
+    table.cell(infoTable, 0, 0, "Level", text_color=color.white, text_size=size.normal)
+    table.cell(infoTable, 1, 0, "Price", text_color=color.white, text_size=size.normal)
+
+    if showPDH and not na(pdh)
+        table.cell(infoTable, 0, 1, "PDH", text_color=pdhColor, text_size=size.normal)
+        table.cell(infoTable, 1, 1, str.tostring(pdh, format.mintick), text_color=pdhColor, text_size=size.normal)
+
+    if showPDL and not na(pdl)
+        table.cell(infoTable, 0, 2, "PDL", text_color=pdlColor, text_size=size.normal)
+        table.cell(infoTable, 1, 2, str.tostring(pdl, format.mintick), text_color=pdlColor, text_size=size.normal)
+
+    if showPDMid and not na(pdMid)
+        table.cell(infoTable, 0, 3, "PD 50%", text_color=pdMidColor, text_size=size.normal)
+        table.cell(infoTable, 1, 3, str.tostring(pdMid, format.mintick), text_color=pdMidColor, text_size=size.normal)
+
+    if showORB and not na(orbHigh)
+        table.cell(infoTable, 0, 4, "ORB H", text_color=orbHighColor, text_size=size.normal)
+        table.cell(infoTable, 1, 4, str.tostring(orbHigh, format.mintick), text_color=orbHighColor, text_size=size.normal)
+
+    if showORB and not na(orbLow)
+        table.cell(infoTable, 0, 5, "ORB L", text_color=orbLowColor, text_size=size.normal)
+        table.cell(infoTable, 1, 5, str.tostring(orbLow, format.mintick), text_color=orbLowColor, text_size=size.normal)
+
+// ==================== PERFORMANCE TABLE ====================
+var table perfTable = table.new(position.bottom_right, 2, 6, bgcolor=color.new(#1a1a2e, 20), border_width=1)
+
+if barstate.islast
+    winRate = strategy.wintrades / math.max(strategy.closedtrades, 1) * 100
+    avgWin = strategy.grossprofit / math.max(strategy.wintrades, 1)
+    avgLoss = math.abs(strategy.grossloss) / math.max(strategy.losstrades, 1)
+
+    table.cell(perfTable, 0, 0, "Total Trades", text_color=color.white, text_size=size.normal)
+    table.cell(perfTable, 1, 0, str.tostring(strategy.closedtrades), text_color=color.white, text_size=size.normal)
+    table.cell(perfTable, 0, 1, "Win Rate", text_color=color.white, text_size=size.normal)
+    table.cell(perfTable, 1, 1, str.tostring(winRate, "#.##") + "%", text_color=winRate > 50 ? color.green : color.red, text_size=size.normal)
+    table.cell(perfTable, 0, 2, "Net Profit", text_color=color.white, text_size=size.normal)
+    table.cell(perfTable, 1, 2, str.tostring(strategy.netprofit, "#.##"), text_color=strategy.netprofit > 0 ? color.green : color.red, text_size=size.normal)
+    table.cell(perfTable, 0, 3, "Profit Factor", text_color=color.white, text_size=size.normal)
+    table.cell(perfTable, 1, 3, str.tostring(strategy.grossprofit / math.max(math.abs(strategy.grossloss), 1), "#.##"), text_color=color.white, text_size=size.normal)
+    table.cell(perfTable, 0, 4, "Avg Win/Loss", text_color=color.white, text_size=size.normal)
+    table.cell(perfTable, 1, 4, str.tostring(avgWin / math.max(avgLoss, 1), "#.##") + "R", text_color=color.white, text_size=size.normal)
+    table.cell(perfTable, 0, 5, "Max Drawdown", text_color=color.white, text_size=size.normal)
+    table.cell(perfTable, 1, 5, str.tostring(strategy.max_drawdown, "#.##"), text_color=color.red, text_size=size.normal)
+
+// ==================== ALERTS ====================
+alertcondition(orbBreakoutUp, "ORB Breakout Up", "Price closed above ORB High")
+alertcondition(orbBreakoutDown, "ORB Breakout Down", "Price closed below ORB Low")
+alertcondition(isReversalWindow and not isReversalWindow[1], "10AM Reversal Window", "10 AM reversal window has started")
+alertcondition(isLunchLull and not isLunchLull[1], "Lunch Lull Started", "Lunch lull period - avoid new entries")
