@@ -3,8 +3,9 @@
 
 //@version=6
 strategy("FVG Premium/Discount Strategy", overlay=true, max_boxes_count=500, max_lines_count=500,
-         default_qty_type=strategy.percent_of_equity, default_qty_value=100,
-         initial_capital=10000, commission_type=strategy.commission.cash_per_contract, commission_value=0.62)
+         margin_long=5, margin_short=5, default_qty_type=strategy.fixed, default_qty_value=1,
+         initial_capital=50000, currency=currency.USD,
+         commission_type=strategy.commission.cash_per_contract, commission_value=0.62)
 
 // ==================== STRATEGY INPUTS ====================
 useStopLoss = input.bool(true, "Use Stop Loss", group="Risk Management")
@@ -39,8 +40,10 @@ mitigatedColor = input.color(color.new(#888888, 90), "Mitigated Color", group="C
 extendBars = input.int(50, "Extend FVG Boxes (bars)", minval=5, maxval=200, group="Settings")
 
 // ==================== SESSION FILTER ====================
-inSession(sess) => not na(time(timeframe.period, sess, "America/New_York"))
-isNYSession = inSession("0930-1330")
+nyHour = hour(time, "America/New_York")
+nyMinute = minute(time, "America/New_York")
+nyTime = nyHour * 100 + nyMinute
+isNYSession = nyTime >= 930 and nyTime < 1330
 canTrade = useSessionFilter ? isNYSession : true
 
 // Track daily trades
@@ -258,24 +261,10 @@ for i = 0 to bearFVGMitCount
 // ==================== FVG LABELS ====================
 if bullishFVG and bullFVGSize >= minFVGSize
     label.new(bar_index - 1, bullFVGBottom, "FVG", color=color.new(#00d4aa, 40), textcolor=color.white,
-              style=label.style_label_up, size=size.tiny)
+              style=label.style_label_up, size=size.normal)
 
 if bearishFVG and bearFVGSize >= minFVGSize
     label.new(bar_index - 1, bearFVGTop, "FVG", color=color.new(#ff6b6b, 40), textcolor=color.white,
-              style=label.style_label_down, size=size.tiny)
+              style=label.style_label_down, size=size.normal)
 
-// ==================== PERFORMANCE TABLE ====================
-var table perfTable = table.new(position.bottom_right, 2, 5, bgcolor=color.new(#1a1a2e, 20), border_width=1)
-
-if barstate.islast
-    winRate = strategy.wintrades / math.max(strategy.closedtrades, 1) * 100
-    table.cell(perfTable, 0, 0, "Total Trades", text_color=color.white, text_size=size.small)
-    table.cell(perfTable, 1, 0, str.tostring(strategy.closedtrades), text_color=color.white, text_size=size.small)
-    table.cell(perfTable, 0, 1, "Win Rate", text_color=color.white, text_size=size.small)
-    table.cell(perfTable, 1, 1, str.tostring(winRate, "#.##") + "%", text_color=winRate > 50 ? color.green : color.red, text_size=size.small)
-    table.cell(perfTable, 0, 2, "Net Profit", text_color=color.white, text_size=size.small)
-    table.cell(perfTable, 1, 2, str.tostring(strategy.netprofit, "#.##"), text_color=strategy.netprofit > 0 ? color.green : color.red, text_size=size.small)
-    table.cell(perfTable, 0, 3, "Profit Factor", text_color=color.white, text_size=size.small)
-    table.cell(perfTable, 1, 3, str.tostring(strategy.grossprofit / math.max(math.abs(strategy.grossloss), 1), "#.##"), text_color=color.white, text_size=size.small)
-    table.cell(perfTable, 0, 4, "Max Drawdown", text_color=color.white, text_size=size.small)
-    table.cell(perfTable, 1, 4, str.tostring(strategy.max_drawdown, "#.##"), text_color=color.red, text_size=size.small)
+// Performance stats available in Strategy Tester panel
