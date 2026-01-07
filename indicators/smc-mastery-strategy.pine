@@ -1,0 +1,557 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// SMC Mastery Strategy - Backtesting the 3 Setups from SMC Mastery Guide
+
+//@version=6
+strategy("SMC Mastery Strategy", overlay=true, max_lines_count=500, max_boxes_count=500, max_labels_count=500,
+         margin_long=5, margin_short=5, default_qty_type=strategy.fixed, default_qty_value=1,
+         initial_capital=50000, currency=currency.USD,
+         commission_type=strategy.commission.cash_per_contract, commission_value=0.62)
+
+// ==================== DAILY BIAS (Manual TDA) ====================
+biasInput = input.string("Neutral", "Daily Bias", options=["Bullish", "Bearish", "Neutral"],
+            tooltip="Set based on your Top-Down Analysis before session. Neutral = no trades.", group="1. Daily Bias")
+
+// ==================== RISK MANAGEMENT ====================
+riskPerTrade = input.float(300.0, "Risk Per Trade ($)", minval=50, maxval=500, step=50, group="2. Risk Management")
+minRR = input.float(2.0, "Minimum R:R Ratio", minval=1.0, maxval=5.0, step=0.5, group="2. Risk Management")
+maxTradesPerDay = input.int(2, "Max Trades Per Day", minval=1, maxval=5, group="2. Risk Management")
+pointValue = input.float(2.0, "Point Value ($)", tooltip="MNQ = $2, NQ = $20", group="2. Risk Management")
+maxContracts = input.int(30, "Max Contracts", minval=1, maxval=100, group="2. Risk Management")
+
+// ==================== SETUP TOGGLES ====================
+enableSweepSetup = input.bool(true, "Enable Sweep Setup (CRT Reversal)", group="3. Setups")
+enableRunSetup = input.bool(true, "Enable Run Setup (Continuation)", group="3. Setups")
+enableORBSetup = input.bool(true, "Enable ORB Setup", group="3. Setups")
+
+// ==================== SWEEP SETUP SETTINGS ====================
+sweepRequireCHoCH = input.bool(true, "Require CHoCH for Sweep Entry", group="4. Sweep Setup")
+sweepRequireFVG = input.bool(true, "Require FVG for Sweep Entry", group="4. Sweep Setup")
+sweepWindow = input.bool(true, "Only During 10:00-11:30 AM", group="4. Sweep Setup")
+
+// ==================== RUN SETUP SETTINGS ====================
+runRequireFVG = input.bool(true, "Require FVG at Run Level", group="5. Run Setup")
+
+// ==================== ORB SETUP SETTINGS ====================
+orbMinutes = input.int(15, "ORB Duration (minutes)", options=[5, 15, 30], group="6. ORB Setup")
+orbMaxWidth = input.float(40.0, "ORB Max Width (points)", minval=10, maxval=100, group="6. ORB Setup")
+orbEntryType = input.string("Retest", "ORB Entry Type", options=["Breakout", "Retest"], group="6. ORB Setup")
+
+// ==================== SESSION FILTERS ====================
+avoidLunchLull = input.bool(true, "Avoid Lunch Lull (12:00-12:45)", group="7. Session Filters")
+noTradesAfter1PM = input.bool(true, "No New Trades After 1:00 PM", group="7. Session Filters")
+
+// ==================== DISPLAY ====================
+showLabels = input.bool(true, "Show Entry/Exit Labels", group="8. Display")
+showPDLevels = input.bool(true, "Show PDH/PDL", group="8. Display")
+showORBLevels = input.bool(true, "Show ORB Range", group="8. Display")
+showFVGs = input.bool(true, "Show FVGs", group="8. Display")
+showBOSCHoCH = input.bool(true, "Show BOS/CHoCH", group="8. Display")
+
+labelSizeInput = input.string("normal", "Label Size", options=["tiny", "small", "normal", "large"], group="8. Display")
+labelSize = switch labelSizeInput
+    "tiny" => size.tiny
+    "small" => size.small
+    "large" => size.large
+    => size.normal
+
+// ==================== COLORS ====================
+bullColor = color.new(#00d4aa, 0)
+bearColor = color.new(#ff6b6b, 0)
+fvgBullColor = color.new(#00d4aa, 75)
+fvgBearColor = color.new(#ff6b6b, 75)
+
+// ==================== TIME FUNCTIONS ====================
+nyHour = hour(time, "America/New_York")
+nyMinute = minute(time, "America/New_York")
+nyTime = nyHour * 100 + nyMinute
+
+isNYSession = nyTime >= 930 and nyTime < 1330
+isNYRTH = nyTime >= 930 and nyTime < 1600
+is10AMWindow = nyTime >= 1000 and nyTime < 1030
+isSweepWindow = nyTime >= 1000 and nyTime < 1130
+isLunchLull = nyTime >= 1200 and nyTime < 1245
+isAfter1PM = nyTime >= 1300
+isORBSession = switch orbMinutes
+    5 => nyTime >= 930 and nyTime < 935
+    15 => nyTime >= 930 and nyTime < 945
+    30 => nyTime >= 930 and nyTime < 1000
+    => false
+isORBWindow = nyTime >= 945 and nyTime < 1030  // Primary ORB breakout window
+
+newDay = ta.change(time("D")) != 0
+
+// ==================== TRADE TRACKING ====================
+var int dailyTrades = 0
+if newDay
+    dailyTrades := 0
+
+canTrade() =>
+    result = isNYSession and dailyTrades < maxTradesPerDay and biasInput != "Neutral"
+    if avoidLunchLull and isLunchLull
+        result := false
+    if noTradesAfter1PM and isAfter1PM
+        result := false
+    result
+
+// ==================== SWING DETECTION ====================
+swingLookback = 5
+swingHigh = ta.pivothigh(high, swingLookback, swingLookback)
+swingLow = ta.pivotlow(low, swingLookback, swingLookback)
+
+var float lastSwingHigh = na
+var float lastSwingLow = na
+
+if not na(swingHigh)
+    lastSwingHigh := swingHigh
+if not na(swingLow)
+    lastSwingLow := swingLow
+
+// ==================== TREND & BOS/CHoCH ====================
+var int trend = 0
+
+bosUp = trend == 1 and not na(lastSwingHigh) and close > lastSwingHigh and close[1] <= lastSwingHigh
+bosDown = trend == -1 and not na(lastSwingLow) and close < lastSwingLow and close[1] >= lastSwingLow
+chochUp = trend <= 0 and not na(lastSwingHigh) and close > lastSwingHigh and close[1] <= lastSwingHigh
+chochDown = trend >= 0 and not na(lastSwingLow) and close < lastSwingLow and close[1] >= lastSwingLow
+
+if bosUp or chochUp
+    trend := 1
+if bosDown or chochDown
+    trend := -1
+
+// BOS/CHoCH Labels
+if showBOSCHoCH and bosUp
+    label.new(bar_index, high, "BOS", color=bullColor, textcolor=color.white,
+              style=label.style_label_down, size=labelSize)
+if showBOSCHoCH and bosDown
+    label.new(bar_index, low, "BOS", color=bearColor, textcolor=color.white,
+              style=label.style_label_up, size=labelSize)
+if showBOSCHoCH and chochUp
+    label.new(bar_index, high, "CHoCH", color=color.new(#00ff88, 0), textcolor=color.black,
+              style=label.style_label_down, size=labelSize)
+if showBOSCHoCH and chochDown
+    label.new(bar_index, low, "CHoCH", color=color.new(#ff00ff, 0), textcolor=color.white,
+              style=label.style_label_up, size=labelSize)
+
+// ==================== FVG DETECTION ====================
+bullishFVG = low > high[2]
+bullFVGTop = low
+bullFVGBottom = high[2]
+bullFVGMid = (bullFVGTop + bullFVGBottom) / 2
+
+bearishFVG = high < low[2]
+bearFVGTop = low[2]
+bearFVGBottom = high
+bearFVGMid = (bearFVGTop + bearFVGBottom) / 2
+
+// Track recent FVGs
+var float recentBullFVGTop = na
+var float recentBullFVGBottom = na
+var float recentBullFVGMid = na
+var int recentBullFVGBar = na
+
+var float recentBearFVGTop = na
+var float recentBearFVGBottom = na
+var float recentBearFVGMid = na
+var int recentBearFVGBar = na
+
+if bullishFVG
+    recentBullFVGTop := bullFVGTop
+    recentBullFVGBottom := bullFVGBottom
+    recentBullFVGMid := bullFVGMid
+    recentBullFVGBar := bar_index
+
+    if showFVGs
+        box.new(bar_index - 2, bullFVGTop, bar_index + 30, bullFVGBottom,
+               border_color=color.new(bullColor, 40), bgcolor=fvgBullColor, xloc=xloc.bar_index)
+
+if bearishFVG
+    recentBearFVGTop := bearFVGTop
+    recentBearFVGBottom := bearFVGBottom
+    recentBearFVGMid := bearFVGMid
+    recentBearFVGBar := bar_index
+
+    if showFVGs
+        box.new(bar_index - 2, bearFVGTop, bar_index + 30, bearFVGBottom,
+               border_color=color.new(bearColor, 40), bgcolor=fvgBearColor, xloc=xloc.bar_index)
+
+// Reset FVGs on new day
+if newDay
+    recentBullFVGTop := na
+    recentBullFVGBottom := na
+    recentBearFVGTop := na
+    recentBearFVGBottom := na
+
+// ==================== PREVIOUS DAY HIGH/LOW ====================
+var float pdh = na
+var float pdl = na
+var float nyRTHHigh = na
+var float nyRTHLow = na
+
+if isNYRTH
+    if na(nyRTHHigh) or high > nyRTHHigh
+        nyRTHHigh := high
+    if na(nyRTHLow) or low < nyRTHLow
+        nyRTHLow := low
+
+if newDay
+    if not na(nyRTHHigh)
+        pdh := nyRTHHigh
+        pdl := nyRTHLow
+    nyRTHHigh := na
+    nyRTHLow := na
+
+// PDH/PDL Lines
+var line pdhLine = na
+var line pdlLine = na
+
+if newDay
+    line.delete(pdhLine)
+    line.delete(pdlLine)
+    if showPDLevels and not na(pdh)
+        pdhLine := line.new(bar_index, pdh, bar_index + 1, pdh, extend=extend.right,
+                           color=color.new(bearColor, 30), style=line.style_dashed, width=2, xloc=xloc.bar_index)
+        pdlLine := line.new(bar_index, pdl, bar_index + 1, pdl, extend=extend.right,
+                           color=color.new(bullColor, 30), style=line.style_dashed, width=2, xloc=xloc.bar_index)
+
+// ==================== OPENING RANGE ====================
+var float orbHigh = na
+var float orbLow = na
+var bool orbSet = false
+var int orbStartBar = na
+
+if newDay
+    orbHigh := na
+    orbLow := na
+    orbSet := false
+    orbStartBar := na
+
+if isORBSession
+    if na(orbHigh) or high > orbHigh
+        orbHigh := high
+    if na(orbLow) or low < orbLow
+        orbLow := low
+    if na(orbStartBar)
+        orbStartBar := bar_index
+
+if not isORBSession and not na(orbHigh) and not orbSet
+    orbSet := true
+
+orbWidth = orbSet ? orbHigh - orbLow : na
+
+// ORB Visuals
+var box orbBox = na
+if newDay
+    box.delete(orbBox)
+if orbSet and showORBLevels and na(orbBox)
+    orbBox := box.new(orbStartBar, orbHigh, bar_index + 100, orbLow,
+                     border_color=color.new(#2196f3, 50), bgcolor=color.new(#2196f3, 90), xloc=xloc.bar_index)
+
+// ==================== SWEEP/RUN DETECTION ====================
+// Sweep = wick through level, close back inside (reversal signal)
+// Run = close through level (continuation signal)
+
+sweepPDH = not na(pdh) and high > pdh and close < pdh
+sweepPDL = not na(pdl) and low < pdl and close > pdl
+runPDH = not na(pdh) and close > pdh and close[1] <= pdh
+runPDL = not na(pdl) and close < pdl and close[1] >= pdl
+
+// Track sweeps for entry
+var bool pdhSwept = false
+var bool pdlSwept = false
+var float sweepHighLevel = na
+var float sweepLowLevel = na
+
+if sweepPDH
+    pdhSwept := true
+    sweepHighLevel := high
+
+if sweepPDL
+    pdlSwept := true
+    sweepLowLevel := low
+
+if newDay
+    pdhSwept := false
+    pdlSwept := false
+    sweepHighLevel := na
+    sweepLowLevel := na
+
+// ==================== ORB BREAKOUT DETECTION ====================
+orbBreakUp = orbSet and close > orbHigh and close[1] <= orbHigh
+orbBreakDown = orbSet and close < orbLow and close[1] >= orbLow
+
+var bool orbBrokeUp = false
+var bool orbBrokeDown = false
+
+if orbBreakUp
+    orbBrokeUp := true
+if orbBreakDown
+    orbBrokeDown := true
+if newDay
+    orbBrokeUp := false
+    orbBrokeDown := false
+
+// ==================== POSITION SIZING ====================
+calcQuantity(stopDistance) =>
+    riskInPoints = math.abs(stopDistance)
+    riskPerContract = riskInPoints * pointValue
+    qty = riskPerContract > 0 ? math.floor(riskPerTrade / riskPerContract) : 1
+    math.min(math.max(qty, 1), maxContracts)
+
+// ==================== SETUP 1: SWEEP SETUP (CRT Reversal) ====================
+// Entry Logic:
+// 1. Price sweeps PDH/PDL (wick through, close back)
+// 2. Wait for CHoCH
+// 3. Enter when price retraces to FVG formed during CHoCH
+// 4. Stop beyond sweep high/low
+// 5. Target opposite PDL/PDH
+
+sweepSetupLongEntry() =>
+    if not enableSweepSetup
+        false
+    else if biasInput != "Bullish"
+        false
+    else if sweepWindow and not isSweepWindow
+        false
+    else if not pdlSwept
+        false
+    else if sweepRequireCHoCH and not chochUp
+        false
+    else if sweepRequireFVG and na(recentBullFVGTop)
+        false
+    else
+        // Price in discount zone of FVG
+        low <= recentBullFVGMid and low >= recentBullFVGBottom
+
+sweepSetupShortEntry() =>
+    if not enableSweepSetup
+        false
+    else if biasInput != "Bearish"
+        false
+    else if sweepWindow and not isSweepWindow
+        false
+    else if not pdhSwept
+        false
+    else if sweepRequireCHoCH and not chochDown
+        false
+    else if sweepRequireFVG and na(recentBearFVGTop)
+        false
+    else
+        // Price in premium zone of FVG
+        high >= recentBearFVGMid and high <= recentBearFVGTop
+
+// ==================== SETUP 2: RUN SETUP (Continuation) ====================
+// Entry Logic:
+// 1. Price CLOSES beyond PDH/PDL (not just wick)
+// 2. FVG forms during/after breakout
+// 3. Enter when price retests FVG
+// 4. Stop below/above FVG
+// 5. Target next external liquidity
+
+runSetupLongEntry() =>
+    if not enableRunSetup
+        false
+    else if biasInput != "Bullish"
+        false
+    else if not runPDH
+        false
+    else if runRequireFVG and na(recentBullFVGTop)
+        false
+    else
+        // Retest of FVG or PDH level
+        low <= pdh * 1.001 and low >= pdh * 0.995
+
+runSetupShortEntry() =>
+    if not enableRunSetup
+        false
+    else if biasInput != "Bearish"
+        false
+    else if not runPDL
+        false
+    else if runRequireFVG and na(recentBearFVGTop)
+        false
+    else
+        // Retest of FVG or PDL level
+        high >= pdl * 0.999 and high <= pdl * 1.005
+
+// ==================== SETUP 3: ORB SETUP ====================
+// Entry Logic:
+// 1. Mark 9:30-9:45 range
+// 2. Wait for close beyond ORB level
+// 3. Check if breakout matches bias
+// 4. Enter on retest or breakout
+// 5. Stop at opposite ORB level
+// 6. Target PDH/PDL
+
+orbSetupLongEntry() =>
+    if not enableORBSetup
+        false
+    else if biasInput != "Bullish"
+        false
+    else if not orbSet
+        false
+    else if not na(orbWidth) and orbWidth > orbMaxWidth
+        false
+    else if orbEntryType == "Breakout"
+        orbBreakUp
+    else
+        // Retest entry
+        orbBrokeUp and low <= orbHigh * 1.001 and low >= orbHigh * 0.998
+
+orbSetupShortEntry() =>
+    if not enableORBSetup
+        false
+    else if biasInput != "Bearish"
+        false
+    else if not orbSet
+        false
+    else if not na(orbWidth) and orbWidth > orbMaxWidth
+        false
+    else if orbEntryType == "Breakout"
+        orbBreakDown
+    else
+        // Retest entry
+        orbBrokeDown and high >= orbLow * 0.999 and high <= orbLow * 1.002
+
+// ==================== EXECUTE TRADES ====================
+// Long entries
+if canTrade() and strategy.position_size == 0
+    // Sweep Setup Long
+    if sweepSetupLongEntry()
+        entryPrice = close
+        stopPrice = not na(sweepLowLevel) ? sweepLowLevel - 2 : recentBullFVGBottom - 2
+        targetPrice = not na(pdh) ? pdh : entryPrice + (entryPrice - stopPrice) * minRR
+        stopDist = entryPrice - stopPrice
+        targetDist = targetPrice - entryPrice
+        rr = stopDist > 0 ? targetDist / stopDist : 0
+
+        if rr >= minRR
+            qty = calcQuantity(stopDist)
+            strategy.entry("Sweep Long", strategy.long, qty=qty)
+            strategy.exit("Sweep Long Exit", "Sweep Long", stop=stopPrice, limit=targetPrice)
+            dailyTrades += 1
+            if showLabels
+                label.new(bar_index, low, "SWEEP\nLONG", color=bullColor, textcolor=color.white,
+                         style=label.style_label_up, size=labelSize)
+
+    // Run Setup Long
+    else if runSetupLongEntry()
+        entryPrice = close
+        stopPrice = not na(recentBullFVGBottom) ? recentBullFVGBottom - 2 : pdh - 10
+        // Target next swing high or 2R
+        targetPrice = entryPrice + (entryPrice - stopPrice) * minRR
+        stopDist = entryPrice - stopPrice
+        targetDist = targetPrice - entryPrice
+        rr = stopDist > 0 ? targetDist / stopDist : 0
+
+        if rr >= minRR
+            qty = calcQuantity(stopDist)
+            strategy.entry("Run Long", strategy.long, qty=qty)
+            strategy.exit("Run Long Exit", "Run Long", stop=stopPrice, limit=targetPrice)
+            dailyTrades += 1
+            if showLabels
+                label.new(bar_index, low, "RUN\nLONG", color=bullColor, textcolor=color.white,
+                         style=label.style_label_up, size=labelSize)
+
+    // ORB Setup Long
+    else if orbSetupLongEntry()
+        entryPrice = close
+        stopPrice = orbLow - 2
+        targetPrice = not na(pdh) and pdh > entryPrice ? pdh : entryPrice + (entryPrice - stopPrice) * minRR
+        stopDist = entryPrice - stopPrice
+        targetDist = targetPrice - entryPrice
+        rr = stopDist > 0 ? targetDist / stopDist : 0
+
+        if rr >= minRR
+            qty = calcQuantity(stopDist)
+            strategy.entry("ORB Long", strategy.long, qty=qty)
+            strategy.exit("ORB Long Exit", "ORB Long", stop=stopPrice, limit=targetPrice)
+            dailyTrades += 1
+            if showLabels
+                label.new(bar_index, low, "ORB\nLONG", color=bullColor, textcolor=color.white,
+                         style=label.style_label_up, size=labelSize)
+
+// Short entries
+if canTrade() and strategy.position_size == 0
+    // Sweep Setup Short
+    if sweepSetupShortEntry()
+        entryPrice = close
+        stopPrice = not na(sweepHighLevel) ? sweepHighLevel + 2 : recentBearFVGTop + 2
+        targetPrice = not na(pdl) ? pdl : entryPrice - (stopPrice - entryPrice) * minRR
+        stopDist = stopPrice - entryPrice
+        targetDist = entryPrice - targetPrice
+        rr = stopDist > 0 ? targetDist / stopDist : 0
+
+        if rr >= minRR
+            qty = calcQuantity(stopDist)
+            strategy.entry("Sweep Short", strategy.short, qty=qty)
+            strategy.exit("Sweep Short Exit", "Sweep Short", stop=stopPrice, limit=targetPrice)
+            dailyTrades += 1
+            if showLabels
+                label.new(bar_index, high, "SWEEP\nSHORT", color=bearColor, textcolor=color.white,
+                         style=label.style_label_down, size=labelSize)
+
+    // Run Setup Short
+    else if runSetupShortEntry()
+        entryPrice = close
+        stopPrice = not na(recentBearFVGTop) ? recentBearFVGTop + 2 : pdl + 10
+        targetPrice = entryPrice - (stopPrice - entryPrice) * minRR
+        stopDist = stopPrice - entryPrice
+        targetDist = entryPrice - targetPrice
+        rr = stopDist > 0 ? targetDist / stopDist : 0
+
+        if rr >= minRR
+            qty = calcQuantity(stopDist)
+            strategy.entry("Run Short", strategy.short, qty=qty)
+            strategy.exit("Run Short Exit", "Run Short", stop=stopPrice, limit=targetPrice)
+            dailyTrades += 1
+            if showLabels
+                label.new(bar_index, high, "RUN\nSHORT", color=bearColor, textcolor=color.white,
+                         style=label.style_label_down, size=labelSize)
+
+    // ORB Setup Short
+    else if orbSetupShortEntry()
+        entryPrice = close
+        stopPrice = orbHigh + 2
+        targetPrice = not na(pdl) and pdl < entryPrice ? pdl : entryPrice - (stopPrice - entryPrice) * minRR
+        stopDist = stopPrice - entryPrice
+        targetDist = entryPrice - targetPrice
+        rr = stopDist > 0 ? targetDist / stopDist : 0
+
+        if rr >= minRR
+            qty = calcQuantity(stopDist)
+            strategy.entry("ORB Short", strategy.short, qty=qty)
+            strategy.exit("ORB Short Exit", "ORB Short", stop=stopPrice, limit=targetPrice)
+            dailyTrades += 1
+            if showLabels
+                label.new(bar_index, high, "ORB\nSHORT", color=bearColor, textcolor=color.white,
+                         style=label.style_label_down, size=labelSize)
+
+// ==================== SESSION BACKGROUND ====================
+bgcolor(isNYSession and not isLunchLull ? color.new(#00ff00, 97) : na, title="NY Session")
+bgcolor(isLunchLull ? color.new(#ff0000, 95) : na, title="Lunch Lull")
+bgcolor(is10AMWindow ? color.new(#ff9800, 95) : na, title="10AM Window")
+
+// ==================== INFO TABLE ====================
+if barstate.islast
+    biasColor = switch biasInput
+        "Bullish" => bullColor
+        "Bearish" => bearColor
+        => color.gray
+
+    var table infoTable = table.new(position.top_right, 2, 4, bgcolor=color.new(#1e1e1e, 20),
+                                    border_width=1, border_color=color.gray)
+
+    table.cell(infoTable, 0, 0, "Daily Bias", text_color=color.white, text_size=size.normal)
+    table.cell(infoTable, 1, 0, biasInput, text_color=biasColor, text_size=size.normal)
+    table.cell(infoTable, 0, 1, "Trades Today", text_color=color.white, text_size=size.normal)
+    table.cell(infoTable, 1, 1, str.tostring(dailyTrades) + "/" + str.tostring(maxTradesPerDay),
+               text_color=dailyTrades >= maxTradesPerDay ? color.red : color.green, text_size=size.normal)
+    table.cell(infoTable, 0, 2, "ORB Width", text_color=color.white, text_size=size.normal)
+    orbWidthText = orbSet ? str.tostring(math.round(orbWidth, 1)) + " pts" : "N/A"
+    orbWidthColor = orbSet and orbWidth <= orbMaxWidth ? color.green : color.orange
+    table.cell(infoTable, 1, 2, orbWidthText, text_color=orbWidthColor, text_size=size.normal)
+    table.cell(infoTable, 0, 3, "Session", text_color=color.white, text_size=size.normal)
+    sessionText = isLunchLull ? "LUNCH" : is10AMWindow ? "10AM" : isNYSession ? "ACTIVE" : "CLOSED"
+    sessionColor = isLunchLull ? color.red : is10AMWindow ? color.orange : isNYSession ? color.green : color.gray
+    table.cell(infoTable, 1, 3, sessionText, text_color=sessionColor, text_size=size.normal)

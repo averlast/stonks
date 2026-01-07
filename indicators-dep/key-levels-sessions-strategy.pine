@@ -45,6 +45,7 @@ nyMinute = minute(time, "America/New_York")
 nyTime = nyHour * 100 + nyMinute
 
 isNYSession = nyTime >= 930 and nyTime < 1330
+isNYRTH = nyTime >= 930 and nyTime < 1600  // Regular Trading Hours for PDH/PDL
 isLunchLull = nyTime >= 1200 and nyTime < 1245
 isAfter1PM = nyTime >= 1300
 is10AMReversal = nyTime >= 1000 and nyTime < 1030
@@ -159,12 +160,23 @@ if not inORBSession and not na(orbHigh) and not na(orbLow) and not orbSet
 // ==================== PREVIOUS DAY LEVELS ====================
 var float pdh = na
 var float pdl = na
+var float nyRTHHigh = na
+var float nyRTHLow = na
 
-[prevHigh, prevLow] = request.security(syminfo.tickerid, "1D", [high[1], low[1]], lookahead=barmerge.lookahead_on)
+// Track high/low during NY RTH session (9:30 AM - 4:00 PM ET)
+if isNYRTH
+    if na(nyRTHHigh) or high > nyRTHHigh
+        nyRTHHigh := high
+    if na(nyRTHLow) or low < nyRTHLow
+        nyRTHLow := low
 
+// On new day, save previous NY RTH session levels as PDH/PDL
 if newDay
-    pdh := prevHigh
-    pdl := prevLow
+    if not na(nyRTHHigh)
+        pdh := nyRTHHigh
+        pdl := nyRTHLow
+    nyRTHHigh := na
+    nyRTHLow := na
 
 // ==================== BREAKOUT DETECTION ====================
 orbBreakoutUp = orbSet and close > orbHigh and close[1] <= orbHigh

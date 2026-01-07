@@ -170,38 +170,38 @@ if bearishBOS and showBearishOB
 
 // ==================== CHECK MITIGATION ====================
 // Bullish OB mitigation: price enters the zone from above (low touches OB)
-int bullOBCount = array.size(bullOBTops) - 1
-for i = 0 to bullOBCount
-    if i < array.size(bullOBTops) and not array.get(bullOBMitigated, i)
-        top = array.get(bullOBTops, i)
-        bottom = array.get(bullOBBottoms, i)
-        if low <= top and low >= bottom
-            array.set(bullOBMitigated, i, true)
-            if showMitigated
-                box.set_bgcolor(array.get(bullOBBoxes, i), mitigatedColor)
-                box.set_border_color(array.get(bullOBBoxes, i), color.new(#888888, 70))
-                line.set_color(array.get(bullOBMidlines, i), color.new(#888888, 70))
-            else
-                box.set_bgcolor(array.get(bullOBBoxes, i), color.new(color.white, 100))
-                box.set_border_color(array.get(bullOBBoxes, i), color.new(color.white, 100))
-                line.set_color(array.get(bullOBMidlines, i), color.new(color.white, 100))
+if array.size(bullOBTops) > 0
+    for i = 0 to array.size(bullOBTops) - 1
+        if not array.get(bullOBMitigated, i)
+            top = array.get(bullOBTops, i)
+            bottom = array.get(bullOBBottoms, i)
+            if low <= top and low >= bottom
+                array.set(bullOBMitigated, i, true)
+                if showMitigated
+                    box.set_bgcolor(array.get(bullOBBoxes, i), mitigatedColor)
+                    box.set_border_color(array.get(bullOBBoxes, i), color.new(#888888, 70))
+                    line.set_color(array.get(bullOBMidlines, i), color.new(#888888, 70))
+                else
+                    box.set_bgcolor(array.get(bullOBBoxes, i), color.new(color.white, 100))
+                    box.set_border_color(array.get(bullOBBoxes, i), color.new(color.white, 100))
+                    line.set_color(array.get(bullOBMidlines, i), color.new(color.white, 100))
 
 // Bearish OB mitigation: price enters the zone from below (high touches OB)
-int bearOBCount = array.size(bearOBTops) - 1
-for i = 0 to bearOBCount
-    if i < array.size(bearOBTops) and not array.get(bearOBMitigated, i)
-        top = array.get(bearOBTops, i)
-        bottom = array.get(bearOBBottoms, i)
-        if high >= bottom and high <= top
-            array.set(bearOBMitigated, i, true)
-            if showMitigated
-                box.set_bgcolor(array.get(bearOBBoxes, i), mitigatedColor)
-                box.set_border_color(array.get(bearOBBoxes, i), color.new(#888888, 70))
-                line.set_color(array.get(bearOBMidlines, i), color.new(#888888, 70))
-            else
-                box.set_bgcolor(array.get(bearOBBoxes, i), color.new(color.white, 100))
-                box.set_border_color(array.get(bearOBBoxes, i), color.new(color.white, 100))
-                line.set_color(array.get(bearOBMidlines, i), color.new(color.white, 100))
+if array.size(bearOBTops) > 0
+    for i = 0 to array.size(bearOBTops) - 1
+        if not array.get(bearOBMitigated, i)
+            top = array.get(bearOBTops, i)
+            bottom = array.get(bearOBBottoms, i)
+            if high >= bottom and high <= top
+                array.set(bearOBMitigated, i, true)
+                if showMitigated
+                    box.set_bgcolor(array.get(bearOBBoxes, i), mitigatedColor)
+                    box.set_border_color(array.get(bearOBBoxes, i), color.new(#888888, 70))
+                    line.set_color(array.get(bearOBMidlines, i), color.new(#888888, 70))
+                else
+                    box.set_bgcolor(array.get(bearOBBoxes, i), color.new(color.white, 100))
+                    box.set_border_color(array.get(bearOBBoxes, i), color.new(color.white, 100))
+                    line.set_color(array.get(bearOBMidlines, i), color.new(color.white, 100))
 
 // ==================== BOS LABELS ====================
 if bullishBOS

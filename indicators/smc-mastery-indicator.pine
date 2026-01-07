@@ -1,0 +1,745 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// SMC Mastery Indicator - Based on SMC Mastery Guide for MNQ Futures
+
+//@version=6
+indicator("SMC Mastery", overlay=true, max_lines_count=500, max_boxes_count=500, max_labels_count=500)
+
+// ==================== DAILY BIAS (Manual TDA) ====================
+biasInput = input.string("Neutral", "Daily Bias", options=["Bullish", "Bearish", "Neutral"],
+            tooltip="Set based on your Top-Down Analysis before session", group="1. Daily Bias")
+showBiasTable = input.bool(true, "Show Bias Table", group="1. Daily Bias")
+
+// ==================== STRUCTURE SETTINGS ====================
+showBOS = input.bool(true, "Show BOS", group="2. Structure")
+showCHoCH = input.bool(true, "Show CHoCH", group="2. Structure")
+swingLookback = input.int(5, "Swing Lookback", minval=2, maxval=20, group="2. Structure")
+showSwingPoints = input.bool(false, "Show Swing Points", group="2. Structure")
+
+// ==================== FVG SETTINGS ====================
+showFVG = input.bool(true, "Show FVGs", group="3. FVG")
+showPremiumDiscount = input.bool(true, "Show Premium/Discount Zones", group="3. FVG")
+showFVGMidline = input.bool(true, "Show 50% Midline", group="3. FVG")
+minFVGPoints = input.float(2.0, "Minimum FVG Size (points)", minval=0, group="3. FVG")
+maxFVGs = input.int(15, "Max FVGs to Display", minval=1, maxval=30, group="3. FVG")
+showMitigatedFVG = input.bool(false, "Show Mitigated FVGs", group="3. FVG")
+showFVGType = input.bool(true, "Show Breakaway/Rejection Label", group="3. FVG")
+
+// ==================== ORDER BLOCK SETTINGS ====================
+showOB = input.bool(true, "Show Order Blocks", group="4. Order Blocks")
+obLookback = input.int(10, "OB Lookback (bars)", minval=3, maxval=30, group="4. Order Blocks")
+showOBMidline = input.bool(true, "Show OB 50% Level", group="4. Order Blocks")
+maxOBs = input.int(10, "Max OBs to Display", minval=1, maxval=20, group="4. Order Blocks")
+showMitigatedOB = input.bool(false, "Show Mitigated OBs", group="4. Order Blocks")
+
+// ==================== GOLDEN ZONE SETTINGS ====================
+showGoldenZones = input.bool(true, "Show Golden Zones (OB+FVG)", group="5. Golden Zones")
+maxGoldenZones = input.int(5, "Max Golden Zones", minval=1, maxval=10, group="5. Golden Zones")
+
+// ==================== KEY LEVELS & SESSIONS ====================
+showPDH = input.bool(true, "Show PDH (Previous Day High)", group="6. Key Levels")
+showPDL = input.bool(true, "Show PDL (Previous Day Low)", group="6. Key Levels")
+showORB = input.bool(true, "Show ORB (Opening Range)", group="6. Key Levels")
+orbMinutes = input.int(15, "ORB Duration (minutes)", options=[5, 15, 30], group="6. Key Levels")
+showSessionBG = input.bool(true, "Show Session Backgrounds", group="6. Key Levels")
+show10AMWindow = input.bool(true, "Highlight 10AM Reversal Window", group="6. Key Levels")
+showLunchLull = input.bool(true, "Highlight Lunch Lull", group="6. Key Levels")
+
+// ==================== SWEEP/RUN DETECTION ====================
+showSweeps = input.bool(true, "Show Sweeps (Reversal Signal)", group="7. Sweep/Run")
+showRuns = input.bool(true, "Show Runs (Continuation Signal)", group="7. Sweep/Run")
+
+// ==================== ALERTS ====================
+alertCHoCHBull = input.bool(true, "Alert: CHoCH Bullish", group="8. Alerts")
+alertCHoCHBear = input.bool(true, "Alert: CHoCH Bearish", group="8. Alerts")
+alertBOSBull = input.bool(true, "Alert: BOS Bullish", group="8. Alerts")
+alertBOSBear = input.bool(true, "Alert: BOS Bearish", group="8. Alerts")
+alertSweepPDH = input.bool(true, "Alert: Sweep @ PDH", group="8. Alerts")
+alertSweepPDL = input.bool(true, "Alert: Sweep @ PDL", group="8. Alerts")
+alertRunPDH = input.bool(true, "Alert: Run @ PDH", group="8. Alerts")
+alertRunPDL = input.bool(true, "Alert: Run @ PDL", group="8. Alerts")
+alertORBBreakUp = input.bool(true, "Alert: ORB Break Up", group="8. Alerts")
+alertORBBreakDown = input.bool(true, "Alert: ORB Break Down", group="8. Alerts")
+alertGoldenZone = input.bool(true, "Alert: Golden Zone Formed", group="8. Alerts")
+alertPriceAtGZ = input.bool(true, "Alert: Price at Golden Zone", group="8. Alerts")
+filterAlertsByBias = input.bool(true, "Filter Alerts by Daily Bias", group="8. Alerts")
+
+// ==================== COLORS ====================
+bullColor = input.color(color.new(#00d4aa, 0), "Bullish Color", group="9. Colors")
+bearColor = input.color(color.new(#ff6b6b, 0), "Bearish Color", group="9. Colors")
+fvgBullColor = input.color(color.new(#00d4aa, 75), "FVG Bullish Fill", group="9. Colors")
+fvgBearColor = input.color(color.new(#ff6b6b, 75), "FVG Bearish Fill", group="9. Colors")
+obBullColor = input.color(color.new(#2962ff, 75), "OB Bullish Fill", group="9. Colors")
+obBearColor = input.color(color.new(#ab47bc, 75), "OB Bearish Fill", group="9. Colors")
+goldenColor = input.color(color.new(#ffd700, 60), "Golden Zone Fill", group="9. Colors")
+pdhColor = input.color(color.new(#ff6b6b, 30), "PDH Color", group="9. Colors")
+pdlColor = input.color(color.new(#00d4aa, 30), "PDL Color", group="9. Colors")
+orbColor = input.color(color.new(#2196f3, 50), "ORB Color", group="9. Colors")
+midlineColor = input.color(color.new(#ffffff, 50), "Midline Color", group="9. Colors")
+mitigatedColor = input.color(color.new(#888888, 85), "Mitigated Zone Color", group="9. Colors")
+
+// ==================== TEXT & SIZES ====================
+labelSizeInput = input.string("normal", "Label Size", options=["tiny", "small", "normal", "large"], group="10. Text & Sizes")
+tableSizeInput = input.string("normal", "Table Size", options=["tiny", "small", "normal", "large"], group="10. Text & Sizes")
+
+// Convert size inputs to Pine size constants
+getLabelSize() =>
+    switch labelSizeInput
+        "tiny" => size.tiny
+        "small" => size.small
+        "large" => size.large
+        => size.normal
+
+getTableSize() =>
+    switch tableSizeInput
+        "tiny" => size.tiny
+        "small" => size.small
+        "large" => size.large
+        => size.normal
+
+labelSize = getLabelSize()
+tableSize = getTableSize()
+
+// ==================== TIME FUNCTIONS ====================
+nyHour = hour(time, "America/New_York")
+nyMinute = minute(time, "America/New_York")
+nyTime = nyHour * 100 + nyMinute
+
+isNYSession = nyTime >= 930 and nyTime < 1330
+isNYRTH = nyTime >= 930 and nyTime < 1600
+is10AMWindow = nyTime >= 1000 and nyTime < 1030
+isLunchLull = nyTime >= 1200 and nyTime < 1245
+isORBSession = switch orbMinutes
+    5 => nyTime >= 930 and nyTime < 935
+    15 => nyTime >= 930 and nyTime < 945
+    30 => nyTime >= 930 and nyTime < 1000
+    => false
+
+newDay = ta.change(time("D")) != 0
+
+// ==================== SWING DETECTION ====================
+swingHigh = ta.pivothigh(high, swingLookback, swingLookback)
+swingLow = ta.pivotlow(low, swingLookback, swingLookback)
+
+var float lastSwingHigh = na
+var float lastSwingLow = na
+var int lastSwingHighBar = na
+var int lastSwingLowBar = na
+var float prevSwingHigh = na
+var float prevSwingLow = na
+
+if not na(swingHigh)
+    prevSwingHigh := lastSwingHigh
+    lastSwingHigh := swingHigh
+    lastSwingHighBar := bar_index - swingLookback
+
+if not na(swingLow)
+    prevSwingLow := lastSwingLow
+    lastSwingLow := swingLow
+    lastSwingLowBar := bar_index - swingLookback
+
+// Plot swing points if enabled
+plotshape(showSwingPoints and not na(swingHigh), title="Swing High", location=location.abovebar,
+          color=bearColor, style=shape.triangledown, size=size.tiny, offset=-swingLookback)
+plotshape(showSwingPoints and not na(swingLow), title="Swing Low", location=location.belowbar,
+          color=bullColor, style=shape.triangleup, size=size.tiny, offset=-swingLookback)
+
+// ==================== TREND & BOS/CHoCH DETECTION ====================
+// Trend state: 1 = bullish, -1 = bearish, 0 = neutral
+var int trend = 0
+
+// BOS = Break of Structure (trend continuation)
+// CHoCH = Change of Character (first break against trend)
+bosUp = trend == 1 and not na(lastSwingHigh) and close > lastSwingHigh and close[1] <= lastSwingHigh
+bosDown = trend == -1 and not na(lastSwingLow) and close < lastSwingLow and close[1] >= lastSwingLow
+chochUp = trend <= 0 and not na(lastSwingHigh) and close > lastSwingHigh and close[1] <= lastSwingHigh
+chochDown = trend >= 0 and not na(lastSwingLow) and close < lastSwingLow and close[1] >= lastSwingLow
+
+// Update trend
+if bosUp or chochUp
+    trend := 1
+if bosDown or chochDown
+    trend := -1
+
+// Draw BOS/CHoCH labels
+if showBOS and bosUp
+    label.new(bar_index, high, "BOS", color=bullColor, textcolor=color.white,
+              style=label.style_label_down, size=labelSize)
+
+if showBOS and bosDown
+    label.new(bar_index, low, "BOS", color=bearColor, textcolor=color.white,
+              style=label.style_label_up, size=labelSize)
+
+if showCHoCH and chochUp
+    label.new(bar_index, high, "CHoCH", color=color.new(#00ff88, 0), textcolor=color.black,
+              style=label.style_label_down, size=labelSize)
+
+if showCHoCH and chochDown
+    label.new(bar_index, low, "CHoCH", color=color.new(#ff00ff, 0), textcolor=color.white,
+              style=label.style_label_up, size=labelSize)
+
+// ==================== FVG DETECTION ====================
+// Bullish FVG: gap between C1 high wick and C3 low wick
+bullishFVGCondition = low > high[2]
+bullFVGTop = low
+bullFVGBottom = high[2]
+bullFVGSize = bullFVGTop - bullFVGBottom
+
+// Bearish FVG: gap between C1 low wick and C3 high wick
+bearishFVGCondition = high < low[2]
+bearFVGTop = low[2]
+bearFVGBottom = high
+bearFVGSize = bearFVGTop - bearFVGBottom
+
+// Check if FVG is breakaway (3rd candle continues) or rejection (3rd candle reverses)
+bullishBreakaway = bullishFVGCondition and close > open  // 3rd candle is bullish = strong
+bearishBreakaway = bearishFVGCondition and close < open  // 3rd candle is bearish = strong
+
+// FVG Storage
+var box[] bullFVGBoxes = array.new_box()
+var box[] bullFVGMidlines = array.new_box()  // Using thin boxes for midlines
+var line[] bullFVGLines = array.new_line()
+var float[] bullFVGTops = array.new_float()
+var float[] bullFVGBottoms = array.new_float()
+var int[] bullFVGBars = array.new_int()
+var bool[] bullFVGMitigated = array.new_bool()
+var bool[] bullFVGBreakaway = array.new_bool()
+
+var box[] bearFVGBoxes = array.new_box()
+var line[] bearFVGLines = array.new_line()
+var float[] bearFVGTops = array.new_float()
+var float[] bearFVGBottoms = array.new_float()
+var int[] bearFVGBars = array.new_int()
+var bool[] bearFVGMitigated = array.new_bool()
+var bool[] bearFVGBreakaway = array.new_bool()
+
+// Helper to remove oldest FVG
+removeOldestFVG(boxes, lines, tops, bottoms, bars, mitigated, breakaway, maxCount) =>
+    if array.size(boxes) > maxCount
+        box.delete(array.shift(boxes))
+        if array.size(lines) > 0
+            line.delete(array.shift(lines))
+        array.shift(tops)
+        array.shift(bottoms)
+        array.shift(bars)
+        array.shift(mitigated)
+        if array.size(breakaway) > 0
+            array.shift(breakaway)
+
+// Create new FVGs
+if showFVG and bullishFVGCondition and bullFVGSize >= minFVGPoints
+    fvgMid = (bullFVGTop + bullFVGBottom) / 2
+
+    // Create FVG box
+    boxColor = showPremiumDiscount ? fvgBullColor : fvgBullColor
+    fvgBox = box.new(bar_index - 2, bullFVGTop, bar_index + 50, bullFVGBottom,
+                     border_color=color.new(bullColor, 40), bgcolor=boxColor,
+                     border_width=1, xloc=xloc.bar_index)
+
+    // Create midline
+    var line midLine = na
+    if showFVGMidline
+        midLine := line.new(bar_index - 2, fvgMid, bar_index + 50, fvgMid,
+                           color=midlineColor, style=line.style_dashed, width=1, xloc=xloc.bar_index)
+
+    array.push(bullFVGBoxes, fvgBox)
+    array.push(bullFVGLines, midLine)
+    array.push(bullFVGTops, bullFVGTop)
+    array.push(bullFVGBottoms, bullFVGBottom)
+    array.push(bullFVGBars, bar_index - 2)
+    array.push(bullFVGMitigated, false)
+    array.push(bullFVGBreakaway, bullishBreakaway)
+
+    // Label
+    if showFVGType
+        labelText = bullishBreakaway ? "FVG" : "FVG (weak)"
+        label.new(bar_index - 1, bullFVGBottom, labelText, color=color.new(bullColor, 30),
+                  textcolor=color.white, style=label.style_label_up, size=labelSize)
+
+    removeOldestFVG(bullFVGBoxes, bullFVGLines, bullFVGTops, bullFVGBottoms, bullFVGBars, bullFVGMitigated, bullFVGBreakaway, maxFVGs)
+
+if showFVG and bearishFVGCondition and bearFVGSize >= minFVGPoints
+    fvgMid = (bearFVGTop + bearFVGBottom) / 2
+
+    boxColor = showPremiumDiscount ? fvgBearColor : fvgBearColor
+    fvgBox = box.new(bar_index - 2, bearFVGTop, bar_index + 50, bearFVGBottom,
+                     border_color=color.new(bearColor, 40), bgcolor=boxColor,
+                     border_width=1, xloc=xloc.bar_index)
+
+    var line midLine = na
+    if showFVGMidline
+        midLine := line.new(bar_index - 2, fvgMid, bar_index + 50, fvgMid,
+                           color=midlineColor, style=line.style_dashed, width=1, xloc=xloc.bar_index)
+
+    array.push(bearFVGBoxes, fvgBox)
+    array.push(bearFVGLines, midLine)
+    array.push(bearFVGTops, bearFVGTop)
+    array.push(bearFVGBottoms, bearFVGBottom)
+    array.push(bearFVGBars, bar_index - 2)
+    array.push(bearFVGMitigated, false)
+    array.push(bearFVGBreakaway, bearishBreakaway)
+
+    if showFVGType
+        labelText = bearishBreakaway ? "FVG" : "FVG (weak)"
+        label.new(bar_index - 1, bearFVGTop, labelText, color=color.new(bearColor, 30),
+                  textcolor=color.white, style=label.style_label_down, size=labelSize)
+
+    removeOldestFVG(bearFVGBoxes, bearFVGLines, bearFVGTops, bearFVGBottoms, bearFVGBars, bearFVGMitigated, bearFVGBreakaway, maxFVGs)
+
+// Check FVG mitigation
+for i = 0 to array.size(bullFVGTops) - 1
+    if i < array.size(bullFVGTops) and not array.get(bullFVGMitigated, i)
+        top = array.get(bullFVGTops, i)
+        bottom = array.get(bullFVGBottoms, i)
+        if low <= top
+            array.set(bullFVGMitigated, i, true)
+            if showMitigatedFVG
+                box.set_bgcolor(array.get(bullFVGBoxes, i), mitigatedColor)
+                box.set_border_color(array.get(bullFVGBoxes, i), color.new(#888888, 50))
+            else
+                box.set_bgcolor(array.get(bullFVGBoxes, i), color.new(color.white, 100))
+                box.set_border_color(array.get(bullFVGBoxes, i), color.new(color.white, 100))
+                if i < array.size(bullFVGLines) and not na(array.get(bullFVGLines, i))
+                    line.set_color(array.get(bullFVGLines, i), color.new(color.white, 100))
+
+for i = 0 to array.size(bearFVGTops) - 1
+    if i < array.size(bearFVGTops) and not array.get(bearFVGMitigated, i)
+        top = array.get(bearFVGTops, i)
+        bottom = array.get(bearFVGBottoms, i)
+        if high >= bottom
+            array.set(bearFVGMitigated, i, true)
+            if showMitigatedFVG
+                box.set_bgcolor(array.get(bearFVGBoxes, i), mitigatedColor)
+                box.set_border_color(array.get(bearFVGBoxes, i), color.new(#888888, 50))
+            else
+                box.set_bgcolor(array.get(bearFVGBoxes, i), color.new(color.white, 100))
+                box.set_border_color(array.get(bearFVGBoxes, i), color.new(color.white, 100))
+                if i < array.size(bearFVGLines) and not na(array.get(bearFVGLines, i))
+                    line.set_color(array.get(bearFVGLines, i), color.new(color.white, 100))
+
+// ==================== ORDER BLOCK DETECTION ====================
+// Bullish OB: Last bearish candle(s) before bullish BOS
+// Bearish OB: Last bullish candle(s) before bearish BOS
+
+var box[] bullOBBoxes = array.new_box()
+var line[] bullOBMidlines = array.new_line()
+var float[] bullOBTops = array.new_float()
+var float[] bullOBBottoms = array.new_float()
+var int[] bullOBBars = array.new_int()
+var bool[] bullOBMitigated = array.new_bool()
+
+var box[] bearOBBoxes = array.new_box()
+var line[] bearOBMidlines = array.new_line()
+var float[] bearOBTops = array.new_float()
+var float[] bearOBBottoms = array.new_float()
+var int[] bearOBBars = array.new_int()
+var bool[] bearOBMitigated = array.new_bool()
+
+// Find bullish OB when we get a bullish BOS or CHoCH
+findBullishOB() =>
+    obTop = float(na)
+    obBottom = float(na)
+    obBar = int(na)
+
+    // Look back for bearish candles before the breakout
+    for i = 1 to obLookback
+        if close[i] < open[i]  // Bearish candle
+            obTop := math.max(nz(obTop, open[i]), open[i])
+            obBottom := math.min(nz(obBottom, close[i]), close[i])
+            obBar := bar_index - i
+            // Check if next candle breaks the pattern
+            if i < obLookback and close[i+1] >= open[i+1]
+                break
+        else if not na(obTop)
+            break
+    [obTop, obBottom, obBar]
+
+findBearishOB() =>
+    obTop = float(na)
+    obBottom = float(na)
+    obBar = int(na)
+
+    for i = 1 to obLookback
+        if close[i] > open[i]  // Bullish candle
+            obBottom := math.min(nz(obBottom, open[i]), open[i])
+            obTop := math.max(nz(obTop, close[i]), close[i])
+            obBar := bar_index - i
+            if i < obLookback and close[i+1] <= open[i+1]
+                break
+        else if not na(obTop)
+            break
+    [obTop, obBottom, obBar]
+
+removeOldestOB(boxes, midlines, tops, bottoms, bars, mitigated, maxCount) =>
+    if array.size(boxes) > maxCount
+        box.delete(array.shift(boxes))
+        if array.size(midlines) > 0
+            line.delete(array.shift(midlines))
+        array.shift(tops)
+        array.shift(bottoms)
+        array.shift(bars)
+        array.shift(mitigated)
+
+// Create OBs on BOS/CHoCH
+if showOB and (bosUp or chochUp)
+    [obTop, obBottom, obBar] = findBullishOB()
+    if not na(obTop) and not na(obBottom)
+        obMid = (obTop + obBottom) / 2
+
+        obBox = box.new(obBar, obTop, bar_index + 50, obBottom,
+                       border_color=color.new(#2962ff, 30), bgcolor=obBullColor,
+                       border_width=2, xloc=xloc.bar_index)
+
+        var line obMidLine = na
+        if showOBMidline
+            obMidLine := line.new(obBar, obMid, bar_index + 50, obMid,
+                                 color=color.new(#2962ff, 50), style=line.style_dotted,
+                                 width=1, xloc=xloc.bar_index)
+
+        array.push(bullOBBoxes, obBox)
+        array.push(bullOBMidlines, obMidLine)
+        array.push(bullOBTops, obTop)
+        array.push(bullOBBottoms, obBottom)
+        array.push(bullOBBars, obBar)
+        array.push(bullOBMitigated, false)
+
+        label.new(obBar, obTop, "OB", color=color.new(#2962ff, 20), textcolor=color.white,
+                 style=label.style_label_down, size=labelSize)
+
+        removeOldestOB(bullOBBoxes, bullOBMidlines, bullOBTops, bullOBBottoms, bullOBBars, bullOBMitigated, maxOBs)
+
+if showOB and (bosDown or chochDown)
+    [obTop, obBottom, obBar] = findBearishOB()
+    if not na(obTop) and not na(obBottom)
+        obMid = (obTop + obBottom) / 2
+
+        obBox = box.new(obBar, obTop, bar_index + 50, obBottom,
+                       border_color=color.new(#ab47bc, 30), bgcolor=obBearColor,
+                       border_width=2, xloc=xloc.bar_index)
+
+        var line obMidLine = na
+        if showOBMidline
+            obMidLine := line.new(obBar, obMid, bar_index + 50, obMid,
+                                 color=color.new(#ab47bc, 50), style=line.style_dotted,
+                                 width=1, xloc=xloc.bar_index)
+
+        array.push(bearOBBoxes, obBox)
+        array.push(bearOBMidlines, obMidLine)
+        array.push(bearOBTops, obTop)
+        array.push(bearOBBottoms, obBottom)
+        array.push(bearOBBars, obBar)
+        array.push(bearOBMitigated, false)
+
+        label.new(obBar, obBottom, "OB", color=color.new(#ab47bc, 20), textcolor=color.white,
+                 style=label.style_label_up, size=labelSize)
+
+        removeOldestOB(bearOBBoxes, bearOBMidlines, bearOBTops, bearOBBottoms, bearOBBars, bearOBMitigated, maxOBs)
+
+// Check OB mitigation
+for i = 0 to array.size(bullOBTops) - 1
+    if i < array.size(bullOBTops) and not array.get(bullOBMitigated, i)
+        top = array.get(bullOBTops, i)
+        bottom = array.get(bullOBBottoms, i)
+        if low <= top
+            array.set(bullOBMitigated, i, true)
+            if showMitigatedOB
+                box.set_bgcolor(array.get(bullOBBoxes, i), mitigatedColor)
+                box.set_border_color(array.get(bullOBBoxes, i), color.new(#888888, 50))
+            else
+                box.set_bgcolor(array.get(bullOBBoxes, i), color.new(color.white, 100))
+                box.set_border_color(array.get(bullOBBoxes, i), color.new(color.white, 100))
+                if i < array.size(bullOBMidlines) and not na(array.get(bullOBMidlines, i))
+                    line.set_color(array.get(bullOBMidlines, i), color.new(color.white, 100))
+
+for i = 0 to array.size(bearOBTops) - 1
+    if i < array.size(bearOBTops) and not array.get(bearOBMitigated, i)
+        top = array.get(bearOBTops, i)
+        bottom = array.get(bearOBBottoms, i)
+        if high >= bottom
+            array.set(bearOBMitigated, i, true)
+            if showMitigatedOB
+                box.set_bgcolor(array.get(bearOBBoxes, i), mitigatedColor)
+                box.set_border_color(array.get(bearOBBoxes, i), color.new(#888888, 50))
+            else
+                box.set_bgcolor(array.get(bearOBBoxes, i), color.new(color.white, 100))
+                box.set_border_color(array.get(bearOBBoxes, i), color.new(color.white, 100))
+                if i < array.size(bearOBMidlines) and not na(array.get(bearOBMidlines, i))
+                    line.set_color(array.get(bearOBMidlines, i), color.new(color.white, 100))
+
+// ==================== GOLDEN ZONE DETECTION (OB + FVG Overlap) ====================
+var box[] goldenBoxes = array.new_box()
+var float[] goldenTops = array.new_float()
+var float[] goldenBottoms = array.new_float()
+var bool[] goldenMitigated = array.new_bool()
+var bool[] goldenIsBullish = array.new_bool()
+
+zonesOverlap(top1, bottom1, top2, bottom2) =>
+    overlapTop = math.min(top1, top2)
+    overlapBottom = math.max(bottom1, bottom2)
+    hasOverlap = overlapTop > overlapBottom
+    [hasOverlap, overlapTop, overlapBottom]
+
+checkAndCreateGoldenZone(isBullish) =>
+    if showGoldenZones
+        obTops = isBullish ? bullOBTops : bearOBTops
+        obBottoms = isBullish ? bullOBBottoms : bearOBBottoms
+        obMitigated = isBullish ? bullOBMitigated : bearOBMitigated
+        fvgTops = isBullish ? bullFVGTops : bearFVGTops
+        fvgBottoms = isBullish ? bullFVGBottoms : bearFVGBottoms
+        fvgMitigated = isBullish ? bullFVGMitigated : bearFVGMitigated
+
+        // Check most recent OB against recent FVGs
+        if array.size(obTops) > 0 and array.size(fvgTops) > 0
+            obIdx = array.size(obTops) - 1
+            if not array.get(obMitigated, obIdx)
+                obTop = array.get(obTops, obIdx)
+                obBottom = array.get(obBottoms, obIdx)
+
+                for fvgIdx = array.size(fvgTops) - 1 to math.max(0, array.size(fvgTops) - 5) by 1
+                    if fvgIdx >= 0 and fvgIdx < array.size(fvgTops) and not array.get(fvgMitigated, fvgIdx)
+                        fvgTop = array.get(fvgTops, fvgIdx)
+                        fvgBottom = array.get(fvgBottoms, fvgIdx)
+
+                        [hasOverlap, overlapTop, overlapBottom] = zonesOverlap(obTop, obBottom, fvgTop, fvgBottom)
+
+                        if hasOverlap
+                            gzBox = box.new(bar_index - 5, overlapTop, bar_index + 50, overlapBottom,
+                                           border_color=color.new(#ffd700, 0), bgcolor=goldenColor,
+                                           border_width=3, xloc=xloc.bar_index)
+
+                            array.push(goldenBoxes, gzBox)
+                            array.push(goldenTops, overlapTop)
+                            array.push(goldenBottoms, overlapBottom)
+                            array.push(goldenMitigated, false)
+                            array.push(goldenIsBullish, isBullish)
+
+                            label.new(bar_index, isBullish ? overlapTop : overlapBottom, "GOLDEN\nZONE",
+                                     color=color.new(#ffd700, 0), textcolor=color.black,
+                                     style=isBullish ? label.style_label_down : label.style_label_up,
+                                     size=labelSize)
+
+                            // Remove oldest if over limit
+                            if array.size(goldenBoxes) > maxGoldenZones
+                                box.delete(array.shift(goldenBoxes))
+                                array.shift(goldenTops)
+                                array.shift(goldenBottoms)
+                                array.shift(goldenMitigated)
+                                array.shift(goldenIsBullish)
+
+                            break
+
+// Check for golden zones on BOS/CHoCH
+if bosUp or chochUp
+    checkAndCreateGoldenZone(true)
+if bosDown or chochDown
+    checkAndCreateGoldenZone(false)
+
+// Check golden zone mitigation and alert
+var bool priceAtGoldenZone = false
+priceAtGoldenZone := false
+
+for i = 0 to array.size(goldenTops) - 1
+    if i < array.size(goldenTops) and not array.get(goldenMitigated, i)
+        top = array.get(goldenTops, i)
+        bottom = array.get(goldenBottoms, i)
+        isBull = array.get(goldenIsBullish, i)
+
+        // Check if price is in golden zone
+        if (isBull and low <= top and low >= bottom) or (not isBull and high >= bottom and high <= top)
+            priceAtGoldenZone := true
+
+        // Check mitigation
+        if (isBull and low < bottom) or (not isBull and high > top)
+            array.set(goldenMitigated, i, true)
+            box.set_bgcolor(array.get(goldenBoxes, i), mitigatedColor)
+            box.set_border_color(array.get(goldenBoxes, i), color.new(#888888, 50))
+
+// ==================== PREVIOUS DAY HIGH/LOW ====================
+var float pdh = na
+var float pdl = na
+var float nyRTHHigh = na
+var float nyRTHLow = na
+
+if isNYRTH
+    if na(nyRTHHigh) or high > nyRTHHigh
+        nyRTHHigh := high
+    if na(nyRTHLow) or low < nyRTHLow
+        nyRTHLow := low
+
+if newDay
+    if not na(nyRTHHigh)
+        pdh := nyRTHHigh
+        pdl := nyRTHLow
+    nyRTHHigh := na
+    nyRTHLow := na
+
+// PDH/PDL lines
+var line pdhLine = na
+var line pdlLine = na
+var label pdhLabel = na
+var label pdlLabel = na
+
+if newDay
+    line.delete(pdhLine)
+    line.delete(pdlLine)
+    label.delete(pdhLabel)
+    label.delete(pdlLabel)
+
+    if showPDH and not na(pdh)
+        pdhLine := line.new(bar_index, pdh, bar_index + 1, pdh, extend=extend.right,
+                           color=pdhColor, style=line.style_dashed, width=2, xloc=xloc.bar_index)
+        pdhLabel := label.new(bar_index, pdh, "PDH", color=color.new(color.white, 100),
+                             textcolor=pdhColor, style=label.style_label_left, size=labelSize)
+
+    if showPDL and not na(pdl)
+        pdlLine := line.new(bar_index, pdl, bar_index + 1, pdl, extend=extend.right,
+                           color=pdlColor, style=line.style_dashed, width=2, xloc=xloc.bar_index)
+        pdlLabel := label.new(bar_index, pdl, "PDL", color=color.new(color.white, 100),
+                             textcolor=pdlColor, style=label.style_label_left, size=labelSize)
+
+// ==================== OPENING RANGE BREAKOUT ====================
+var float orbHigh = na
+var float orbLow = na
+var bool orbSet = false
+var int orbStartBar = na
+
+if newDay
+    orbHigh := na
+    orbLow := na
+    orbSet := false
+    orbStartBar := na
+
+if isORBSession
+    if na(orbHigh) or high > orbHigh
+        orbHigh := high
+    if na(orbLow) or low < orbLow
+        orbLow := low
+    if na(orbStartBar)
+        orbStartBar := bar_index
+
+if not isORBSession and not na(orbHigh) and not orbSet
+    orbSet := true
+
+// ORB visuals
+var box orbBox = na
+var line orbHighLine = na
+var line orbLowLine = na
+var label orbHighLabel = na
+var label orbLowLabel = na
+
+if newDay
+    box.delete(orbBox)
+    line.delete(orbHighLine)
+    line.delete(orbLowLine)
+    label.delete(orbHighLabel)
+    label.delete(orbLowLabel)
+
+if orbSet and showORB and na(orbBox)
+    orbBox := box.new(orbStartBar, orbHigh, bar_index + 100, orbLow,
+                     border_color=orbColor, bgcolor=color.new(orbColor, 90),
+                     border_width=1, xloc=xloc.bar_index)
+    orbHighLine := line.new(orbStartBar, orbHigh, bar_index + 200, orbHigh,
+                           color=orbColor, style=line.style_solid, width=2, xloc=xloc.bar_index)
+    orbLowLine := line.new(orbStartBar, orbLow, bar_index + 200, orbLow,
+                          color=orbColor, style=line.style_solid, width=2, xloc=xloc.bar_index)
+    orbHighLabel := label.new(orbStartBar, orbHigh, "ORB High", color=color.new(color.white, 100),
+                             textcolor=orbColor, style=label.style_label_left, size=labelSize)
+    orbLowLabel := label.new(orbStartBar, orbLow, "ORB Low", color=color.new(color.white, 100),
+                            textcolor=orbColor, style=label.style_label_left, size=labelSize)
+
+// ORB breakout detection
+orbBreakUp = orbSet and close > orbHigh and close[1] <= orbHigh
+orbBreakDown = orbSet and close < orbLow and close[1] >= orbLow
+
+if orbBreakUp
+    label.new(bar_index, low, "ORB\nBREAK", color=bullColor, textcolor=color.white,
+             style=label.style_label_up, size=labelSize)
+
+if orbBreakDown
+    label.new(bar_index, high, "ORB\nBREAK", color=bearColor, textcolor=color.white,
+             style=label.style_label_down, size=labelSize)
+
+// ==================== SWEEP/RUN DETECTION ====================
+// Sweep = wick through, close back (reversal)
+// Run = close through (continuation)
+
+sweepPDH = not na(pdh) and high > pdh and close < pdh
+sweepPDL = not na(pdl) and low < pdl and close > pdl
+runPDH = not na(pdh) and close > pdh and close[1] <= pdh
+runPDL = not na(pdl) and close < pdl and close[1] >= pdl
+
+if showSweeps and sweepPDH
+    label.new(bar_index, high, "SWEEP", color=color.new(#ff9800, 0), textcolor=color.white,
+             style=label.style_label_down, size=labelSize)
+
+if showSweeps and sweepPDL
+    label.new(bar_index, low, "SWEEP", color=color.new(#ff9800, 0), textcolor=color.white,
+             style=label.style_label_up, size=labelSize)
+
+if showRuns and runPDH
+    label.new(bar_index, high, "RUN", color=bullColor, textcolor=color.white,
+             style=label.style_label_down, size=labelSize)
+
+if showRuns and runPDL
+    label.new(bar_index, low, "RUN", color=bearColor, textcolor=color.white,
+             style=label.style_label_up, size=labelSize)
+
+// ==================== SESSION BACKGROUNDS ====================
+bgcolor(showSessionBG and isNYSession and not isLunchLull and not is10AMWindow ? color.new(#00ff00, 95) : na, title="NY Session")
+bgcolor(show10AMWindow and is10AMWindow ? color.new(#ff9800, 93) : na, title="10AM Reversal Window")
+bgcolor(showLunchLull and isLunchLull ? color.new(#ff0000, 93) : na, title="Lunch Lull")
+
+// ==================== BIAS TABLE ====================
+if showBiasTable and barstate.islast
+    biasColor = switch biasInput
+        "Bullish" => bullColor
+        "Bearish" => bearColor
+        => color.gray
+
+    trendText = switch trend
+        1 => "Bullish"
+        -1 => "Bearish"
+        => "Neutral"
+
+    trendColor = switch trend
+        1 => bullColor
+        -1 => bearColor
+        => color.gray
+
+    var table biasTable = table.new(position.top_right, 2, 3, bgcolor=color.new(#1e1e1e, 20),
+                                    border_width=1, border_color=color.gray)
+
+    table.cell(biasTable, 0, 0, "Daily Bias", text_color=color.white, text_size=tableSize)
+    table.cell(biasTable, 1, 0, biasInput, text_color=biasColor, text_size=tableSize)
+    table.cell(biasTable, 0, 1, "Structure", text_color=color.white, text_size=tableSize)
+    table.cell(biasTable, 1, 1, trendText, text_color=trendColor, text_size=tableSize)
+    table.cell(biasTable, 0, 2, "Session", text_color=color.white, text_size=tableSize)
+
+    sessionText = isLunchLull ? "LUNCH LULL" : is10AMWindow ? "10AM WINDOW" : isNYSession ? "NY SESSION" : "CLOSED"
+    sessionColor = isLunchLull ? color.red : is10AMWindow ? color.orange : isNYSession ? color.green : color.gray
+    table.cell(biasTable, 1, 2, sessionText, text_color=sessionColor, text_size=tableSize)
+
+// ==================== ALERTS ====================
+// Helper for bias filtering
+isBullishSetup(alertEnabled) => alertEnabled and (not filterAlertsByBias or biasInput == "Bullish" or biasInput == "Neutral")
+isBearishSetup(alertEnabled) => alertEnabled and (not filterAlertsByBias or biasInput == "Bearish" or biasInput == "Neutral")
+
+// Structure alerts
+alertcondition(chochUp and isBullishSetup(alertCHoCHBull), title="CHoCH Bullish", message="CHoCH Bullish - Potential reversal to upside")
+alertcondition(chochDown and isBearishSetup(alertCHoCHBear), title="CHoCH Bearish", message="CHoCH Bearish - Potential reversal to downside")
+alertcondition(bosUp and isBullishSetup(alertBOSBull), title="BOS Bullish", message="BOS Bullish - Trend continuation up")
+alertcondition(bosDown and isBearishSetup(alertBOSBear), title="BOS Bearish", message="BOS Bearish - Trend continuation down")
+
+// Sweep/Run alerts
+alertcondition(sweepPDH and isBearishSetup(alertSweepPDH), title="Sweep @ PDH", message="Sweep at PDH - Reversal signal (short)")
+alertcondition(sweepPDL and isBullishSetup(alertSweepPDL), title="Sweep @ PDL", message="Sweep at PDL - Reversal signal (long)")
+alertcondition(runPDH and isBullishSetup(alertRunPDH), title="Run @ PDH", message="Run through PDH - Continuation signal (long)")
+alertcondition(runPDL and isBearishSetup(alertRunPDL), title="Run @ PDL", message="Run through PDL - Continuation signal (short)")
+
+// ORB alerts
+alertcondition(orbBreakUp and isBullishSetup(alertORBBreakUp), title="ORB Break Up", message="ORB Break Up - Bullish breakout")
+alertcondition(orbBreakDown and isBearishSetup(alertORBBreakDown), title="ORB Break Down", message="ORB Break Down - Bearish breakout")
+
+// Golden zone alerts
+goldenZoneFormed = array.size(goldenBoxes) > 0 and array.size(goldenBoxes) > array.size(goldenBoxes)[1]
+alertcondition(goldenZoneFormed and alertGoldenZone, title="Golden Zone Formed", message="Golden Zone formed - High probability entry zone")
+alertcondition(priceAtGoldenZone and alertPriceAtGZ, title="Price at Golden Zone", message="Price entering Golden Zone - Watch for entry")
