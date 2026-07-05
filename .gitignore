@@ -1,0 +1,26 @@
+# Bars are a disposable local cache — regenerated from Databento, never committed (decision 13)
+/bars/
+/data/bars/
+*.parquet
+*.duckdb
+*.duckdb.wal
+
+# Derived SQLite index — rebuilt from the JSON event logs, never the source of truth (decision 12)
+*.sqlite
+*.sqlite3
+/data/index.db
+
+# Local secrets — Anthropic + Databento API keys never leave the machine (§5)
+.env
+.env.*
+/config/secrets.*
+
+# Toolchains
+node_modules/
+dist/
+/src-tauri/target/
+target/
+
+# OS / editor
+.DS_Store
+Thumbs.db
