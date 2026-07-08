@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ORB / IB Method — Study Guide</title>
+<style>
+  :root{
+    --bg:#0f1216; --panel:#161b22; --panel2:#1c232d; --edge:#2a323d;
+    --ink:#e6edf3; --muted:#9aa7b4; --accent:#4cc38a; --accent2:#5aa9ff;
+    --warn:#e3b341; --danger:#f47067; --radius:12px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  a{color:var(--accent2);text-decoration:none}
+  header.hero{padding:34px 20px 22px;border-bottom:1px solid var(--edge);
+    background:radial-gradient(1200px 300px at 20% -50%,rgba(76,195,138,.14),transparent),var(--panel)}
+  .wrap{max-width:900px;margin:0 auto;padding:0 20px}
+  h1{margin:0 0 6px;font-size:26px;letter-spacing:.2px}
+  .sub{color:var(--muted);margin:0}
+  nav.toc{position:sticky;top:0;z-index:5;background:rgba(15,18,22,.92);
+    backdrop-filter:blur(6px);border-bottom:1px solid var(--edge);padding:10px 0}
+  nav.toc .wrap{display:flex;flex-wrap:wrap;gap:6px}
+  nav.toc a{font-size:13px;color:var(--muted);padding:5px 10px;border:1px solid var(--edge);
+    border-radius:999px;background:var(--panel)}
+  nav.toc a:hover{color:var(--ink);border-color:var(--accent)}
+  section{padding:30px 0;border-bottom:1px solid var(--edge)}
+  h2{font-size:20px;margin:0 0 14px;display:flex;align-items:center;gap:10px}
+  h2 .n{color:var(--accent);font-variant-numeric:tabular-nums;font-size:14px;
+    border:1px solid var(--edge);border-radius:8px;padding:2px 8px;background:var(--panel)}
+  h3{font-size:16px;margin:20px 0 8px;color:var(--ink)}
+  p{margin:8px 0}
+  .muted{color:var(--muted)}
+  .grid{display:grid;gap:12px}
+  @media(min-width:640px){.grid.two{grid-template-columns:1fr 1fr}}
+  .card{background:var(--panel);border:1px solid var(--edge);border-radius:var(--radius);padding:16px}
+  .card.setup{border-left:3px solid var(--accent2)}
+  .tag{display:inline-block;font-size:12px;color:var(--muted);border:1px solid var(--edge);
+    border-radius:999px;padding:1px 9px;margin:2px 4px 2px 0;background:var(--panel2)}
+  .tag.win{color:var(--accent);border-color:rgba(76,195,138,.4)}
+  ul.tight{margin:6px 0;padding-left:20px}
+  ul.tight li{margin:3px 0}
+  .kv{display:grid;grid-template-columns:120px 1fr;gap:6px 12px;margin:8px 0}
+  .kv dt{color:var(--muted);font-size:14px}
+  .kv dd{margin:0}
+  details.acc{background:var(--panel);border:1px solid var(--edge);border-radius:var(--radius);
+    margin:10px 0;overflow:hidden}
+  details.acc>summary{cursor:pointer;padding:14px 16px;font-weight:600;list-style:none;
+    display:flex;justify-content:space-between;align-items:center}
+  details.acc>summary::-webkit-details-marker{display:none}
+  details.acc>summary::after{content:"+";color:var(--accent);font-size:20px}
+  details.acc[open]>summary::after{content:"–"}
+  details.acc>.body{padding:0 16px 16px}
+  .callout{border-radius:var(--radius);padding:12px 14px;margin:12px 0;border:1px solid}
+  .callout.warn{background:rgba(227,179,65,.08);border-color:rgba(227,179,65,.35)}
+  .callout.bad{background:rgba(244,112,103,.08);border-color:rgba(244,112,103,.35)}
+  .callout.good{background:rgba(76,195,138,.08);border-color:rgba(76,195,138,.35)}
+  .callout b{color:var(--ink)}
+  /* checklist */
+  .check label{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:8px;cursor:pointer}
+  .check label:hover{background:var(--panel2)}
+  .check input{margin-top:5px;width:16px;height:16px;accent-color:var(--accent)}
+  .check .done{color:var(--muted);text-decoration:line-through}
+  .btn{background:var(--panel2);color:var(--ink);border:1px solid var(--edge);border-radius:8px;
+    padding:8px 14px;cursor:pointer;font-size:14px}
+  .btn:hover{border-color:var(--accent)}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  /* flashcards */
+  .fc{perspective:1200px;margin:10px 0}
+  .fc-inner{position:relative;min-height:160px;transition:transform .5s;transform-style:preserve-3d;
+    border-radius:var(--radius)}
+  .fc.flip .fc-inner{transform:rotateY(180deg)}
+  .fc-face{position:absolute;inset:0;backface-visibility:hidden;border:1px solid var(--edge);
+    border-radius:var(--radius);padding:22px;display:flex;align-items:center;justify-content:center;
+    text-align:center;background:var(--panel)}
+  .fc-face.back{transform:rotateY(180deg);background:var(--panel2);border-color:var(--accent)}
+  .fc-q{font-size:18px;font-weight:600}
+  .fc-a{font-size:15px;color:var(--ink)}
+  .fc-meta{color:var(--muted);font-size:13px;margin-top:10px}
+  table{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+  th,td{border:1px solid var(--edge);padding:8px 10px;text-align:left}
+  th{background:var(--panel2);color:var(--muted);font-weight:600}
+  code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:13px}
+  footer{padding:26px 0 60px;color:var(--muted);font-size:13px}
+  .pill{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--accent);
+    border:1px solid rgba(76,195,138,.4);border-radius:999px;padding:2px 8px}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="pill">Personal study guide</span>
+    <h1>ORB / IB Method — how I trade the NY open</h1>
+    <p class="sub">First 2 hours of the New York session · NQ (ES) · process over outcome.
+    Synthesized from my strategy transcripts and the design conversation.</p>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="wrap">
+    <a href="#core">Core idea</a>
+    <a href="#levels">Levels</a>
+    <a href="#prep">Prep checklist</a>
+    <a href="#setups">Setups</a>
+    <a href="#confirm">Confirmation gate</a>
+    <a href="#entries">Entries</a>
+    <a href="#risk">Risk &amp; scaling</a>
+    <a href="#bias">Bias &amp; data</a>
+    <a href="#mistakes">Mistakes</a>
+    <a href="#cards">Flashcards</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+<section id="core">
+  <h2><span class="n">01</span> The core idea</h2>
+  <p>Trade the <b>Opening Range Breakout (first 15 min)</b> early, then switch to
+  <b>Initial Balance (first 60 min)</b> setups once the IB forms (~10:30 ET). Every trade must sit at
+  a <b>key level</b>, wait for <b>confirmation</b>, and go <b>with the higher-timeframe trend</b>.
+  The edge isn't the pattern — it's <b>context + confluence + patience</b>.</p>
+  <div class="callout good"><b>One sentence:</b> Mark my levels before the open, wait for price to come
+  to them, take the trade only when volume + candles confirm and the bigger trend agrees — and grade
+  myself on whether I followed that, not on whether it won.</div>
+</section>
+
+<section id="levels">
+  <h2><span class="n">02</span> The levels I mark</h2>
+  <p class="muted">Two kinds. <b>Pre-session</b> levels exist before 9:30 — I mark these blind in prep.
+  <b>Intraday</b> levels form live during the session.</p>
+
+  <div class="grid two">
+    <div class="card">
+      <h3>Pre-session (mark before the open)</h3>
+      <ul class="tight">
+        <li><b>High Volume Nodes</b> — from the HTF visible-range volume profile; act as S/R.</li>
+        <li><b>Supply / Demand zones</b> — the candle before an aggressive opposite-color engulfing candle (30m–4h).</li>
+        <li><b>PDH / PDL</b>, prior-week &amp; prior-month H/L.</li>
+        <li><b>Value Areas</b> — VAH / VAL / POC for prior session and prior week.</li>
+        <li><b>Session liquidity</b> — Asia (Tokyo) H/L, London H/L. <span class="muted">Pre-market low ≈ London low.</span></li>
+        <li><b>VWAP</b> — anchored at NY-open, daily-open, and weekly.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Intraday (form live)</h3>
+      <ul class="tight">
+        <li><b>Opening Range</b> — high/low of the first 15 min + the 50% midpoint.</li>
+        <li><b>Initial Balance</b> — high/low of the first 60 min + 25/50/75% + fib extensions (targets).</li>
+        <li><b>Developing VWAP</b> — updates every bar.</li>
+      </ul>
+      <div class="callout warn"><b>Confluence rule:</b> when 2–3 of these stack at the same price
+      (e.g. OR high + a HVN + weekly VWAP), the trade is far higher probability. Stack, then wait.</div>
+    </div>
+  </div>
+</section>
+
+<section id="prep">
+  <h2><span class="n">03</span> Pre-market routine <span class="muted" style="font-size:13px">(interactive — state saves locally)</span></h2>
+  <div class="card check" id="prepChecklist">
+    <!-- items injected by JS so we can persist -->
+  </div>
+  <div class="row" style="margin-top:10px">
+    <button class="btn" id="resetPrep">Reset checklist</button>
+    <span class="muted" id="prepCount"></span>
+  </div>
+</section>
+
+<section id="setups">
+  <h2><span class="n">04</span> The setups</h2>
+  <p class="muted">Tap a card to expand. ORB setups run early; IB setups after the hour; the liquidity-sweep
+  reversal is the bread-and-butter that overlays everything.</p>
+
+  <details class="acc"><summary>ORB — 3 ways to trade the 15-min range</summary>
+    <div class="body">
+      <div class="card setup"><h3>1 · Breakout &amp; retest (continuation)</h3>
+        <p>Price breaks the OR, then <b>retests</b> the broken edge → enter the continuation.</p>
+        <span class="tag">wait for 5m close outside the range</span></div>
+      <div class="card setup"><h3>2 · Range trade</h3>
+        <p>Bounce off one side of the range back toward the other. Best when the break was a fake-out /
+        liquidity grab that failed.</p><span class="tag">target the opposite side</span></div>
+      <div class="card setup"><h3>3 · Retracement continuation <span class="tag win">favorite</span></h3>
+        <p>After a clean breakout, wait for a deeper pull to the <b>50% of the range or VWAP</b>
+        (A+ when both line up), then enter the continuation.</p>
+        <span class="tag">50% + VWAP confluence = A+</span></div>
+      <div class="callout warn"><b>Timing tell:</b> break within 20–25 min = momentum day → trade breakouts off
+      the range. Takes &gt;30 min to break = choppy/range day → wait for the deeper 50%/VWAP retrace.</div>
+    </div>
+  </details>
+
+  <details class="acc"><summary>IB — 3 ways to trade the first-hour range</summary>
+    <div class="body">
+      <div class="card setup"><h3>1 · Breakout &amp; retest (continuation)</h3>
+        <p>Break of IB high/low, retest, continue. Direction bias from which side broke first.</p></div>
+      <div class="card setup"><h3>2 · Failed auction + liquidity sweep <span class="tag win">high win rate</span></h3>
+        <p>Price poked outside the IB then <b>closes back inside</b> (30-min candle by definition; read early
+        on 1m/5m). Fade it back toward IB mid. Strongest when it also swept a session level.</p>
+        <span class="tag">target IB mid (50%), then range edge</span></div>
+      <div class="card setup"><h3>3 · Retracement continuation</h3>
+        <p>After a break, enter the pullback to the <b>25% or 50%</b> retracement, continue toward the extension.</p></div>
+    </div>
+  </details>
+
+  <details class="acc"><summary>Liquidity-sweep reversal — the bread &amp; butter (3-step filter)</summary>
+    <div class="body">
+      <div class="kv">
+        <dt>Step 1</dt><dd><b>Key level.</b> Only at a marked level (PDH/PDL, session H/L, value area, S/D) — never a random 1m wick.</dd>
+        <dt>Step 2</dt><dd><b>Confirmation.</b> A strong wick <i>through</i> the level + a volume increase + an engulfing candle back in my direction.</dd>
+        <dt>Step 3</dt><dd><b>With the greater trend.</b> 1h/4h agreeing → hold for the home run. Against it → scalp only.</dd>
+      </div>
+      <p class="muted">Mechanic: price wicks through the level to trip stops, then sharply reverses. Stop below the wick;
+      target VWAP / range mid; move to break-even fast.</p>
+    </div>
+  </details>
+
+  <details class="acc"><summary>Double liquidity sweep — my A+ (~85% win rate when it appears)</summary>
+    <div class="body">
+      <p>Two coincident levels swept at once — e.g. <b>IB low + London low</b> just below each other, or
+      <b>ONH + IB high</b> above. Price wicks below both, gets bought back up hard → failed auction.
+      I take it every time it presents.</p>
+      <span class="tag win">IB low + London low</span><span class="tag win">ONH + IB high</span>
+    </div>
+  </details>
+
+  <details class="acc"><summary>Supply / Demand rejection</summary>
+    <div class="body">
+      <p>Price trades into a drawn S/D zone (HTF). <b>Don't</b> take the first touch of a big zone — wait for a
+      5m engulfing rejection + retest inside the zone, then enter with a tight stop past the zone.</p>
+      <p class="muted">S/D zones often <i>consolidate/trap</i> rather than sweep — different confirmation than a liquidity level.</p>
+    </div>
+  </details>
+</section>
+
+<section id="confirm">
+  <h2><span class="n">05</span> The confirmation gate <span class="muted" style="font-size:13px">(don't catch a falling knife)</span></h2>
+  <p>Charts live on the <b>5-minute</b> to stay unemotional; I <b>drop to the 1-minute only as price nears a key level</b>
+  to time the entry. The 15-minute holds the Opening Range.</p>
+  <div class="card check" id="confirmChecklist"></div>
+  <div class="callout bad"><b>Hard rule:</b> never trade the immediate first break. If it hasn't <i>closed</i>
+  beyond the level with volume, it isn't confirmed — it's bait.</div>
+</section>
+
+<section id="entries">
+  <h2><span class="n">06</span> Entry styles — aggressive vs confirmation</h2>
+  <table>
+    <tr><th>Style</th><th>Entry</th><th>Win rate</th><th>R:R</th><th>Cost</th></tr>
+    <tr><td><b>Aggressive</b></td><td>Right at the sweep of the level</td><td>Lower</td><td>Best (up to ~7:1)</td><td>Paper cuts; must go break-even fast</td></tr>
+    <tr><td><b>Confirmation</b></td><td>After a break of the prior lower-high/higher-low + a pullback</td><td>Higher</td><td>Lower</td><td>Can miss the move if it runs</td></tr>
+    <tr><td><b>Best of both</b></td><td>Some size at the level, add on the confirmation retest</td><td>Balanced</td><td>Blended</td><td>Requires scaling discipline</td></tr>
+  </table>
+  <p class="muted">Pick by personality: if a couple of paper-cut losses tilt me, I wait for confirmation.
+  There is always another setup — FOMO is not a reason.</p>
+</section>
+
+<section id="risk">
+  <h2><span class="n">07</span> Risk &amp; trade management</h2>
+  <div class="grid two">
+    <div class="card">
+      <h3>Stops &amp; size</h3>
+      <ul class="tight">
+        <li>Stop below the <b>wick</b> / below the engulfing candle — give a little room.</li>
+        <li>Size so a full stop is small $$ (an 11-pt NQ stop is a "paper cut" if sized right).</li>
+        <li><b>Consistent size</b> — erratic sizing is an execution red flag.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Targets &amp; scaling</h3>
+      <ul class="tight">
+        <li><b>Scale out:</b> TP1 at 25/50% or IB mid, TP2 at the range edge, runner to LOD/HOD.</li>
+        <li><b>Scale in:</b> add on the confirmation retest.</li>
+        <li><b>Trail</b> and move to <b>break-even aggressively</b> once it works.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout good"><b>R, anchored to the first entry.</b> <code>1R = initial size × initial-stop distance × $/pt</code>.
+  Total R = realized $ ÷ 1R. Adding size later does <b>not</b> change what 1R means. A clean plan that still
+  stops out = a paid-for, <i>correct</i> loss.</div>
+</section>
+
+<section id="bias">
+  <h2><span class="n">08</span> Bias &amp; data (trade with the odds)</h2>
+  <p>Call the day up front — <b>bull / bear / chop</b> — informed by base rates computed from history:</p>
+  <ul class="tight">
+    <li><b>Opening-candle continuation</b> — a green first-60-min candle → the session tends to close green (and vice versa).</li>
+    <li><b>IB break</b> — usually only <b>one</b> side of the IB breaks on the day.</li>
+    <li><b>IB retracement depth</b> — on a breakout day, how far pullbacks typically reach (25% vs 50%).</li>
+    <li><b>IB extension hit-rates</b> — how often each extension target is reached → sets realistic targets.</li>
+  </ul>
+  <div class="callout warn"><b>Read the % right.</b> The specific numbers in the videos ("77%", "78%") are
+  <i>example-day</i> figures, not constants — they change daily and by lookback. In my own tool they'll be
+  computed <b>as-of that day</b> (no future data). The <i>principle</i> is what to memorize: trade with the data,
+  not against it.</div>
+</section>
+
+<section id="mistakes">
+  <h2><span class="n">09</span> Mistakes that cost me (pre-flight avoid list)</h2>
+  <div class="grid two">
+    <div class="card"><ul class="tight">
+      <li>Chasing the first break instead of waiting for the 5m close.</li>
+      <li>Trading every ORB / every 1m wick with no key level.</li>
+      <li>Oversizing because volatility is high.</li>
+    </ul></div>
+    <div class="card"><ul class="tight">
+      <li>Trading against the higher-timeframe trend.</li>
+      <li>Catching a falling knife — no volume/candle confirmation.</li>
+      <li>FOMO re-entry after missing a move.</li>
+    </ul></div>
+  </div>
+</section>
+
+<section id="cards">
+  <h2><span class="n">10</span> Flashcards <span class="muted" style="font-size:13px">(active recall)</span></h2>
+  <div class="fc" id="flashcard">
+    <div class="fc-inner">
+      <div class="fc-face front"><div><div class="fc-q" id="fcQ"></div><div class="fc-meta">click to flip</div></div></div>
+      <div class="fc-face back"><div class="fc-a" id="fcA"></div></div>
+    </div>
+  </div>
+  <div class="row">
+    <button class="btn" id="fcPrev">‹ Prev</button>
+    <button class="btn" id="fcFlip">Flip</button>
+    <button class="btn" id="fcNext">Next ›</button>
+    <button class="btn" id="fcShuffle">Shuffle</button>
+    <span class="muted" id="fcCount"></span>
+  </div>
+</section>
+
+<footer class="wrap">
+  Study guide generated from my strategy transcripts (chartSetup, orb15min, InitialBalance, ibstrat2,
+  sweepAndAuction, suplydemand, reversals) and the simulator design conversation. Not financial advice —
+  it's my own process, written down so I can rehearse it. Grade the <b>process</b>, not the outcome.
+</footer>
+
+</main>
+
+<script>
+(function(){
+  // ---------- checklists (persisted) ----------
+  const prepItems = [
+    "Mark High Volume Nodes off the HTF visible-range profile",
+    "Draw Supply/Demand zones (engulfing rule, 30m–4h)",
+    "Mark PDH / PDL, prior-week & prior-month H/L",
+    "Mark prior-session & prior-week Value Areas (VAH/VAL/POC)",
+    "Mark Asia (Tokyo) H/L and London H/L",
+    "Turn on VWAP (NY-open, daily-open, weekly anchors)",
+    "Note where 2–3 levels stack (confluence zones)",
+    "Call the day: bull / bear / chop + check base-rate bias",
+    "Write my plan: which levels I'll trade and how"
+  ];
+  const confirmItems = [
+    "Is price AT a marked key level? (not a random wick)",
+    "Did a 5m candle CLOSE beyond/at the level?",
+    "Is there a volume increase vs the bars to the left?",
+    "Wick rejecting the level + engulfing candle in my direction?",
+    "Is the trade WITH the 1h/4h trend? (if against → scalp only)",
+    "Stop location set below the wick, size correct?"
+  ];
+  function buildCheck(id, items, key){
+    const box = document.getElementById(id);
+    const saved = JSON.parse(localStorage.getItem(key) || "{}");
+    items.forEach((t,i)=>{
+      const lab = document.createElement("label");
+      const cb = document.createElement("input"); cb.type="checkbox"; cb.checked=!!saved[i];
+      const span = document.createElement("span"); span.textContent=t;
+      if(cb.checked) span.classList.add("done");
+      cb.addEventListener("change",()=>{
+        span.classList.toggle("done",cb.checked);
+        saved[i]=cb.checked; localStorage.setItem(key,JSON.stringify(saved));
+        updateCount();
+      });
+      lab.appendChild(cb); lab.appendChild(span); box.appendChild(lab);
+    });
+    function updateCount(){
+      if(id!=="prepChecklist") return;
+      const done = Object.values(saved).filter(Boolean).length;
+      document.getElementById("prepCount").textContent = done+" / "+items.length+" ready";
+    }
+    updateCount();
+    return ()=>{ localStorage.removeItem(key); box.querySelectorAll("input").forEach(c=>c.checked=false);
+      box.querySelectorAll("span").forEach(s=>s.classList.remove("done"));
+      for(const k in saved) delete saved[k]; updateCount(); };
+  }
+  const resetPrep = buildCheck("prepChecklist", prepItems, "orb_prep_v1");
+  buildCheck("confirmChecklist", confirmItems, "orb_confirm_v1");
+  document.getElementById("resetPrep").addEventListener("click", resetPrep);
+
+  // ---------- flashcards ----------
+  const cards = [
+    ["What must be true before ANY trade?","At a marked key level, with confirmation, and with the higher-timeframe trend."],
+    ["Opening Range = ?","High/low of the first 15 minutes (9:30–9:45 ET) + its 50% midpoint."],
+    ["Initial Balance = ?","High/low of the first 60 minutes (9:30–10:30 ET) + 25/50/75% and fib extensions."],
+    ["What is a failed auction?","Price pokes outside the IB then closes back inside — a failed breakout. Fade it toward IB mid."],
+    ["What makes the double liquidity sweep A+?","Two coincident levels swept at once (e.g. IB low + London low) → ~85% win rate for me."],
+    ["The 3-step reversal filter?","1) key level, 2) volume + wick + engulfing confirmation, 3) with the greater trend."],
+    ["Which timeframe confirms, which times the entry?","5m confirms (candle close); drop to 1m only near a key level to time the entry. 15m holds the OR."],
+    ["Timing tell for momentum vs chop?","Break within 20–25 min → momentum day (trade breakouts). >30 min to break → chop (wait for 50%/VWAP)."],
+    ["Where does the stop go on a sweep?","Below the wick / below the engulfing candle — then move to break-even fast."],
+    ["How is 1R defined when I scale?","1R = initial size × initial-stop distance × $/pt. Total R = realized $ ÷ 1R. Adds don't change 1R."],
+    ["Aggressive vs confirmation entry trade-off?","Aggressive = better R:R, lower win rate, paper cuts. Confirmation = higher win rate, lower R:R, can miss the move."],
+    ["My favorite ORB setup?","Retracement continuation — breakout, then pull to 50%/VWAP (A+ when both align), then continue."],
+    ["What is confluence and why care?","2–3 levels stacked at one price. It's the difference between a random level and a high-probability trade."],
+    ["Why NOT trade the immediate first break?","No close beyond the level with volume = unconfirmed = fake-out bait."],
+    ["How should base-rate % be computed for honesty?","As-of the practiced day only (trailing window, no future data) — the video %s are example-day figures, not constants."],
+    ["What does a good grade reward?","Process: did I trade my committed plan with clean execution — regardless of whether it won."],
+    ["S/D zone confirmation vs liquidity level?","S/D zones tend to consolidate/trap (wait for engulf + retest inside); liquidity levels sweep then snap back."],
+    ["Six common mistakes?","Chasing first break, no key level, oversizing on vol, fighting HTF trend, catching knives, FOMO re-entry."]
+  ];
+  let order = cards.map((_,i)=>i), pos = 0, flipped = false;
+  const fc = document.getElementById("flashcard");
+  function render(){
+    const [q,a] = cards[order[pos]];
+    document.getElementById("fcQ").textContent = q;
+    document.getElementById("fcA").textContent = a;
+    document.getElementById("fcCount").textContent = (pos+1)+" / "+cards.length;
+    if(flipped){flipped=false; fc.classList.remove("flip");}
+  }
+  function flip(){flipped=!flipped; fc.classList.toggle("flip",flipped);}
+  fc.addEventListener("click",flip);
+  document.getElementById("fcFlip").addEventListener("click",flip);
+  document.getElementById("fcNext").addEventListener("click",()=>{pos=(pos+1)%cards.length;render();});
+  document.getElementById("fcPrev").addEventListener("click",()=>{pos=(pos-1+cards.length)%cards.length;render();});
+  document.getElementById("fcShuffle").addEventListener("click",()=>{
+    for(let i=order.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}
+    pos=0;render();
+  });
+  render();
+})();
+</script>
+</body>
+</html>
