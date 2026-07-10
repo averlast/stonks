@@ -155,4 +155,53 @@ test("rejects an inverted bracket", () => {
   assert.throws(() => e.place(LONG({ stop: 110, target: 100 }), 0), /stop < target/);
 });
 
+// --- tick-resolution of straddles (#4) --------------------------------------
+async function atest(name: string, fn: () => Promise<void>): Promise<void> {
+  try {
+    await fn();
+    passed++;
+    console.log(`  ok  ${name}`);
+  } catch (e) {
+    console.error(`FAIL  ${name}\n`, e);
+    process.exitCode = 1;
+  }
+}
+
+// Same straddle bar, opposite true print order → opposite honest outcome.
+const STRADDLE = () => LONG({ stop: 104, target: 107 });
+
+await atest("straddle resolves target-first from true prints (tick-true)", async () => {
+  const e = engine();
+  e.setStraddleResolver(async () => [105.5, 106, 107.25, 103.5]); // up through 107 first
+  e.place(STRADDLE(), 0);
+  await e.onBar(bar(1, 105, 105, 105, 105)); // entry 105.25
+  await e.onBar(bar(2, 105, 108, 103, 106)); // range touches both
+  const tr = e.trades[0];
+  assert.equal(tr.exitReason, "target");
+  assert.equal(tr.exitMethod, "tick-true");
+  approx(tr.exitPrice, 107);
+});
+
+await atest("straddle resolves stop-first from true prints (tick-true)", async () => {
+  const e = engine();
+  e.setStraddleResolver(async () => [104.75, 103.5, 105, 107.5]); // down through 104 first
+  e.place(STRADDLE(), 0);
+  await e.onBar(bar(1, 105, 105, 105, 105));
+  await e.onBar(bar(2, 105, 108, 103, 106));
+  const tr = e.trades[0];
+  assert.equal(tr.exitReason, "stop");
+  assert.equal(tr.exitMethod, "tick-true");
+  approx(tr.exitPrice, 103.75);
+});
+
+await atest("straddle falls back to pessimistic when ticks are unavailable", async () => {
+  const e = engine();
+  e.setStraddleResolver(async () => null);
+  e.place(STRADDLE(), 0);
+  await e.onBar(bar(1, 105, 105, 105, 105));
+  await e.onBar(bar(2, 105, 108, 103, 106));
+  assert.equal(e.trades[0].exitMethod, "pessimistic");
+  assert.equal(e.trades[0].exitReason, "stop");
+});
+
 console.log(`\n${passed} passed`);

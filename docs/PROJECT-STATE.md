@@ -18,11 +18,31 @@ open (NQ/ES), commit a plan, trade forward-only with honest fills, then get AI c
 3. Build discipline (ADR-0006): prove the **playback + fill engines on the whipsaw day first**,
    then layer on the full environment.
 
-## Next action — issue #4 (tick-resolved straddles)
-Issues **#1, #2, #3 DONE** (order flow confirmed by hand on the whipsaw day). Next is **#4**:
-replace the pessimistic straddle with true tick-resolution — extend ingestion to pull that day's
-raw ticks (ADR-0004), have Rust serve the straddled second, replay the true print order, and
-record the resolution method (tick-true vs pessimistic) per trade.
+## Next action — issue #5 (seal the attempt)
+Issues **#1–#4 DONE.** The whole engine core is proven on the whipsaw day: playback + honest,
+tick-resolved fills. Next is **#5 — Seal the attempt: event-sourced record, forward-only wall,
+auto-flatten** (ADR-0005). Then #6 (review scrub) / #7 (prep gate) → #8 (grade).
+
+### #4 outcome (2026-07-10) — true tick-resolution of straddles (ADR-0004)
+- **Ingestion**: `fetch_day.py` now also pulls the day's raw `trades` for 09:30–11:30 →
+  gitignored `data/bars/NQ/2024-08-05_trades.parquet` (203,374 prints, $0.25). Columns `t`
+  (canonical second, matches bars), `ts` (true UTC ns for ordering), `price`. `--no-ticks` to
+  skip. All 7,188 bar-seconds have ticks.
+- **Rust** (`bars.rs`/`lib.rs`): `load_ticks` builds `second → ordered prices`; `load_day` loads
+  it (boot log: `7188 bars, 7188 tick-seconds`); command **`ticks_for_second(t)`** serves one
+  reached second (not a peek). Missing cache → empty → pessimistic fallback.
+- **Fill engine** (`fillEngine.ts`): `onBar` is now async; a straddle calls the injected
+  `StraddleResolver`, walks the prints in order (`firstTouch`), and fills whichever level price
+  reached first, flagged `exitMethod: "tick-true"`; no ticks → `"pessimistic"`. `main.ts` wires
+  the resolver to `ticks_for_second` under Tauri (browser dev → pessimistic). `PlaybackEngine`
+  now awaits the tick subscriber so resolution completes in clock order.
+- **Determinism**: tick cache is fixed + ts-ordered → same day replays identically.
+- **Tests**: TS `npm test` → 19 (added 3 tick-resolution: target-first, stop-first, fallback);
+  Rust `cargo test --lib` → 3 (added tick-cache load-in-order). Typecheck + prod build clean.
+
+### Polish (2026-07-10)
+- Price scale is **pinned while drawing a bracket** (`ChartView.setPriceAutoScale`,
+  toggled in `BracketEditor.start/cancel`) — kills the line-jitter noticed at 30×.
 
 ### #3 outcome (2026-07-10) — fill engine (the integrity layer, SPEC §4)
 - **`app/src/engine/fillEngine.ts`** — working market/limit/stop-entry orders each with an OCO

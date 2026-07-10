@@ -15,8 +15,14 @@ import type { Contract, FillConfig } from "./contracts";
 export type Side = "long" | "short";
 export type EntryType = "market" | "limit" | "stop";
 export type FillReason = "entry" | "stop" | "target" | "flatten";
-/** How an exit was adjudicated. `tick-true` is reserved for #4. */
-export type FillMethod = "clean" | "pessimistic";
+/** How an exit was adjudicated. `tick-true` = resolved from the real print order
+ *  of a straddled second (#4); `pessimistic` = stop-first fallback (#3). */
+export type FillMethod = "clean" | "pessimistic" | "tick-true";
+
+/** Returns the ordered prints for a second, or null when no tick cache is
+ *  available (→ pessimistic fallback). Backed by the Rust `ticks_for_second`
+ *  command under Tauri (ADR-0004). */
+export type StraddleResolver = (t: number) => Promise<number[] | null>;
 
 export interface Fill {
   t: number;
@@ -90,11 +96,17 @@ export class FillEngine {
   private _trades: Trade[] = [];
   private seq = 0;
   private onTrade: (t: Trade) => void = () => {};
+  private resolver: StraddleResolver | null = null;
 
   constructor(
     private contract: Contract,
     private config: FillConfig,
   ) {}
+
+  /** Supply a tick source to resolve straddled seconds by true print order. */
+  setStraddleResolver(fn: StraddleResolver): void {
+    this.resolver = fn;
+  }
 
   get trades(): readonly Trade[] {
     return this._trades;
@@ -132,11 +144,11 @@ export class FillEngine {
   /** Adjudicate one 1s bar in clock order. Entries first, then exits — including
    *  an exit on the very bar an entry fills (pessimistic: a whipsaw can stop you
    *  out the same second you get in). */
-  onBar(bar: Sec1Bar): void {
+  async onBar(bar: Sec1Bar): Promise<void> {
     if (this.pending) this.tryEntry(bar);
     if (this.position) {
       this.updateExcursions(bar);
-      this.tryExit(bar);
+      await this.tryExit(bar);
     }
   }
 
@@ -188,21 +200,48 @@ export class FillEngine {
   }
 
   // --- exits ----------------------------------------------------------------
-  private tryExit(bar: Sec1Bar): void {
+  private async tryExit(bar: Sec1Bar): Promise<void> {
     const p = this.position!;
     const stopHit = p.side === "long" ? bar.l <= p.stop : bar.h >= p.stop;
     const targetHit = p.side === "long" ? bar.h >= p.target : bar.l <= p.target;
 
     if (stopHit && targetHit) {
-      // Straddle: both touched in one second. Pessimistic → stop first (#4 will
-      // tick-resolve the true order).
-      this.exitAtStop(bar, "pessimistic");
+      await this.resolveStraddle(bar); // true tick order if available, else pessimistic
     } else if (stopHit) {
       this.exitAtStop(bar, "clean");
     } else if (targetHit) {
-      const price = p.target; // limit/target fills clean
-      this.close(bar.t, price, "target", "clean");
+      this.close(bar.t, p.target, "target", "clean"); // limit/target fills clean
     }
+  }
+
+  /** A second whose range touched both stop and target. Ask the resolver for the
+   *  real prints and honor whichever level the price reached first; fall back to
+   *  pessimistic (stop first) when no ticks are available (ADR-0004, SPEC §4). */
+  private async resolveStraddle(bar: Sec1Bar): Promise<void> {
+    const p = this.position!;
+    if (this.resolver) {
+      const ticks = await this.resolver(bar.t);
+      const first = ticks && ticks.length ? this.firstTouch(ticks, p) : null;
+      if (first === "target") {
+        this.close(bar.t, p.target, "target", "tick-true");
+        return;
+      }
+      if (first === "stop") {
+        this.exitAtStop(bar, "tick-true");
+        return;
+      }
+    }
+    this.exitAtStop(bar, "pessimistic");
+  }
+
+  /** Walk the prints in order; return which protective level price reached first. */
+  private firstTouch(ticks: readonly number[], p: Position): "stop" | "target" | null {
+    const long = p.side === "long";
+    for (const px of ticks) {
+      if (long ? px <= p.stop : px >= p.stop) return "stop";
+      if (long ? px >= p.target : px <= p.target) return "target";
+    }
+    return null;
   }
 
   private exitAtStop(bar: Sec1Bar, method: FillMethod): void {

@@ -31,7 +31,7 @@ export class PlaybackEngine {
   private _speed: Speed = 1;
   private _index = 0;
   private _ended = false;
-  private onTick: (t: Tick) => void = () => {};
+  private onTick: (t: Tick) => void | Promise<void> = () => {};
   private onEnd: () => void = () => {};
 
   constructor(private feed: BarFeed) {
@@ -41,7 +41,7 @@ export class PlaybackEngine {
     }
   }
 
-  subscribe(onTick: (t: Tick) => void, onEnd: () => void): void {
+  subscribe(onTick: (t: Tick) => void | Promise<void>, onEnd: () => void): void {
     this.onTick = onTick;
     this.onEnd = onEnd;
   }
@@ -106,7 +106,7 @@ export class PlaybackEngine {
       if (r.sealed) this.history.get(tf)!.push(r.sealed);
     }
 
-    this.onTick({ simSecond: bar, forming, sealed, index: this._index });
+    await this.onTick({ simSecond: bar, forming, sealed, index: this._index });
     return true;
   }
 

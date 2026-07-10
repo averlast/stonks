@@ -52,6 +52,8 @@ def parse_args() -> argparse.Namespace:
                    help="Abort if the quoted cost exceeds this USD amount.")
     p.add_argument("--force", action="store_true",
                    help="Re-pull even if the Parquet already exists.")
+    p.add_argument("--no-ticks", action="store_true",
+                   help="Skip the raw-trades pull (bars only).")
     return p.parse_args()
 
 
@@ -106,57 +108,102 @@ def main() -> int:
 
     out_dir = BARS_DIR / args.symbol
     out_path = out_dir / f"{args.date}_{SCHEMA}.parquet"
+
     if out_path.exists() and not args.force:
-        print(f"Parquet already exists: {out_path} (use --force to re-pull).")
-        return 0
+        print(f"Bars already exist: {out_path} (use --force to re-pull).")
+    else:
+        # --- Pull bars --------------------------------------------------------
+        print(f"Pulling {cont_symbol} {start_utc.isoformat()} -> {end_utc.isoformat()} ...")
+        frame = client.timeseries.get_range(**request).to_df(price_type="float")
+        if frame.empty:
+            print("error: no bars returned for that window/symbol.", file=sys.stderr)
+            return 1
 
-    # --- Pull ------------------------------------------------------------------
-    print(f"Pulling {cont_symbol} {start_utc.isoformat()} -> {end_utc.isoformat()} ...")
-    data = client.timeseries.get_range(**request)
-    frame = data.to_df(price_type="float")  # ts_event index in UTC, prices as float
+        # Convert UTC -> exchange-local, DST-correct, and expose an explicit column.
+        frame = frame.reset_index()  # ts_event becomes a column (tz-aware UTC)
+        frame["ts_event_et"] = frame["ts_event"].dt.tz_convert(EXCHANGE_TZ)
 
-    if frame.empty:
-        print("error: no bars returned for that window/symbol.", file=sys.stderr)
-        return 1
+        # Canonical app time `t`: the ET wall clock as epoch seconds (local reading
+        # reinterpreted as UTC). The single time every layer uses -- Rust feed, TS
+        # engine, and Lightweight Charts axis -- so no layer needs timezone logic.
+        frame["t"] = (frame["ts_event_et"].dt.tz_localize(None)
+                      .astype("int64") // 10**9)
 
-    # Convert UTC -> exchange-local, DST-correct, and expose an explicit column.
-    frame = frame.reset_index()  # ts_event becomes a column (tz-aware UTC)
-    frame["ts_event_et"] = frame["ts_event"].dt.tz_convert(EXCHANGE_TZ)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        frame.to_parquet(out_path, index=False)
+        rows = len(frame)
+        print(f"Wrote {rows:,} rows -> {out_path}")
 
-    # Canonical app time `t`: the ET wall clock as epoch seconds (local reading
-    # reinterpreted as UTC). This is the single time every layer uses -- Rust feed,
-    # TS engine, and Lightweight Charts axis -- so no layer needs timezone logic.
-    frame["t"] = (frame["ts_event_et"].dt.tz_localize(None)
-                  .astype("int64") // 10**9)
+        # --- Verify via DuckDB (acceptance criterion 5) -----------------------
+        con = duckdb.connect()
+        verify = con.execute(
+            "SELECT COUNT(*) AS rows, MIN(ts_event_et) AS first_bar, "
+            "MAX(ts_event_et) AS last_bar FROM read_parquet(?)",
+            [str(out_path)],
+        ).fetchone()
+        con.close()
+        print(f"DuckDB verify: rows={verify[0]:,} first={verify[1]} last={verify[2]}")
 
-    out_dir.mkdir(parents=True, exist_ok=True)
-    frame.to_parquet(out_path, index=False)
-    rows = len(frame)
-    print(f"Wrote {rows:,} rows -> {out_path}")
+        update_manifest(
+            symbol=args.symbol, cont_symbol=cont_symbol, date=args.date,
+            schema=SCHEMA, rows=rows, cost=cost, size=size,
+            path=out_path.relative_to(REPO_ROOT).as_posix(),
+        )
 
-    # --- Verify via DuckDB (acceptance criterion 5) ---------------------------
-    con = duckdb.connect()
-    verify = con.execute(
-        "SELECT COUNT(*) AS rows, MIN(ts_event_et) AS first_bar, "
-        "MAX(ts_event_et) AS last_bar FROM read_parquet(?)",
-        [str(out_path)],
-    ).fetchone()
-    con.close()
-    print(f"DuckDB verify: rows={verify[0]:,} first={verify[1]} last={verify[2]}")
+    if not args.no_ticks:
+        fetch_ticks(client, cont_symbol, request, args, out_dir)
+    return 0
+
+
+def fetch_ticks(client, cont_symbol, base_request, args, out_dir) -> None:
+    """Pull the same window's raw trades for ambiguous-bar resolution (ADR-0004).
+
+    Stored as a per-day tick cache alongside the 1s bars: an adjudication-only
+    side input, never rendered or fed to the chart. Columns: `t` (canonical second
+    bucket, matching the bars), `ts` (true UTC nanoseconds for within-second
+    ordering), and `price`.
+    """
+    req = {**base_request, "schema": "trades"}
+    tick_path = out_dir / f"{args.date}_trades.parquet"
+    if tick_path.exists() and not args.force:
+        print(f"Ticks already exist: {tick_path} (use --force to re-pull).")
+        return
+
+    cost = client.metadata.get_cost(**req)
+    print(f"Ticks cost quote: ${cost:.4f} USD")
+    if cost > args.max_cost:
+        print(f"error: tick quote ${cost:.4f} exceeds --max-cost; skipping ticks.",
+              file=sys.stderr)
+        return
+
+    print(f"Pulling trades for {cont_symbol} ...")
+    tf = client.timeseries.get_range(**req).to_df(price_type="float")
+    if tf.empty:
+        print("warning: no trades returned for that window.", file=sys.stderr)
+        return
+
+    tf = tf.reset_index()
+    ts_et = tf["ts_event"].dt.tz_convert(EXCHANGE_TZ)
+    out = tf[["price"]].copy()
+    out["t"] = ts_et.dt.tz_localize(None).astype("int64") // 10**9
+    out["ts"] = tf["ts_event"].astype("int64")  # true UTC ns, for ordering
+    out = out[["t", "ts", "price"]].sort_values("ts").reset_index(drop=True)
+    out.to_parquet(tick_path, index=False)
+    print(f"Wrote {len(out):,} trades -> {tick_path}")
 
     update_manifest(
         symbol=args.symbol,
         cont_symbol=cont_symbol,
         date=args.date,
-        rows=rows,
+        schema="trades",
+        rows=len(out),
         cost=cost,
-        size=size,
-        path=out_path.relative_to(REPO_ROOT).as_posix(),
+        size=int(client.metadata.get_billable_size(**req)),
+        path=tick_path.relative_to(REPO_ROOT).as_posix(),
     )
-    return 0
 
 
-def update_manifest(*, symbol, cont_symbol, date, rows, cost, size, path) -> None:
+def update_manifest(*, symbol, cont_symbol, date, schema, rows, cost, size, path) -> None:
     """Upsert a pull record into the tracked manifest (SPEC decision 13)."""
     manifest = {"schema_version": 1, "pulls": []}
     if MANIFEST_PATH.exists():
@@ -167,7 +214,7 @@ def update_manifest(*, symbol, cont_symbol, date, rows, cost, size, path) -> Non
         "symbol": symbol,
         "resolved_symbol": cont_symbol,
         "stype_in": "continuous",
-        "schema": SCHEMA,
+        "schema": schema,
         "date": date,
         "session_et": f"{SESSION_OPEN.isoformat(timespec='minutes')}-"
                       f"{SESSION_END.isoformat(timespec='minutes')}",
@@ -178,7 +225,7 @@ def update_manifest(*, symbol, cont_symbol, date, rows, cost, size, path) -> Non
         "pulled_at": datetime.now(ZoneInfo("UTC")).isoformat(timespec="seconds"),
     }
 
-    key = (symbol, date, SCHEMA)
+    key = (symbol, date, schema)
     manifest["pulls"] = [
         r for r in manifest["pulls"]
         if (r["symbol"], r["date"], r["schema"]) != key

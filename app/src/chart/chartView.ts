@@ -125,6 +125,12 @@ export class ChartView {
   yToPrice(y: number): number | null {
     return this.series.coordinateToPrice(y) as number | null;
   }
+
+  /** Freeze/unfreeze vertical autoscaling — pinned while drawing a bracket so the
+   *  lines don't drift as new candles rescale the axis. */
+  setPriceAutoScale(on: boolean): void {
+    this.chart.priceScale("right").applyOptions({ autoScale: on });
+  }
 }
 
 function toLwc(c: Candle): CandlestickData {

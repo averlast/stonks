@@ -60,6 +60,7 @@ export class BracketEditor {
       target: this.round(entry + 60 * dir),
     };
     this.overlay.classList.add("active");
+    this.chart.setPriceAutoScale(false); // pin the axis so lines don't drift
     this.loop();
     this.onChangeCb(this.draft);
   }
@@ -79,6 +80,7 @@ export class BracketEditor {
     this.draft = null;
     this.dragging = null;
     this.overlay.classList.remove("active");
+    this.chart.setPriceAutoScale(true); // restore live autoscale
     if (this.raf) cancelAnimationFrame(this.raf);
     this.raf = 0;
   }

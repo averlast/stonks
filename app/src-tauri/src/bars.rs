@@ -3,6 +3,7 @@
 //! The `t` column is canonical app time (ET wall clock as epoch seconds), baked
 //! in by `ingestion/fetch_day.py`, so no timezone logic lives here.
 
+use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 
@@ -44,6 +45,26 @@ pub fn load_parquet(path: &Path) -> Result<Vec<Sec1Bar>> {
     // The feed must be strictly time-ordered; row-group order isn't guaranteed.
     bars.sort_by_key(|b| b.t);
     Ok(bars)
+}
+
+/// Load the per-day tick cache as `second -> ordered prices` for ambiguous-bar
+/// resolution (ADR-0004). The trades Parquet is sorted by `ts`, so pushing in
+/// file order preserves true within-second print order. Adjudication-only input:
+/// never rendered, never fed to the chart.
+pub fn load_ticks(path: &Path) -> Result<HashMap<i64, Vec<f64>>> {
+    let file = File::open(path).with_context(|| format!("open {}", path.display()))?;
+    let reader = ParquetRecordBatchReaderBuilder::try_new(file)?.build()?;
+
+    let mut map: HashMap<i64, Vec<f64>> = HashMap::new();
+    for batch in reader {
+        let batch = batch?;
+        let t = col_i64(&batch, "t")?;
+        let price = col_f64(&batch, "price")?;
+        for i in 0..batch.num_rows() {
+            map.entry(t[i]).or_default().push(price[i]);
+        }
+    }
+    Ok(map)
 }
 
 fn col_f64(batch: &RecordBatch, name: &str) -> Result<Vec<f64>> {

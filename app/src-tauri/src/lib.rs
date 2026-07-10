@@ -1,5 +1,6 @@
 mod bars;
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
@@ -12,6 +13,8 @@ use tauri::State;
 #[derive(Default)]
 struct Feed {
     bars: Vec<Sec1Bar>,
+    /// second -> ordered prints, for ambiguous-bar resolution (ADR-0004).
+    ticks: HashMap<i64, Vec<f64>>,
     cursor: usize,
     loaded: Option<(String, String)>, // (symbol, date)
 }
@@ -62,10 +65,27 @@ fn load_day(symbol: String, date: String, state: State<AppState>) -> Result<DayM
         .join(format!("{date}_ohlcv-1s.parquet"));
     let loaded = bars::load_parquet(&path).map_err(|e| e.to_string())?;
     let count = loaded.len();
-    log::info!("load_day {symbol} {date}: {count} bars from {}", path.display());
+
+    // Ticks are optional: without them, straddles fall back to pessimistic (#3).
+    let ticks_path = bars_dir()
+        .join(&symbol)
+        .join(format!("{date}_trades.parquet"));
+    let ticks = if ticks_path.exists() {
+        match bars::load_ticks(&ticks_path) {
+            Ok(m) => m,
+            Err(e) => {
+                log::warn!("tick cache load failed ({e}); straddles will be pessimistic");
+                HashMap::new()
+            }
+        }
+    } else {
+        HashMap::new()
+    };
+    log::info!("load_day {symbol} {date}: {count} bars, {} tick-seconds", ticks.len());
 
     let mut feed = state.0.lock().unwrap();
     feed.set_day(loaded, symbol.clone(), date.clone());
+    feed.ticks = ticks;
     Ok(DayMeta { symbol, date, count })
 }
 
@@ -82,6 +102,14 @@ fn next_sim_second(state: State<AppState>) -> Option<Sec1Bar> {
 #[tauri::command]
 fn reset_feed(state: State<AppState>) {
     state.0.lock().unwrap().reset();
+}
+
+/// Ordered prints for one second, for straddle resolution (ADR-0004). `t` is a
+/// second the sim clock has already reached, so this is not a peek. Empty when no
+/// tick cache is loaded → the caller keeps the pessimistic fallback.
+#[tauri::command]
+fn ticks_for_second(t: i64, state: State<AppState>) -> Vec<f64> {
+    state.0.lock().unwrap().ticks.get(&t).cloned().unwrap_or_default()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -101,7 +129,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             load_day,
             next_sim_second,
-            reset_feed
+            reset_feed,
+            ticks_for_second
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -145,5 +174,25 @@ mod tests {
         assert!(bars.len() > 7000, "expected ~7188 bars, got {}", bars.len());
         assert_eq!(bars[0].t, 1_722_850_200, "first bar is 09:30:00 ET");
         assert!(bars.windows(2).all(|w| w[0].t <= w[1].t), "bars are time-ordered");
+    }
+
+    #[test]
+    fn loads_tick_cache_in_print_order() {
+        let path = bars_dir().join("NQ").join("2024-08-05_trades.parquet");
+        if !path.exists() {
+            eprintln!("skipping: {} not present (run ingestion --no-ticks off)", path.display());
+            return;
+        }
+        let ticks = bars::load_ticks(&path).expect("load ticks");
+        let open = ticks.get(&1_722_850_200).expect("09:30:00 second present");
+        assert!(open.len() > 100, "open second has many prints, got {}", open.len());
+        // Open second knifed down: first print near the high, last near the low —
+        // proves the cache preserves true within-second order for resolution.
+        assert!((open[0] - 17561.75).abs() < 1.0, "first print near open, got {}", open[0]);
+        assert!(
+            (open[open.len() - 1] - 17533.75).abs() < 1.0,
+            "last print near the low, got {}",
+            open[open.len() - 1],
+        );
     }
 }

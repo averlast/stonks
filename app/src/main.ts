@@ -1,4 +1,5 @@
 import "./style.css";
+import { invoke } from "@tauri-apps/api/core";
 import type { Sec1Bar, Timeframe } from "./types";
 import { DevJsonFeed, TauriFeed, isTauri, type BarFeed } from "./engine/barFeed";
 import { PlaybackEngine, TIMEFRAMES, type Speed } from "./engine/playback";
@@ -40,6 +41,16 @@ async function main(): Promise<void> {
 
   // --- Fill engine (the integrity layer, SPEC §4) ---------------------------
   const fills = new FillEngine(CONTRACTS.NQ, DEFAULT_FILL_CONFIG);
+  if (isTauri()) {
+    // Resolve straddled seconds from the Rust tick cache (ADR-0004).
+    fills.setStraddleResolver(async (t) => {
+      try {
+        return await invoke<number[]>("ticks_for_second", { t });
+      } catch {
+        return null; // → pessimistic fallback
+      }
+    });
+  }
   let lastBar: Sec1Bar | null = null;
   fills.onClosed(() => {
     renderTrades();
@@ -101,11 +112,11 @@ async function main(): Promise<void> {
 
   // --- Engine subscription ---------------------------------------------------
   engine.subscribe(
-    (tick) => {
+    async (tick) => {
       const c = tick.forming.get(activeTf)!;
       chart.updateForming(c);
       // Adjudicate this 1s bar through the fill engine, in clock order (ADR-0002).
-      fills.onBar(tick.simSecond);
+      await fills.onBar(tick.simSecond);
       lastBar = tick.simSecond;
 
       clockEl.textContent = fmtClock(tick.simSecond.t);
