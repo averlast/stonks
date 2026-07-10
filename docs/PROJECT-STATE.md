@@ -18,12 +18,23 @@ open (NQ/ES), commit a plan, trade forward-only with honest fills, then get AI c
 3. Build discipline (ADR-0006): prove the **playback + fill engines on the whipsaw day first**,
    then layer on the full environment.
 
-## Next action — issue #1 (Databento ingestion)
-- **Whipsaw test day: NQ, 2024-08-05** (yen-carry-unwind session; violent two-way open).
-  *Not yet verified against data* — confirming the 9:30–11:30 window actually straddles a
-  stop+target in one second is part of #1. Swap days cheaply if it's too one-directional.
-- **Keys:** create a gitignored **`.env`** with `DATABENTO_API_KEY=…` and `ANTHROPIC_API_KEY=…`
-  (never paste keys into chat/commits). Ingestion runs `metadata.get_cost(...)` before any pull.
+## Next action — issue #2 (playback skeleton)
+Issue **#1 (Databento ingestion) is DONE.** Next on the critical path is #2 (live-forming 1m
+candle off a Rust-gated 1s feed), then #3 (fill engine).
+
+### #1 outcome (2026-07-09)
+- **Ingestion script:** `ingestion/fetch_day.py` (isolated Python per ADR-0001; `.venv/` +
+  `ingestion/requirements.txt`). Runs `metadata.get_cost` first (~$0.03, 400 KB — trivially
+  inside the free credit), pulls `ohlcv-1s` for 09:30–11:30 ET via **continuous front-month
+  symbology** (`NQ.c.0`, `stype_in=continuous`), writes gitignored Parquet to `data/bars/`, and
+  upserts a tracked `data/manifest.json`. Timestamps stored in America/New_York (DST-correct,
+  EDT −04:00). DuckDB verify: **7,188 rows** (≈7,200; ~12 thin seconds had no trade).
+- **Whipsaw day CONFIRMED — keep NQ 2024-08-05.** First-2h range **680 pts**, net +540;
+  first second alone spans 36 pts; **994 one-second bars ≥8 pt, 442 ≥10 pt.** Stops/targets
+  placed within ~30 pt *will* be straddled in one second — the hostile input #3/#4 must resolve.
+- **Keys:** `.env` (gitignored) has `DATABENTO_API_KEY`. `ANTHROPIC_API_KEY` still to add before
+  the grading slice (#8). Never paste keys into chat/commits.
+- **Not committed yet** — working tree holds `.gitignore`, `ingestion/`, `data/manifest.json`.
 - Session-window note: **FOMC = 2pm ET (outside our window); CPI = 8:30am ET (pre-open)** — so a
   volatility/reversal day beats an event day for stressing the *morning* engine.
 

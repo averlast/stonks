@@ -21,6 +21,11 @@ dist/
 /src-tauri/target/
 target/
 
+# Python ingestion (ADR-0001): local venv + bytecode, never committed
+.venv/
+__pycache__/
+*.pyc
+
 # OS / editor
 .DS_Store
 Thumbs.db
