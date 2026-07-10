@@ -4,6 +4,7 @@ import { DevJsonFeed, TauriFeed, isTauri, type BarFeed } from "./engine/barFeed"
 import { PlaybackEngine, TIMEFRAMES, type Speed } from "./engine/playback";
 import { bucketStart } from "./engine/aggregator";
 import { ChartView, type FillMarker } from "./chart/chartView";
+import { BracketEditor } from "./trading/bracketEditor";
 import { CONTRACTS, DEFAULT_FILL_CONFIG } from "./engine/contracts";
 import {
   FillEngine,
@@ -139,6 +140,7 @@ async function main(): Promise<void> {
       side = (b as HTMLButtonElement).dataset.v as Side;
       for (const x of sideSeg.querySelectorAll("button")) x.classList.remove("active");
       b.classList.add("active");
+      editor.setSide(side); // keep an in-progress on-chart draft in sync
     });
   }
   const syncEntryPriceEnabled = () => {
@@ -173,6 +175,88 @@ async function main(): Promise<void> {
 
   flattenBtn.onclick = () => {
     if (lastBar) fills.flatten(lastBar);
+  };
+
+  // --- On-chart bracket editor ----------------------------------------------
+  const editor = new BracketEditor(chart, CONTRACTS.NQ.tickSize);
+  const drawBtn = $("draw") as HTMLButtonElement;
+  const armBtn = $("arm") as HTMLButtonElement;
+  const cancelDrawBtn = $("cancelDraw") as HTMLButtonElement;
+  const rrEl = $("rr");
+
+  const seedPrice = (): number | null =>
+    lastBar ? lastBar.c : (engine.formingOf(activeTf)?.close ?? null);
+
+  function inferEntryType(s: Side, entry: number, last: number): EntryType {
+    if (Math.abs(entry - last) <= CONTRACTS.NQ.tickSize / 2) return "market";
+    const above = entry > last;
+    return s === "long" ? (above ? "stop" : "limit") : above ? "limit" : "stop";
+  }
+
+  function beginDrawUI(on: boolean): void {
+    drawBtn.hidden = on;
+    (ticket.querySelector("#place") as HTMLElement).hidden = on;
+    armBtn.hidden = !on;
+    cancelDrawBtn.hidden = !on;
+  }
+
+  editor.onChange((d) => {
+    if (!d) {
+      rrEl.textContent = "";
+      return;
+    }
+    const type = lastBar ? inferEntryType(d.side, d.entry, lastBar.c) : "limit";
+    entryTypeEl.value = type;
+    syncEntryPriceEnabled();
+    entryPriceEl.value = String(d.entry);
+    stopEl.value = String(d.stop);
+    targetEl.value = String(d.target);
+    const risk = Math.abs(d.entry - d.stop);
+    const rr = risk > 0 ? Math.abs(d.target - d.entry) / risk : 0;
+    rrEl.textContent = `${d.side} · ${type} @ ${d.entry.toFixed(2)} · R:R ${rr.toFixed(2)}`;
+  });
+
+  drawBtn.onclick = () => {
+    const seed = seedPrice();
+    if (seed === null) {
+      ticketMsg.textContent = "step or play forward first";
+      return;
+    }
+    ticketMsg.textContent = "";
+    editor.start(side, seed);
+    beginDrawUI(true);
+  };
+  cancelDrawBtn.onclick = () => {
+    editor.cancel();
+    rrEl.textContent = "";
+    beginDrawUI(false);
+  };
+  armBtn.onclick = () => {
+    const v = editor.value;
+    if (!v) return;
+    const type = lastBar ? inferEntryType(v.side, v.entry, lastBar.c) : "limit";
+    try {
+      fills.place(
+        {
+          side: v.side,
+          entryType: type,
+          entryPrice: type === "market" ? undefined : v.entry,
+          stop: v.stop,
+          target: v.target,
+          size: Number(sizeEl.value),
+          level: "chart",
+          reason: "drawn",
+        },
+        lastBar ? lastBar.t : 0,
+      );
+      editor.cancel();
+      beginDrawUI(false);
+      renderPosition();
+      updateBracketLines();
+      updateFlattenBtn();
+    } catch (err) {
+      ticketMsg.textContent = String(err instanceof Error ? err.message : err);
+    }
   };
 
   // --- Trading render helpers ------------------------------------------------

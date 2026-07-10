@@ -212,3 +212,57 @@ button:disabled {
 .muted {
   color: var(--muted);
 }
+
+#place.primary,
+.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* On-chart bracket editor overlay */
+.bracket-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  display: none;
+}
+
+.bracket-overlay.active {
+  display: block;
+}
+
+.bracket-line {
+  position: absolute;
+  left: 0;
+  right: 56px; /* clear the price axis */
+  height: 0;
+  border-top: 1px dashed var(--c);
+  pointer-events: auto;
+  cursor: ns-resize;
+  transform: translateY(-0.5px);
+}
+
+.bracket-line::after {
+  /* fat invisible hit area so the thin line is easy to grab */
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -6px;
+  height: 12px;
+}
+
+.bracket-label {
+  position: absolute;
+  left: 6px;
+  top: -9px;
+  background: var(--c);
+  color: #0e1116;
+  font: 600 11px/1.4 ui-monospace, monospace;
+  padding: 0 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+}

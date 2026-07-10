@@ -37,8 +37,10 @@ export class ChartView {
   private series: ISeriesApi<"Candlestick">;
   private markers: ISeriesMarkersPluginApi<Time>;
   private priceLines: IPriceLine[] = [];
+  readonly element: HTMLElement;
 
   constructor(container: HTMLElement) {
+    this.element = container;
     this.chart = createChart(container, {
       autoSize: true,
       layout: {
@@ -112,6 +114,16 @@ export class ChartView {
 
   fitContent(): void {
     this.chart.timeScale().fitContent();
+  }
+
+  /** Pixel y (relative to the pane top) for a price, or null if off-screen. */
+  priceToY(price: number): number | null {
+    return this.series.priceToCoordinate(price);
+  }
+
+  /** Price for a pixel y (relative to the pane top), or null if unavailable. */
+  yToPrice(y: number): number | null {
+    return this.series.coordinateToPrice(y) as number | null;
   }
 }
 

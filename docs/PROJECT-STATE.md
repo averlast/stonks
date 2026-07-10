@@ -18,10 +18,11 @@ open (NQ/ES), commit a plan, trade forward-only with honest fills, then get AI c
 3. Build discipline (ADR-0006): prove the **playback + fill engines on the whipsaw day first**,
    then layer on the full environment.
 
-## Next action — confirm #3 order flow, then #4 (tick-resolved straddles)
-Issues **#1 and #2 DONE. #3 (fill engine) BUILT + unit-verified; awaiting a visual confirm of
-the order-ticket UI before closing.** Then #4 (replace the pessimistic straddle with true
-tick-resolution — extends ingestion to pull that day's ticks, ADR-0004).
+## Next action — issue #4 (tick-resolved straddles)
+Issues **#1, #2, #3 DONE** (order flow confirmed by hand on the whipsaw day). Next is **#4**:
+replace the pessimistic straddle with true tick-resolution — extend ingestion to pull that day's
+raw ticks (ADR-0004), have Rust serve the straddled second, replay the true print order, and
+record the resolution method (tick-true vs pessimistic) per trade.
 
 ### #3 outcome (2026-07-10) — fill engine (the integrity layer, SPEC §4)
 - **`app/src/engine/fillEngine.ts`** — working market/limit/stop-entry orders each with an OCO
@@ -38,8 +39,14 @@ tick-resolution — extends ingestion to pull that day's ticks, ADR-0004).
   stop-out landing slightly worse than −1R, MAE/MFE, short mirror, guards).
 - **UI** (`main.ts` + `index.html`): order-ticket sidebar (side/type/entry/stop/target/size),
   Place + Flatten, live position box (unreal R/$, MAE/MFE), trades list (R, $, ⚠ pessimistic
-  flag, totals), chart bracket price-lines + fill markers. Typechecks + prod-builds; app boots
-  clean (`load_day` 7188 bars). **Not yet driven by hand — user to eyeball placing a trade.**
+  flag, totals), chart bracket price-lines + fill markers.
+- **On-chart bracket editor** (`app/src/trading/bracketEditor.ts`): TradingView-style draggable
+  entry/stop/target lines as an HTML overlay on the chart (Lightweight Charts has no native order
+  tool). Only the lines capture the mouse so the chart stays pannable; live R:R; entry type
+  auto-inferred from entry-vs-price (above=stop/breakout, below=limit/pullback, at=market).
+  "Draw on chart" → drag → "Arm bracket". Confirmed working by hand.
+  - *Known minor*: lines visually jump as the price axis autoscales while candles print
+    (amplified at 30×) — cosmetic; optional fix is to pin the price scale during a draft.
 
 ### Toolchain (installed 2026-07-10 — no longer a blocker)
 - **Rust** via rustup (user-local, `~/.cargo`, MSVC target), **MSVC C++ Build Tools** (VCTools
