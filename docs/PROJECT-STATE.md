@@ -19,9 +19,33 @@ open (NQ/ES), commit a plan, trade forward-only with honest fills, then get AI c
    then layer on the full environment.
 
 ## Next action — issue #5 (seal the attempt)
-Issues **#1–#4 DONE.** The whole engine core is proven on the whipsaw day: playback + honest,
-tick-resolved fills. Next is **#5 — Seal the attempt: event-sourced record, forward-only wall,
-auto-flatten** (ADR-0005). Then #6 (review scrub) / #7 (prep gate) → #8 (grade).
+Issues **#1–#4 DONE** + on-chart trade management. The whole engine core is proven on the
+whipsaw day: playback + honest tick-resolved fills + place/manage/exit. Next is **#5 — Seal the
+attempt: event-sourced record, forward-only wall, auto-flatten** (ADR-0005). Then #6 (review
+scrub) / #7 (prep gate) → #8 (grade).
+
+### #5 build plan (start here on clean context)
+Model a **Session** = one attempt of (historical-day, symbol); re-practicing makes a **new**
+Session, never an overwrite (ADR-0005). Persist it as an **append-only NDJSON event log** (git
+source of truth, decisions 12–13); Session state (trade tape, later prep/grade) is a **fold**
+over events. Acceptance criteria (from issue #5):
+- Every attempt action appends a typed, timestamped event; state reconstructed by folding.
+  Event types: `prep_committed`, `order_placed`, `fill`, `stop_moved`, `flatten`,
+  `journal_saved`, `grade_computed`, … The fill engine already produces these moments — wire
+  emit points at `FillEngine.place` (`order_placed`), entry/exit fills (`fill`),
+  `modifyBracket` (`stop_moved`), `flatten`/`cancelPending`.
+- `prep_committed` carries a **hash of the frozen prep** (prep UI is #7; for #5 stub the event +
+  hash shape so the seal is structural now).
+- **No rewind/peek during the attempt** — already data-gated by the Rust feed (ADR-0002);
+  #5 just asserts/keeps it.
+- **Reaching 11:30 auto-flattens** (exit reason `end-of-day`) and cancels working orders — hook
+  the playback end-of-day (`onEnd`) to `fills.flatten` + `cancelPending`.
+- Re-running the same day creates a **distinct Session**, not an overwrite.
+- **Where**: events likely a new `app/src/session/` module (portable TS); writing NDJSON to the
+  repo needs a Rust command (Tauri fs) — the app currently only *reads* via Rust, so #5 adds the
+  first **write** path. Records live outside `data/bars/` (bars are the disposable cache); pick a
+  tracked path like `data/sessions/{date}/{symbol}-{attempt}.ndjson` (NOT gitignored — records
+  are the git source of truth; only bars/ticks are ignored).
 
 ### #4 outcome (2026-07-10) — true tick-resolution of straddles (ADR-0004)
 - **Ingestion**: `fetch_day.py` now also pulls the day's raw `trades` for 09:30–11:30 →
@@ -43,6 +67,20 @@ auto-flatten** (ADR-0005). Then #6 (review scrub) / #7 (prep gate) → #8 (grade
 ### Polish (2026-07-10)
 - Price scale is **pinned while drawing a bracket** (`ChartView.setPriceAutoScale`,
   toggled in `BracketEditor.start/cancel`) — kills the line-jitter noticed at 30×.
+
+### Trade management (2026-07-10) — post-#3 UX (confirmed by hand)
+- **Manage a live position on the chart**: `BracketEditor` now has a `manage` mode (entry fixed,
+  stop/target draggable) that attaches when a position opens; dragging calls
+  `FillEngine.modifyBracket({stop,target})` live (OCO, effective next bar). **R stays anchored to
+  the initial stop** even after trailing (`initialStop` never rewritten — CONTEXT; unit-tested).
+- **Cancel a resting order**: `cancelOrder` button appears for an unfilled working order →
+  `FillEngine.cancelPending()`. **Flatten** relabelled "Flatten (F)" + **F key** market-exits.
+- `main.ts` `syncControls()` is the single state machine reconciling buttons + overlay vs
+  engine state (flat / working order / live position / placement draw).
+- *Known cosmetic (user chose to leave it)*: fill markers are bar-relative (LWC has no exact-
+  price marker), so a fill dot drifts slightly while its 1m candle is still forming, then locks.
+  The trade record's exit price/second are exact regardless. Optional future fix: overlay dots at
+  `priceToY(fillPrice)`.
 
 ### #3 outcome (2026-07-10) — fill engine (the integrity layer, SPEC §4)
 - **`app/src/engine/fillEngine.ts`** — working market/limit/stop-entry orders each with an OCO

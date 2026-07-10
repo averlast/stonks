@@ -143,6 +143,21 @@ test("short bracket: stop above, target below, mirrored fills", () => {
   approx(e.trades[0].pnlPoints, 4.75); // 104.75 - 100
 });
 
+// --- live trade management --------------------------------------------------
+test("modifyBracket trails the stop; R stays anchored to the initial stop", () => {
+  const e = engine();
+  e.place(LONG({ stop: 100, target: 130 }), 0);
+  e.onBar(bar(1, 110, 110, 110, 110)); // entry 110.25, initial risk 10.25pt
+  e.modifyBracket({ stop: 110 }); // trail up to ~break-even
+  e.onBar(bar(2, 110, 112, 109, 109)); // dips to 109 → trailed stop 110 hit
+  const tr = e.trades[0];
+  assert.equal(tr.exitReason, "stop");
+  approx(tr.exitPrice, 109.75); // 110 - 1 tick
+  approx(tr.initialStop, 100); // untouched
+  approx(tr.riskPoints, 10.25); // R still measured off the initial stop
+  assert.ok(tr.rMultiple > -0.1 && tr.rMultiple < 0, `near break-even, got ${tr.rMultiple}`);
+});
+
 // --- guards -----------------------------------------------------------------
 test("only one active bracket at a time", () => {
   const e = engine();

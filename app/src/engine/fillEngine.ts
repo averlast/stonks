@@ -141,6 +141,16 @@ export class FillEngine {
     this.pending = null;
   }
 
+  /** Move the live position's stop and/or target (trail, break-even, tighten).
+   *  `initialStop` is untouched, so R stays anchored to the first stop (CONTEXT).
+   *  Takes effect on the next bar's adjudication — no same-bar cheat. */
+  modifyBracket(next: { stop?: number; target?: number }): void {
+    const p = this.position;
+    if (!p) return;
+    if (next.stop !== undefined) p.stop = next.stop;
+    if (next.target !== undefined) p.target = next.target;
+  }
+
   /** Adjudicate one 1s bar in clock order. Entries first, then exits — including
    *  an exit on the very bar an entry fills (pessimistic: a whipsaw can stop you
    *  out the same second you get in). */

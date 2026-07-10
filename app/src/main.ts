@@ -55,7 +55,7 @@ async function main(): Promise<void> {
   fills.onClosed(() => {
     renderTrades();
     renderMarkers();
-    updateFlattenBtn();
+    syncControls(); // leaves manage mode now that we're flat
   });
 
   // --- DOM refs --------------------------------------------------------------
@@ -123,9 +123,8 @@ async function main(): Promise<void> {
       priceEl.textContent = tick.simSecond.c.toFixed(2);
       progressEl.textContent = `${tick.index} / ${feed.meta.count}`;
       renderPosition();
-      updateBracketLines();
       renderMarkers();
-      updateFlattenBtn();
+      syncControls();
     },
     () => {
       playBtn.textContent = "■ End of day";
@@ -142,7 +141,9 @@ async function main(): Promise<void> {
   const stopEl = $("stop") as HTMLInputElement;
   const targetEl = $("target") as HTMLInputElement;
   const sizeEl = $("size") as HTMLInputElement;
+  const placeBtn = $("place") as HTMLButtonElement;
   const flattenBtn = $("flatten") as HTMLButtonElement;
+  const cancelOrderBtn = $("cancelOrder") as HTMLButtonElement;
   const ticketMsg = $("ticketMsg");
   let side: Side = "long";
 
@@ -177,8 +178,7 @@ async function main(): Promise<void> {
     try {
       fills.place(req, lastBar ? lastBar.t : 0);
       renderPosition();
-      updateBracketLines();
-      updateFlattenBtn();
+      syncControls();
     } catch (err) {
       ticketMsg.textContent = String(err instanceof Error ? err.message : err);
     }
@@ -187,6 +187,18 @@ async function main(): Promise<void> {
   flattenBtn.onclick = () => {
     if (lastBar) fills.flatten(lastBar);
   };
+  cancelOrderBtn.onclick = () => {
+    fills.cancelPending();
+    syncControls();
+  };
+  // Keyboard: F flattens the open position (unless typing in the ticket).
+  window.addEventListener("keydown", (e) => {
+    const el = document.activeElement;
+    const typing = el?.tagName === "INPUT" || el?.tagName === "SELECT";
+    if (!typing && (e.key === "f" || e.key === "F") && fills.openPosition && lastBar) {
+      fills.flatten(lastBar);
+    }
+  });
 
   // --- On-chart bracket editor ----------------------------------------------
   const editor = new BracketEditor(chart, CONTRACTS.NQ.tickSize);
@@ -204,16 +216,18 @@ async function main(): Promise<void> {
     return s === "long" ? (above ? "stop" : "limit") : above ? "limit" : "stop";
   }
 
-  function beginDrawUI(on: boolean): void {
-    drawBtn.hidden = on;
-    (ticket.querySelector("#place") as HTMLElement).hidden = on;
-    armBtn.hidden = !on;
-    cancelDrawBtn.hidden = !on;
-  }
-
   editor.onChange((d) => {
     if (!d) {
       rrEl.textContent = "";
+      return;
+    }
+    if (editor.editMode === "manage") {
+      // Live trade management: apply the dragged stop/target immediately (OCO,
+      // R still anchored to the initial stop). Takes effect next bar.
+      fills.modifyBracket({ stop: d.stop, target: d.target });
+      renderPosition();
+      const p = fills.openPosition;
+      if (p) rrEl.textContent = `managing · stop ${p.stop.toFixed(2)} · tgt ${p.target.toFixed(2)}`;
       return;
     }
     const type = lastBar ? inferEntryType(d.side, d.entry, lastBar.c) : "limit";
@@ -235,12 +249,12 @@ async function main(): Promise<void> {
     }
     ticketMsg.textContent = "";
     editor.start(side, seed);
-    beginDrawUI(true);
+    syncControls();
   };
   cancelDrawBtn.onclick = () => {
     editor.cancel();
     rrEl.textContent = "";
-    beginDrawUI(false);
+    syncControls();
   };
   armBtn.onclick = () => {
     const v = editor.value;
@@ -260,11 +274,10 @@ async function main(): Promise<void> {
         },
         lastBar ? lastBar.t : 0,
       );
-      editor.cancel();
-      beginDrawUI(false);
+      editor.cancel(); // leave placement; manage mode re-attaches once filled
+      rrEl.textContent = "";
       renderPosition();
-      updateBracketLines();
-      updateFlattenBtn();
+      syncControls();
     } catch (err) {
       ticketMsg.textContent = String(err instanceof Error ? err.message : err);
     }
@@ -275,17 +288,35 @@ async function main(): Promise<void> {
   const tradesBox = $("tradesBox");
   const nq = CONTRACTS.NQ;
 
-  function updateFlattenBtn(): void {
-    flattenBtn.disabled = fills.openPosition === null;
-  }
-
-  function updateBracketLines(): void {
-    const p = fills.openPosition;
+  /** One place that reconciles all trade controls with engine state. */
+  function syncControls(): void {
+    const pos = fills.openPosition;
     const pend = fills.pendingEntry;
-    if (p) chart.setBracket({ entry: p.avgEntry, stop: p.stop, target: p.target });
+
+    // Attach/detach the on-chart manage overlay as the position opens/closes,
+    // without disturbing an in-progress placement draw.
+    if (pos && editor.editMode === null) {
+      editor.manage(pos.side, pos.avgEntry, pos.stop, pos.target);
+    } else if (!pos && editor.editMode === "manage") {
+      editor.cancel();
+    }
+
+    const placing = editor.editMode === "place";
+    // The draggable overlay owns the live/placement bracket; horizontal price-
+    // lines only draw a resting (unfilled) order.
+    if (editor.active) chart.setBracket({ entry: null, stop: null, target: null });
     else if (pend)
       chart.setBracket({ entry: pend.entryPrice ?? null, stop: pend.stop, target: pend.target });
     else chart.setBracket({ entry: null, stop: null, target: null });
+
+    drawBtn.hidden = placing;
+    placeBtn.hidden = placing;
+    drawBtn.disabled = Boolean(pos || pend);
+    placeBtn.disabled = Boolean(pos || pend);
+    armBtn.hidden = !placing;
+    cancelDrawBtn.hidden = !placing;
+    cancelOrderBtn.hidden = !pend;
+    flattenBtn.disabled = pos === null;
   }
 
   function renderMarkers(): void {
@@ -368,7 +399,7 @@ async function main(): Promise<void> {
 
   renderPosition();
   renderTrades();
-  updateFlattenBtn();
+  syncControls();
 
   // --- Transport controls ----------------------------------------------------
   playBtn.onclick = () => {
