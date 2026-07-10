@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ORB/IB Simulator — playback skeleton</title>
+  </head>
+  <body>
+    <header id="toolbar">
+      <div class="group">
+        <strong id="title">—</strong>
+      </div>
+      <div class="group">
+        <button id="play">▶ Play</button>
+        <button id="step">⏭ Step</button>
+      </div>
+      <div class="group" id="speeds" title="Speed changes cadence only"></div>
+      <div class="group" id="timeframes" title="Co-primary timeframes"></div>
+      <div class="group readout">
+        <span class="label">clock</span><span id="clock" class="mono">--:--:--</span>
+        <span class="label">last</span><span id="price" class="mono">—</span>
+        <span class="label">bars</span><span id="progress" class="mono">0 / 0</span>
+      </div>
+    </header>
+    <main id="chart"></main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

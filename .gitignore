@@ -26,6 +26,9 @@ target/
 __pycache__/
 *.pyc
 
+# Dev-harness bar dump — derived from the gitignored bars cache (issue #2 TS-first path)
+/app/public/data/
+
 # OS / editor
 .DS_Store
 Thumbs.db
