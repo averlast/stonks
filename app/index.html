@@ -22,7 +22,40 @@
         <span class="label">bars</span><span id="progress" class="mono">0 / 0</span>
       </div>
     </header>
-    <main id="chart"></main>
+    <div id="workspace">
+      <main id="chart"></main>
+      <aside id="sidebar">
+        <form id="ticket">
+          <div class="ticket-title">Order ticket</div>
+          <div class="field">
+            <label>Side</label>
+            <div class="seg" id="side">
+              <button type="button" data-v="long" class="active">Long</button>
+              <button type="button" data-v="short">Short</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>Type</label>
+            <select id="entryType">
+              <option value="market">Market</option>
+              <option value="limit">Limit</option>
+              <option value="stop">Stop</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Entry</label><input id="entryPrice" type="number" step="0.25" placeholder="mkt" disabled />
+          </div>
+          <div class="field"><label>Stop</label><input id="stop" type="number" step="0.25" /></div>
+          <div class="field"><label>Target</label><input id="target" type="number" step="0.25" /></div>
+          <div class="field"><label>Size</label><input id="size" type="number" step="1" min="1" value="1" /></div>
+          <button type="submit" id="place">Place bracket</button>
+          <button type="button" id="flatten" disabled>Flatten</button>
+          <div id="ticketMsg" class="msg"></div>
+        </form>
+        <div id="posBox" class="box"></div>
+        <div id="tradesBox" class="box"></div>
+      </aside>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
