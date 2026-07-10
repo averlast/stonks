@@ -41,15 +41,13 @@ def main() -> int:
         return 1
 
     con = duckdb.connect()
-    # epoch() on the ET wall clock (naive local reinterpreted as UTC) -> LWC time.
+    # `t` (canonical app time) is baked into the parquet by fetch_day.py.
     rows = con.execute(
         """
-        SELECT CAST(epoch(strftime(ts_event_et, '%Y-%m-%d %H:%M:%S')::TIMESTAMP)
-                    AS BIGINT)            AS t,
-               open  AS o, high AS h, low AS l, close AS c,
-               CAST(volume AS BIGINT)    AS v
+        SELECT t, open AS o, high AS h, low AS l, close AS c,
+               CAST(volume AS BIGINT) AS v
         FROM read_parquet(?)
-        ORDER BY ts_event_et
+        ORDER BY t
         """,
         [str(src)],
     ).fetchall()

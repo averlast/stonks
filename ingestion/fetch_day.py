@@ -123,6 +123,12 @@ def main() -> int:
     frame = frame.reset_index()  # ts_event becomes a column (tz-aware UTC)
     frame["ts_event_et"] = frame["ts_event"].dt.tz_convert(EXCHANGE_TZ)
 
+    # Canonical app time `t`: the ET wall clock as epoch seconds (local reading
+    # reinterpreted as UTC). This is the single time every layer uses -- Rust feed,
+    # TS engine, and Lightweight Charts axis -- so no layer needs timezone logic.
+    frame["t"] = (frame["ts_event_et"].dt.tz_localize(None)
+                  .astype("int64") // 10**9)
+
     out_dir.mkdir(parents=True, exist_ok=True)
     frame.to_parquet(out_path, index=False)
     rows = len(frame)

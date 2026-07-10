@@ -13,7 +13,7 @@
       "billable_bytes": 402528,
       "cost_usd": 0.026242,
       "path": "data/bars/NQ/2024-08-05_ohlcv-1s.parquet",
-      "pulled_at": "2026-07-09T07:08:24+00:00"
+      "pulled_at": "2026-07-10T02:38:30+00:00"
     }
   ]
 }

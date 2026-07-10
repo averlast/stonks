@@ -18,23 +18,39 @@ open (NQ/ES), commit a plan, trade forward-only with honest fills, then get AI c
 3. Build discipline (ADR-0006): prove the **playback + fill engines on the whipsaw day first**,
    then layer on the full environment.
 
-## Next action — issue #2, second half (Tauri + Rust gated feed)
-Issue **#1 DONE.** Issue **#2 is HALF DONE**: the portable TypeScript playback engine is built
-and tested in a Vite dev harness (`app/`); the remaining half is the Tauri shell + Rust
-`next_sim_second` gated feed that makes the no-peek wall real (ADR-0002). **That half needs the
-Rust + MSVC build-tools toolchain installed** (not yet present). Then #3 (fill engine).
+## Next action — issue #3 (fill engine)
+Issues **#1 and #2 DONE.** The playback spine runs as a real Tauri desktop app with a
+Rust-gated feed. Next on the critical path is **#3 (working orders + honest fills)**, then #4
+(tick-resolved straddles).
 
-### #2 first-half outcome (2026-07-09) — "TS engine first" path (user-chosen)
-- `app/` = Vite + TS + Lightweight Charts v5. Run: `cd app && npm run dev` → http://localhost:5173.
-- **Engine** (`app/src/engine/`): `playback.ts` authoritative 1s sim clock (`step()` is the only
+### Toolchain (installed 2026-07-10 — no longer a blocker)
+- **Rust** via rustup (user-local, `~/.cargo`, MSVC target), **MSVC C++ Build Tools** (VCTools
+  workload), **WebView2** (pre-existing). Run the app: `cd app && npx tauri dev` (needs
+  `~/.cargo/bin` on PATH). Plain browser harness still works: `npm run dev` → :5173.
+
+### #2 outcome (2026-07-10)
+- **`app/` = Vite + TS + Lightweight Charts v5 frontend; `app/src-tauri/` = Tauri v2 + Rust.**
+- **Engine** (`app/src/engine/`): `playback.ts` authoritative 1s sim clock (`step()` the only
   bar-processing path; speed sets only the timer delay — ADR-0002 invariant, unit-tested);
-  `aggregator.ts` folds 1s → 1m/5m/15m live-forming candles; `barFeed.ts` gated `BarFeed`
-  interface (`DevJsonFeed` now, Rust drop-in later). Tests: `npm test` (4 passing).
-- **Dev data**: `ingestion/export_dev_json.py` dumps the gitignored parquet → gitignored
-  `app/public/data/NQ-2024-08-05.json` (dev-only; the shipped app reads via Rust, never this).
-- **Remaining for #2**: scaffold Tauri, move bars ownership into Rust, expose `next_sim_second`
-  as the gated feed, point `barFeed.ts` at it via `invoke()`. Verify no future bars reach the
-  frontend and the app launches as a desktop window.
+  `aggregator.ts` folds 1s → 1m/5m/15m live candles; `barFeed.ts` picks the Rust `TauriFeed`
+  under Tauri, `DevJsonFeed` in a plain browser. TS tests: `cd app && npm test` (4 passing).
+- **Rust gated feed** (`app/src-tauri/src/`): `bars.rs` reads the parquet (pure-Rust
+  arrow/parquet) using the baked-in `t` column; `lib.rs` owns the bars + a forward-only cursor
+  and exposes `load_day` / `next_sim_second` / `reset_feed`. The webview only ever gets the next
+  second — no-peek wall enforced in Rust (ADR-0002). Rust tests: `cd app/src-tauri &&
+  cargo test --lib` (2 passing: real parquet load + gate invariant). Boot log confirms IPC:
+  `load_day NQ 2024-08-05: 7188 bars`.
+- **Canonical time**: `fetch_day.py` now bakes a `t` column (ET wall clock as epoch seconds) into
+  the parquet, so Rust + TS + chart all use one integer with zero timezone code.
+- **Still deferred from #2** (not blocking #3): bundled-app bars path (dev resolves
+  repo/data/bars via CARGO_MANIFEST_DIR); macOS launch is architecturally supported but untested
+  locally (Windows-only dev box).
+
+### For #3 (fill engine) — where to build
+Order/fill logic is portable TS → lives in `app/src/engine/` alongside playback, driven by the
+same 1s `Tick` stream. Straddle bars use the pessimistic fallback for now (stop first); true
+tick-resolution is #4. Model commissions + 1-tick slippage from day one. Record entry/exit,
+level, reason, MAE, MFE, R (R anchored to the initial stop).
 
 ### #1 outcome (2026-07-09)
 - **Ingestion script:** `ingestion/fetch_day.py` (isolated Python per ADR-0001; `.venv/` +

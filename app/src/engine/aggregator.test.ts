@@ -14,7 +14,10 @@ const bar = (t: number, o: number, h: number, l: number, c: number, v: number): 
 
 class ArrayFeed implements BarFeed {
   private i = 0;
-  constructor(private bars: Sec1Bar[]) {}
+  meta = { symbol: "TEST", date: "1970-01-01", count: 0 };
+  constructor(private bars: Sec1Bar[]) {
+    this.meta.count = bars.length;
+  }
   async next(): Promise<Sec1Bar | null> {
     return this.i < this.bars.length ? this.bars[this.i++] : null;
   }

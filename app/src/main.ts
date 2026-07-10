@@ -1,6 +1,6 @@
 import "./style.css";
 import type { Timeframe } from "./types";
-import { DevJsonFeed } from "./engine/barFeed";
+import { DevJsonFeed, TauriFeed, isTauri, type BarFeed } from "./engine/barFeed";
 import { PlaybackEngine, TIMEFRAMES, type Speed } from "./engine/playback";
 import { ChartView } from "./chart/chartView";
 
@@ -8,9 +8,21 @@ const TF_LABEL: Record<Timeframe, string> = { 60: "1m", 300: "5m", 900: "15m" };
 const SPEEDS: Speed[] = [1, 5, 30];
 const DATA_URL = "/data/NQ-2024-08-05.json";
 
+async function loadFeed(): Promise<BarFeed> {
+  // Under Tauri the bars live in Rust behind the gated feed; in a plain browser
+  // dev server we fall back to the JSON dump (ADR-0002; dev-only).
+  if (isTauri()) {
+    const f = new TauriFeed();
+    await f.load("NQ", "2024-08-05");
+    return f;
+  }
+  const f = new DevJsonFeed();
+  await f.load(DATA_URL);
+  return f;
+}
+
 async function main(): Promise<void> {
-  const feed = new DevJsonFeed();
-  await feed.load(DATA_URL);
+  const feed = await loadFeed();
   const engine = new PlaybackEngine(feed);
 
   const chart = new ChartView(document.getElementById("chart")!);

@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import type { Sec1Bar } from "../types";
 
 /**
@@ -13,6 +14,8 @@ import type { Sec1Bar } from "../types";
  * interface, so swapping in the Rust-backed feed is a drop-in.
  */
 export interface BarFeed {
+  /** Metadata for the loaded day (populated by load). */
+  readonly meta: DayMeta;
   /** The next unseen 1s bar, or null at end of day. */
   next(): Promise<Sec1Bar | null>;
   /** Rewind to the start of the day (dev/testing only; the real wall is one-way). */
@@ -23,6 +26,28 @@ export interface DayMeta {
   symbol: string;
   date: string;
   count: number;
+}
+
+/** True when running inside the Tauri webview (vs. a plain browser dev server). */
+export function isTauri(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+/** Production feed: bars live in Rust; we can only pull the next second (ADR-0002). */
+export class TauriFeed implements BarFeed {
+  meta: DayMeta = { symbol: "", date: "", count: 0 };
+
+  async load(symbol: string, date: string): Promise<void> {
+    this.meta = await invoke<DayMeta>("load_day", { symbol, date });
+  }
+
+  async next(): Promise<Sec1Bar | null> {
+    return (await invoke<Sec1Bar | null>("next_sim_second")) ?? null;
+  }
+
+  reset(): void {
+    void invoke("reset_feed");
+  }
 }
 
 /** Dev-only feed backed by the JSON dumped by ingestion/export_dev_json.py. */
