@@ -18,6 +18,9 @@ struct Feed {
     /// second -> ordered prints, for ambiguous-bar resolution (ADR-0004).
     ticks: HashMap<i64, Vec<f64>>,
     cursor: usize,
+    /// The no-peek wall drops only after the attempt is conceded (flatten/
+    /// end-of-day): review then gets the whole day for free scrub (ADR-0002).
+    review_unlocked: bool,
     loaded: Option<(String, String)>, // (symbol, date)
 }
 
@@ -25,6 +28,7 @@ impl Feed {
     fn set_day(&mut self, bars: Vec<Sec1Bar>, symbol: String, date: String) {
         self.bars = bars;
         self.cursor = 0;
+        self.review_unlocked = false; // a fresh day re-arms the wall
         self.loaded = Some((symbol, date));
     }
 
@@ -152,6 +156,26 @@ fn reset_feed(state: State<AppState>) {
     state.0.lock().unwrap().reset();
 }
 
+/// Concede the attempt and drop the no-peek wall (ADR-0002). Called on
+/// flatten/end-of-day; after this the whole day may be handed over for Review.
+/// Terminal for the attempt — trading has already stopped in the UI.
+#[tauri::command]
+fn unlock_review(state: State<AppState>) {
+    state.0.lock().unwrap().review_unlocked = true;
+}
+
+/// The Review unlock: the full day's bars, both directions, for free scrubbing.
+/// Refused until `unlock_review` — so the frontend physically cannot obtain
+/// future price during the attempt even if it asked (ADR-0002).
+#[tauri::command]
+fn review_bars(state: State<AppState>) -> Result<Vec<Sec1Bar>, String> {
+    let feed = state.0.lock().unwrap();
+    if !feed.review_unlocked {
+        return Err("review is locked until the attempt ends".into());
+    }
+    Ok(feed.bars.clone())
+}
+
 /// Ordered prints for one second, for straddle resolution (ADR-0004). `t` is a
 /// second the sim clock has already reached, so this is not a peek. Empty when no
 /// tick cache is loaded → the caller keeps the pessimistic fallback.
@@ -215,6 +239,8 @@ pub fn run() {
             next_sim_second,
             reset_feed,
             ticks_for_second,
+            unlock_review,
+            review_bars,
             start_session,
             append_event
         ])
@@ -260,6 +286,20 @@ mod tests {
         assert!(bars.len() > 7000, "expected ~7188 bars, got {}", bars.len());
         assert_eq!(bars[0].t, 1_722_850_200, "first bar is 09:30:00 ET");
         assert!(bars.windows(2).all(|w| w[0].t <= w[1].t), "bars are time-ordered");
+    }
+
+    #[test]
+    fn review_bars_are_walled_until_unlocked() {
+        let mut feed = Feed::default();
+        feed.set_day(synth(5), "NQ".into(), "2024-08-05".into());
+        // Locked during the attempt: the whole day is unreachable.
+        assert!(!feed.review_unlocked);
+        // Conceding the attempt unlocks the full-day handover.
+        feed.review_unlocked = true;
+        assert_eq!(feed.bars.len(), 5);
+        // A fresh day re-arms the wall.
+        feed.set_day(synth(3), "NQ".into(), "2024-08-05".into());
+        assert!(!feed.review_unlocked);
     }
 
     #[test]

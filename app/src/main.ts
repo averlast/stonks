@@ -1,6 +1,6 @@
 import "./style.css";
 import { invoke } from "@tauri-apps/api/core";
-import type { Sec1Bar, Timeframe } from "./types";
+import type { Sec1Bar, Candle, Timeframe } from "./types";
 import { DevJsonFeed, TauriFeed, isTauri, type BarFeed } from "./engine/barFeed";
 import { PlaybackEngine, TIMEFRAMES, type Speed } from "./engine/playback";
 import { bucketStart } from "./engine/aggregator";
@@ -20,6 +20,7 @@ import {
   memorySink,
   type PersistSink,
 } from "./session/recorder";
+import { foldDay } from "./review/review";
 
 const TF_LABEL: Record<Timeframe, string> = { 60: "1m", 300: "5m", 900: "15m" };
 const SPEEDS: Speed[] = [1, 5, 30];
@@ -44,6 +45,12 @@ async function main(): Promise<void> {
 
   const chart = new ChartView(document.getElementById("chart")!);
   let activeTf: Timeframe = 60;
+
+  // --- Review state (ADR-0002 unlock) ---------------------------------------
+  // Once the attempt is conceded (flatten/end-of-day), the whole day is handed
+  // over and the full 2h can be scrubbed both directions; trading is locked.
+  let reviewing = false;
+  const reviewHistory = new Map<Timeframe, Candle[]>();
 
   // --- Fill engine (the integrity layer, SPEC §4) ---------------------------
   const fills = new FillEngine(CONTRACTS.NQ, DEFAULT_FILL_CONFIG);
@@ -92,6 +99,7 @@ async function main(): Promise<void> {
   const $ = (id: string) => document.getElementById(id)!;
   const playBtn = $("play") as HTMLButtonElement;
   const stepBtn = $("step") as HTMLButtonElement;
+  const reviewBtn = $("review") as HTMLButtonElement;
   const speedWrap = $("speeds");
   const tfWrap = $("timeframes");
   const clockEl = $("clock");
@@ -131,13 +139,51 @@ async function main(): Promise<void> {
 
   function switchTimeframe(tf: Timeframe): void {
     activeTf = tf;
-    // Rebuild from PAST candles only + the current forming one — no future bars.
-    chart.setData(engine.historyOf(tf));
-    const forming = engine.formingOf(tf);
-    if (forming) chart.updateForming(forming);
+    if (reviewing) {
+      // The whole day is unlocked: show every candle, freely pannable both ways.
+      chart.setData(reviewHistory.get(tf)!);
+    } else {
+      // Rebuild from PAST candles only + the current forming one — no future bars.
+      chart.setData(engine.historyOf(tf));
+      const forming = engine.formingOf(tf);
+      if (forming) chart.updateForming(forming);
+    }
     renderMarkers(); // marker bucket-times are timeframe-relative
     chart.fitContent();
     syncTfButtons();
+  }
+
+  /** Concede the attempt and enter Review: drop the wall, fold the full day into
+   *  every timeframe, and lock trading. The full 2h is now scrubbable both ways
+   *  (native chart pan over the complete dataset), trades annotated (#6). */
+  async function enterReview(): Promise<void> {
+    if (reviewing) return;
+    reviewing = true;
+    engine.pause();
+    let bars: Sec1Bar[];
+    try {
+      await feed.unlockReview();
+      bars = await feed.reviewBars();
+    } catch (err) {
+      console.error("review unlock failed", err);
+      reviewing = false;
+      return;
+    }
+    reviewHistory.clear();
+    for (const tf of TIMEFRAMES) reviewHistory.set(tf, foldDay(bars, tf));
+    chart.setData(reviewHistory.get(activeTf)!);
+    renderMarkers();
+    chart.fitContent();
+    renderTrades();
+    // Lock the attempt: transport + trading are done.
+    playBtn.disabled = true;
+    playBtn.textContent = "■ Review";
+    stepBtn.disabled = true;
+    reviewBtn.disabled = true;
+    for (const b of speedBtns.values()) b.disabled = true;
+    syncControls();
+    titleEl.textContent =
+      `${feed.meta.symbol} · ${feed.meta.date} · attempt ${attempt} · REVIEW`;
   }
 
   // --- Engine subscription ---------------------------------------------------
@@ -158,17 +204,13 @@ async function main(): Promise<void> {
     },
     () => {
       // 11:30 reached (ADR-0005 / #5): cancel any resting order, auto-flatten any
-      // open position with exit reason end-of-day, then seal the attempt.
+      // open position with exit reason end-of-day, seal the attempt, then unlock
+      // Review (#6).
       fills.cancelPending();
       if (fills.openPosition && lastBar) fills.flatten(lastBar, "end-of-day");
       recorder.endOfDay(lastBar ? lastBar.t : 0);
       renderPosition();
-      renderTrades();
-      renderMarkers();
-      syncControls();
-      playBtn.textContent = "■ End of day";
-      playBtn.disabled = true;
-      stepBtn.disabled = true;
+      void enterReview();
     },
   );
 
@@ -202,6 +244,7 @@ async function main(): Promise<void> {
 
   ticket.addEventListener("submit", (e) => {
     e.preventDefault();
+    if (reviewing) return; // the attempt is over
     ticketMsg.textContent = "";
     const entryType = entryTypeEl.value as EntryType;
     const req: BracketRequest = {
@@ -234,7 +277,7 @@ async function main(): Promise<void> {
   window.addEventListener("keydown", (e) => {
     const el = document.activeElement;
     const typing = el?.tagName === "INPUT" || el?.tagName === "SELECT";
-    if (!typing && (e.key === "f" || e.key === "F") && fills.openPosition && lastBar) {
+    if (!reviewing && !typing && (e.key === "f" || e.key === "F") && fills.openPosition && lastBar) {
       fills.flatten(lastBar);
     }
   });
@@ -332,6 +375,19 @@ async function main(): Promise<void> {
     const pos = fills.openPosition;
     const pend = fills.pendingEntry;
 
+    if (reviewing) {
+      // The attempt is sealed: no placement, no bracket editing, no flatten.
+      if (editor.active) editor.cancel();
+      chart.setBracket({ entry: null, stop: null, target: null });
+      drawBtn.disabled = true;
+      placeBtn.disabled = true;
+      flattenBtn.disabled = true;
+      cancelOrderBtn.hidden = true;
+      armBtn.hidden = true;
+      cancelDrawBtn.hidden = true;
+      return;
+    }
+
     // Attach/detach the on-chart manage overlay as the position opens/closes,
     // without disturbing an in-progress placement draw.
     if (pos && editor.editMode === null) {
@@ -424,7 +480,8 @@ async function main(): Promise<void> {
           `<div class="trade-row"><span class="pos-${t.side}">${t.side}</span>` +
           `<span>${t.exitReason}${flag}</span>` +
           `<span class="${cls}">${t.rMultiple >= 0 ? "+" : ""}${t.rMultiple.toFixed(2)}R</span>` +
-          `<span class="${cls}">$${t.pnlUsd.toFixed(0)}</span></div>`
+          `<span class="${cls}">$${t.pnlUsd.toFixed(0)}</span></div>` +
+          `<div class="trade-mfe muted">MAE ${t.maePoints.toFixed(2)} · MFE ${t.mfePoints.toFixed(2)}</div>`
         );
       })
       .join("");
@@ -452,6 +509,13 @@ async function main(): Promise<void> {
   };
   stepBtn.onclick = () => {
     void engine.step(); // single-bar step, forward-only
+  };
+  reviewBtn.onclick = () => {
+    // Concede the attempt early: flatten flat, seal, and unlock Review. This is a
+    // one-way door — you can't peek the rest of the day and then keep trading.
+    fills.cancelPending();
+    if (fills.openPosition && lastBar) fills.flatten(lastBar);
+    void enterReview();
   };
 
   engine.setSpeed(1);

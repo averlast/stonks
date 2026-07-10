@@ -202,6 +202,13 @@ button:disabled {
   border-top: 1px solid #191f27;
 }
 
+/* Per-trade MAE/MFE annotation under each row (Review, #6). */
+.trade-mfe {
+  font-family: ui-monospace, monospace;
+  font-size: 0.68rem;
+  padding: 0 0 0.15rem;
+}
+
 .pnl-pos {
   color: #26a69a;
 }

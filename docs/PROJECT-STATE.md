@@ -18,11 +18,41 @@ open (NQ/ES), commit a plan, trade forward-only with honest fills, then get AI c
 3. Build discipline (ADR-0006): prove the **playback + fill engines on the whipsaw day first**,
    then layer on the full environment.
 
-## Next action — issue #6 (review scrub) / #7 (prep gate)
-Issues **#1–#5 DONE** + on-chart trade management. The engine core is proven on the whipsaw day
-(playback + tick-resolved fills + place/manage/exit) and every attempt is now **sealed** as an
-append-only event log. Next is **#6 (review scrub)** / **#7 (prep gate)** → **#8 (grade)**. #7
-supplies the real frozen prep that replaces #5's `prep_committed` stub.
+## Next action — issue #7 (prep gate)
+Issues **#1–#6 DONE** + on-chart trade management. The engine core is proven on the whipsaw day
+(playback + tick-resolved fills + place/manage/exit), every attempt is **sealed** as an append-only
+event log (#5), and after the attempt the full day unlocks for annotated **Review** (#6). Next is
+**#7 (prep gate)** → **#8 (grade)**. #7 supplies the real frozen prep that replaces #5's
+`prep_committed` stub.
+
+### #7 OPEN QUESTION before building — where do "true" pre-session levels come from?
+#7 reveals true pre-session levels on Commit for the hidden-level drill (ADR-0003). But those
+levels — PDH/PDL, PW/PM H/L, Asia/London/overnight H/L, prior VAs — **require data we don't
+ingest**: our bars are only 09:30–11:30. Options to resolve with the user before #7:
+(a) a hand-populated sidecar `data/levels/{symbol}-{date}.json` for the whipsaw day (fastest);
+(b) extend `fetch_day.py` to also pull prior-day RTH + overnight sessions and compute them (a
+real ingestion sub-task); (c) ship #7's gate/seal/reveal mechanic with a **placeholder** true-set
+and defer precision scoring (which is #8) until the level source lands. The prep-gate *flow*
+(lock → mark → bias → call → commit → reveal → unlock) has no dependency; only the *reveal
+payload* does.
+
+### #6 outcome (2026-07-10) — annotated Review scrub (ADR-0002 unlock)
+- **The unlock is server-enforced** (`lib.rs`): `Feed.review_unlocked` (re-armed on every
+  `set_day`); `unlock_review` drops the wall; **`review_bars`** hands over the full day only once
+  unlocked, else `Err` — so the frontend still cannot obtain future price mid-attempt (ADR-0002).
+  Rust test `review_bars_are_walled_until_unlocked`.
+- **Feed** (`barFeed.ts`): `unlockReview()` / `reviewBars()` on the `BarFeed` interface (Tauri
+  invokes; dev returns its in-memory day). **`app/src/review/review.ts` `foldDay(bars, tf)`** folds
+  a whole day into the complete candle series (all sealed + final forming) — 3 unit tests.
+- **Review mode** (`main.ts`): entered on 11:30 `onEnd` or the new **⏹ End & Review** button (a
+  one-way concession — flatten flat, seal, unlock; you can't peek then resume). `enterReview()`
+  pauses the clock, folds the full day into all timeframes, `setData`s every candle (native chart
+  pan = **bidirectional scrub over the full 2h**), keeps entry/exit/stop markers, and locks
+  trading (`syncControls`/submit/F-key/transport all gated by `reviewing`). Trades panel now
+  annotates **MAE/MFE** per row. Title shows `· REVIEW`.
+- **Tests**: TS `npm test` → 29 (+3 review-fold); Rust `cargo test --lib` → 5 (+review wall).
+  Typecheck + prod build clean. App boots clean on the new build. *Interactive scrub/annotation
+  is a hand-check (repo convention for UX slices).*
 
 ### #5 outcome (2026-07-10) — seal the attempt (ADR-0005)
 - **Session module** (`app/src/session/`, portable TS): `events.ts` = the typed `SessionEvent`

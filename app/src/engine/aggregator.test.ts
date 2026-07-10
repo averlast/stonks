@@ -24,6 +24,10 @@ class ArrayFeed implements BarFeed {
   reset(): void {
     this.i = 0;
   }
+  async unlockReview(): Promise<void> {}
+  async reviewBars(): Promise<Sec1Bar[]> {
+    return this.bars.slice();
+  }
 }
 
 let passed = 0;

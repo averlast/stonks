@@ -20,6 +20,12 @@ export interface BarFeed {
   next(): Promise<Sec1Bar | null>;
   /** Rewind to the start of the day (dev/testing only; the real wall is one-way). */
   reset(): void;
+  /** Concede the attempt and drop the no-peek wall (ADR-0002) — called on
+   *  flatten/end-of-day so Review may take the whole day. */
+  unlockReview(): Promise<void>;
+  /** The full day's bars for Review's free bidirectional scrub. Rejects until
+   *  the attempt has ended (server-enforced under Tauri). */
+  reviewBars(): Promise<Sec1Bar[]>;
 }
 
 export interface DayMeta {
@@ -48,6 +54,14 @@ export class TauriFeed implements BarFeed {
   reset(): void {
     void invoke("reset_feed");
   }
+
+  async unlockReview(): Promise<void> {
+    await invoke("unlock_review");
+  }
+
+  async reviewBars(): Promise<Sec1Bar[]> {
+    return await invoke<Sec1Bar[]>("review_bars");
+  }
 }
 
 /** Dev-only feed backed by the JSON dumped by ingestion/export_dev_json.py. */
@@ -72,5 +86,11 @@ export class DevJsonFeed implements BarFeed {
 
   reset(): void {
     this.i = 0;
+  }
+
+  // Dev has the whole day in memory already; the wall is Tauri's job (ADR-0002).
+  async unlockReview(): Promise<void> {}
+  async reviewBars(): Promise<Sec1Bar[]> {
+    return this.bars.slice();
   }
 }
