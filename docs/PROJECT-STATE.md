@@ -18,34 +18,37 @@ open (NQ/ES), commit a plan, trade forward-only with honest fills, then get AI c
 3. Build discipline (ADR-0006): prove the **playback + fill engines on the whipsaw day first**,
    then layer on the full environment.
 
-## Next action — issue #5 (seal the attempt)
-Issues **#1–#4 DONE** + on-chart trade management. The whole engine core is proven on the
-whipsaw day: playback + honest tick-resolved fills + place/manage/exit. Next is **#5 — Seal the
-attempt: event-sourced record, forward-only wall, auto-flatten** (ADR-0005). Then #6 (review
-scrub) / #7 (prep gate) → #8 (grade).
+## Next action — issue #6 (review scrub) / #7 (prep gate)
+Issues **#1–#5 DONE** + on-chart trade management. The engine core is proven on the whipsaw day
+(playback + tick-resolved fills + place/manage/exit) and every attempt is now **sealed** as an
+append-only event log. Next is **#6 (review scrub)** / **#7 (prep gate)** → **#8 (grade)**. #7
+supplies the real frozen prep that replaces #5's `prep_committed` stub.
 
-### #5 build plan (start here on clean context)
-Model a **Session** = one attempt of (historical-day, symbol); re-practicing makes a **new**
-Session, never an overwrite (ADR-0005). Persist it as an **append-only NDJSON event log** (git
-source of truth, decisions 12–13); Session state (trade tape, later prep/grade) is a **fold**
-over events. Acceptance criteria (from issue #5):
-- Every attempt action appends a typed, timestamped event; state reconstructed by folding.
-  Event types: `prep_committed`, `order_placed`, `fill`, `stop_moved`, `flatten`,
-  `journal_saved`, `grade_computed`, … The fill engine already produces these moments — wire
-  emit points at `FillEngine.place` (`order_placed`), entry/exit fills (`fill`),
-  `modifyBracket` (`stop_moved`), `flatten`/`cancelPending`.
-- `prep_committed` carries a **hash of the frozen prep** (prep UI is #7; for #5 stub the event +
-  hash shape so the seal is structural now).
-- **No rewind/peek during the attempt** — already data-gated by the Rust feed (ADR-0002);
-  #5 just asserts/keeps it.
-- **Reaching 11:30 auto-flattens** (exit reason `end-of-day`) and cancels working orders — hook
-  the playback end-of-day (`onEnd`) to `fills.flatten` + `cancelPending`.
-- Re-running the same day creates a **distinct Session**, not an overwrite.
-- **Where**: events likely a new `app/src/session/` module (portable TS); writing NDJSON to the
-  repo needs a Rust command (Tauri fs) — the app currently only *reads* via Rust, so #5 adds the
-  first **write** path. Records live outside `data/bars/` (bars are the disposable cache); pick a
-  tracked path like `data/sessions/{date}/{symbol}-{attempt}.ndjson` (NOT gitignored — records
-  are the git source of truth; only bars/ticks are ignored).
+### #5 outcome (2026-07-10) — seal the attempt (ADR-0005)
+- **Session module** (`app/src/session/`, portable TS): `events.ts` = the typed `SessionEvent`
+  vocabulary (`session_started`, `prep_committed`, `order_placed`, `order_cancelled`, `fill`,
+  `stop_moved`, `flatten`, `trade_closed`, `end_of_day`) + envelope (`seq`, `t` sim-second, `at`
+  wall clock), the **`fold(events) → SessionState`** read path, and `hashPrep` (canonical-JSON +
+  cyrb53; #7 can swap SHA-256). `recorder.ts` = `SessionRecorder` mapping the engine's moments to
+  events with an **order-serialised** async NDJSON sink; `startTauriSession` (Tauri) vs
+  `memorySink` (dev/tests).
+- **Fill engine emit points** (`fillEngine.ts`): added `onEvent(FillEvent)` emitting at
+  `place`/`cancelPending`/entry-fill/exit-fill/`close`. **`stop_moved` is coalesced per bar** —
+  a live drag fires `modifyBracket` continuously, so the engine logs only the effective stop that
+  guarded each second (at the bar it took effect). `FillReason` gained `"end-of-day"`;
+  `flatten(bar, reason)` carries the cause.
+- **First repo write path** (`lib.rs`): `start_session` allocates the next attempt via
+  `next_attempt` (one past the highest `{symbol}-{n}.ndjson`, `create_new` so a re-practice is a
+  **distinct** log, never a clobber) and `append_event` appends one line. Records live at tracked
+  `data/sessions/{date}/{symbol}-{attempt}.ndjson` (NOT gitignored). No-peek wall unchanged —
+  still Rust-gated (ADR-0002); `reset_feed` stays a dev-only affordance, never called in the app.
+- **Auto-flatten at 11:30**: playback `onEnd` now cancels working orders, `flatten(lastBar,
+  "end-of-day")` any open position, and seals with an `end_of_day` event. Title shows `· attempt N`.
+- **Tests**: TS `npm test` → 26 (+6 session: fold-is-truth, full event order, drag coalescing,
+  eod flatten, cancel, prep-hash stability/tamper). Rust `cargo test --lib` → 4 (+attempt
+  increment). Typecheck + prod build clean. **Verified live**: real Tauri app booted → wrote
+  `data/sessions/2024-08-05/NQ-1.ndjson` with `session_started` + hashed `prep_committed`
+  (throwaway record removed).
 
 ### #4 outcome (2026-07-10) — true tick-resolution of straddles (ADR-0004)
 - **Ingestion**: `fetch_day.py` now also pulls the day's raw `trades` for 09:30–11:30 →

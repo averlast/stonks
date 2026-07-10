@@ -14,6 +14,12 @@ import {
   type EntryType,
   type Fill,
 } from "./engine/fillEngine";
+import {
+  SessionRecorder,
+  startTauriSession,
+  memorySink,
+  type PersistSink,
+} from "./session/recorder";
 
 const TF_LABEL: Record<Timeframe, string> = { 60: "1m", 300: "5m", 900: "15m" };
 const SPEEDS: Speed[] = [1, 5, 30];
@@ -58,6 +64,30 @@ async function main(): Promise<void> {
     syncControls(); // leaves manage mode now that we're flat
   });
 
+  // --- Session seal (event-sourced record, ADR-0005 / #5) -------------------
+  // Under Tauri we open a fresh, distinct attempt file in the tracked repo (the
+  // app's first write path); in browser dev the log lives in memory only.
+  let attempt = 1;
+  let sink: PersistSink = memorySink;
+  if (isTauri()) {
+    try {
+      const started = await startTauriSession(feed.meta.symbol, feed.meta.date);
+      attempt = started.attempt;
+      sink = started.sink;
+    } catch (err) {
+      console.error("session start failed; recording to memory only", err);
+    }
+  }
+  const recorder = new SessionRecorder(
+    { symbol: feed.meta.symbol, date: feed.meta.date, attempt },
+    sink,
+  );
+  recorder.start();
+  // #7 replaces this stub with the real frozen prep committed from the prep gate;
+  // #5 seals the event + hash shape now so the integrity seal is structural.
+  recorder.commitPrep({ stub: true, symbol: feed.meta.symbol, date: feed.meta.date });
+  recorder.attach(fills); // every place/fill/stop-move/close now lands in the log
+
   // --- DOM refs --------------------------------------------------------------
   const $ = (id: string) => document.getElementById(id)!;
   const playBtn = $("play") as HTMLButtonElement;
@@ -69,7 +99,7 @@ async function main(): Promise<void> {
   const progressEl = $("progress");
   const titleEl = $("title");
 
-  titleEl.textContent = `${feed.meta.symbol} · ${feed.meta.date}`;
+  titleEl.textContent = `${feed.meta.symbol} · ${feed.meta.date} · attempt ${attempt}`;
 
   // --- Speed + timeframe buttons --------------------------------------------
   const speedBtns = new Map<Speed, HTMLButtonElement>();
@@ -127,6 +157,15 @@ async function main(): Promise<void> {
       syncControls();
     },
     () => {
+      // 11:30 reached (ADR-0005 / #5): cancel any resting order, auto-flatten any
+      // open position with exit reason end-of-day, then seal the attempt.
+      fills.cancelPending();
+      if (fills.openPosition && lastBar) fills.flatten(lastBar, "end-of-day");
+      recorder.endOfDay(lastBar ? lastBar.t : 0);
+      renderPosition();
+      renderTrades();
+      renderMarkers();
+      syncControls();
       playBtn.textContent = "■ End of day";
       playBtn.disabled = true;
       stepBtn.disabled = true;

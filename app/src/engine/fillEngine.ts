@@ -14,7 +14,9 @@ import type { Contract, FillConfig } from "./contracts";
 
 export type Side = "long" | "short";
 export type EntryType = "market" | "limit" | "stop";
-export type FillReason = "entry" | "stop" | "target" | "flatten";
+/** Why a fill happened. `flatten` = manual market exit; `end-of-day` = forced
+ *  11:30 auto-flatten (#5). */
+export type FillReason = "entry" | "stop" | "target" | "flatten" | "end-of-day";
 /** How an exit was adjudicated. `tick-true` = resolved from the real print order
  *  of a straddled second (#4); `pessimistic` = stop-first fallback (#3). */
 export type FillMethod = "clean" | "pessimistic" | "tick-true";
@@ -90,13 +92,34 @@ export interface Trade {
   closedAt: number;
 }
 
+/**
+ * The moments the engine produces, in clock order — the raw material the Session
+ * event log is folded from (ADR-0005 / #5). Emitted where each moment actually
+ * happens, so the record can never disagree with the fills. `t` is the sim second
+ * the moment occurred at (the current bar, or the last known second for
+ * between-bar commands like place/cancel).
+ */
+export type FillEvent =
+  | { kind: "placed"; t: number; orderId: string; req: BracketRequest }
+  | { kind: "cancelled"; t: number; orderId: string }
+  | { kind: "fill"; t: number; orderId: string; fill: Fill }
+  | { kind: "stop_moved"; t: number; orderId: string; stop: number; target: number }
+  | { kind: "closed"; t: number; orderId: string; trade: Trade };
+
 export class FillEngine {
   private pending: PendingEntry | null = null;
   private position: Position | null = null;
   private _trades: Trade[] = [];
   private seq = 0;
   private onTrade: (t: Trade) => void = () => {};
+  private emit: (e: FillEvent) => void = () => {};
   private resolver: StraddleResolver | null = null;
+  /** Latest sim second seen, so between-bar commands timestamp honestly. */
+  private now = 0;
+  /** Effective stop/target last written to the log, to coalesce a drag (which
+   *  fires many modifyBracket calls) into one stop_moved per bar it takes hold. */
+  private recordedStop = NaN;
+  private recordedTarget = NaN;
 
   constructor(
     private contract: Contract,
@@ -120,6 +143,11 @@ export class FillEngine {
   onClosed(cb: (t: Trade) => void): void {
     this.onTrade = cb;
   }
+  /** Subscribe to the raw fill moments (place/fill/stop_moved/close). The Session
+   *  recorder folds these into the append-only log (#5). */
+  onEvent(cb: (e: FillEvent) => void): void {
+    this.emit = cb;
+  }
 
   private get slip(): number {
     return this.config.slippageTicks * this.contract.tickSize;
@@ -133,11 +161,16 @@ export class FillEngine {
     if (req.size <= 0) throw new Error("size must be positive");
     this.validateBracket(req);
     const id = `o${++this.seq}`;
+    this.now = now;
     this.pending = { ...req, id, placedAt: now };
+    this.emit({ kind: "placed", t: now, orderId: id, req: { ...req } });
     return id;
   }
 
   cancelPending(): void {
+    if (this.pending) {
+      this.emit({ kind: "cancelled", t: this.now, orderId: this.pending.id });
+    }
     this.pending = null;
   }
 
@@ -155,19 +188,34 @@ export class FillEngine {
    *  an exit on the very bar an entry fills (pessimistic: a whipsaw can stop you
    *  out the same second you get in). */
   async onBar(bar: Sec1Bar): Promise<void> {
+    this.now = bar.t;
     if (this.pending) this.tryEntry(bar);
     if (this.position) {
+      this.recordStopMove(bar.t); // log a trail/tighten at the bar it takes effect
       this.updateExcursions(bar);
       await this.tryExit(bar);
     }
   }
 
-  /** Market-flatten the open position at the current bar (manual exit). */
-  flatten(bar: Sec1Bar): void {
+  /** Emit a stop_moved only when the effective stop/target actually changed since
+   *  the last bar — a live drag calls modifyBracket continuously, but the honest
+   *  record is the value that guarded this second. */
+  private recordStopMove(t: number): void {
+    const p = this.position!;
+    if (p.stop !== this.recordedStop || p.target !== this.recordedTarget) {
+      this.recordedStop = p.stop;
+      this.recordedTarget = p.target;
+      this.emit({ kind: "stop_moved", t, orderId: p.id, stop: p.stop, target: p.target });
+    }
+  }
+
+  /** Market-flatten the open position at the current bar. `reason` distinguishes a
+   *  manual flatten from the forced 11:30 end-of-day auto-flatten (#5). */
+  flatten(bar: Sec1Bar, reason: FillReason = "flatten"): void {
     if (!this.position) return;
     const p = this.position;
     const price = p.side === "long" ? bar.c - this.slip : bar.c + this.slip;
-    this.close(bar.t, price, "flatten", "clean");
+    this.close(bar.t, price, reason, "clean");
   }
 
   // --- entries --------------------------------------------------------------
@@ -206,6 +254,10 @@ export class FillEngine {
       openedAt: bar.t,
     };
     this.pending = null;
+    // Seed the coalesce baseline so the opening bracket isn't mistaken for a move.
+    this.recordedStop = e.stop;
+    this.recordedTarget = e.target;
+    this.emit({ kind: "fill", t: bar.t, orderId: this.position.id, fill });
     this.updateExcursions(bar); // count the entry bar's excursion too
   }
 
@@ -275,6 +327,7 @@ export class FillEngine {
     const p = this.position!;
     const exitFill: Fill = { t, price: exitPrice, size: p.size, reason, method };
     p.fills.push(exitFill);
+    this.emit({ kind: "fill", t, orderId: p.id, fill: exitFill });
 
     const { pointValue } = this.contract;
     const pnlPoints = p.side === "long" ? exitPrice - p.avgEntry : p.avgEntry - exitPrice;
@@ -308,6 +361,9 @@ export class FillEngine {
     };
     this._trades.push(trade);
     this.position = null;
+    this.recordedStop = NaN;
+    this.recordedTarget = NaN;
+    this.emit({ kind: "closed", t, orderId: p.id, trade });
     this.onTrade(trade);
   }
 

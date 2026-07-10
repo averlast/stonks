@@ -1,7 +1,9 @@
 mod bars;
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::fs::{self, File, OpenOptions};
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use bars::Sec1Bar;
@@ -45,6 +47,23 @@ impl Feed {
 
 struct AppState(Mutex<Feed>);
 
+/// The append-only write path for Session records (ADR-0005 / #5) — the app's
+/// first *write* to the repo. Holds the current attempt's file; every event is a
+/// line appended to it. Records are git's source of truth, so they live OUTSIDE
+/// the gitignored `data/bars/` cache and are never overwritten.
+#[derive(Default)]
+struct SessionWriter {
+    path: Option<PathBuf>,
+}
+
+struct SessionAppState(Mutex<SessionWriter>);
+
+#[derive(Serialize)]
+struct SessionInfo {
+    attempt: u32,
+    path: String,
+}
+
 #[derive(Serialize)]
 struct DayMeta {
     symbol: String,
@@ -56,6 +75,35 @@ struct DayMeta {
 /// will resolve this from an app data dir instead (deferred; slice-0 is dev-run).
 fn bars_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data/bars")
+}
+
+/// Tracked Session records root: repo/data/sessions (NOT gitignored — records are
+/// the source of truth, decisions 12–13). Bundled builds resolve an app data dir
+/// (deferred with the bars path; slice-0 is dev-run).
+fn sessions_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data/sessions")
+}
+
+/// The next attempt number for (date, symbol): one past the highest existing
+/// `{symbol}-{n}.ndjson` in the day's folder. Re-practicing a day therefore opens
+/// a NEW, distinct log rather than overwriting (ADR-0005). Robust to gaps.
+fn next_attempt(dir: &Path, symbol: &str) -> u32 {
+    let prefix = format!("{symbol}-");
+    let mut max = 0u32;
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if let Some(rest) = name.strip_prefix(&prefix) {
+                if let Some(num) = rest.strip_suffix(".ndjson") {
+                    if let Ok(n) = num.parse::<u32>() {
+                        max = max.max(n);
+                    }
+                }
+            }
+        }
+    }
+    max + 1
 }
 
 #[tauri::command]
@@ -112,10 +160,46 @@ fn ticks_for_second(t: i64, state: State<AppState>) -> Vec<f64> {
     state.0.lock().unwrap().ticks.get(&t).cloned().unwrap_or_default()
 }
 
+/// Open a fresh Session record for (symbol, date) and make it the active write
+/// target. Allocates the next attempt number and creates the (empty) file, so a
+/// re-practice is a distinct log, never an overwrite (ADR-0005 / #5).
+#[tauri::command]
+fn start_session(
+    symbol: String,
+    date: String,
+    state: State<SessionAppState>,
+) -> Result<SessionInfo, String> {
+    let dir = sessions_dir().join(&date);
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let attempt = next_attempt(&dir, &symbol);
+    let path = dir.join(format!("{symbol}-{attempt}.ndjson"));
+    // create_new: refuse to clobber if the attempt file somehow already exists.
+    File::options()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .map_err(|e| e.to_string())?;
+    state.0.lock().unwrap().path = Some(path.clone());
+    log::info!("start_session {symbol} {date}: attempt {attempt} -> {}", path.display());
+    Ok(SessionInfo { attempt, path: path.to_string_lossy().into_owned() })
+}
+
+/// Append one already-serialised NDJSON event line to the active Session log.
+/// Append-only: the record can only ever grow (ADR-0005).
+#[tauri::command]
+fn append_event(line: String, state: State<SessionAppState>) -> Result<(), String> {
+    let writer = state.0.lock().unwrap();
+    let path = writer.path.as_ref().ok_or("no active session")?;
+    let mut file = OpenOptions::new().append(true).open(path).map_err(|e| e.to_string())?;
+    writeln!(file, "{line}").map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(AppState(Mutex::new(Feed::default())))
+        .manage(SessionAppState(Mutex::new(SessionWriter::default())))
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -130,7 +214,9 @@ pub fn run() {
             load_day,
             next_sim_second,
             reset_feed,
-            ticks_for_second
+            ticks_for_second,
+            start_session,
+            append_event
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -174,6 +260,30 @@ mod tests {
         assert!(bars.len() > 7000, "expected ~7188 bars, got {}", bars.len());
         assert_eq!(bars[0].t, 1_722_850_200, "first bar is 09:30:00 ET");
         assert!(bars.windows(2).all(|w| w[0].t <= w[1].t), "bars are time-ordered");
+    }
+
+    #[test]
+    fn attempts_increment_so_re_practice_never_overwrites() {
+        // A private temp dir so the test is hermetic.
+        let dir = std::env::temp_dir().join(format!("stonks-sess-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+
+        // Empty day → first attempt is 1.
+        assert_eq!(next_attempt(&dir, "NQ"), 1);
+
+        // With attempts 1 and 2 present, the next is 3 — distinct, never a clobber.
+        File::create(dir.join("NQ-1.ndjson")).unwrap();
+        File::create(dir.join("NQ-2.ndjson")).unwrap();
+        assert_eq!(next_attempt(&dir, "NQ"), 3);
+
+        // Per-symbol: a different symbol restarts at 1.
+        assert_eq!(next_attempt(&dir, "ES"), 1);
+        // Unrelated files don't count.
+        File::create(dir.join("NQ-notes.txt")).unwrap();
+        assert_eq!(next_attempt(&dir, "NQ"), 3);
+
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
