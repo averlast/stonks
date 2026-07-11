@@ -8,6 +8,7 @@ import {
   type SessionEvent,
   type SessionState,
 } from "./events";
+import type { AiGrade, ReportCard } from "../grade/types";
 
 /** Where a recorded NDJSON line goes. Under Tauri it appends to the tracked
  *  session file via Rust; in browser dev / tests it's an in-memory no-op (the
@@ -55,6 +56,13 @@ export class SessionRecorder {
    *  and cancelled working orders). */
   endOfDay(t: number): void {
     this.record({ type: "end_of_day" }, t);
+  }
+
+  /** Seal the grade computed in Review (#8): the objective report card plus the AI
+   *  synthesis (null if the coaching call was skipped or failed). Append-only, so a
+   *  re-grade adds a fresh event and the fold reads the latest. */
+  commitGrade(reportCard: ReportCard, aiGrade: AiGrade | null, t: number): void {
+    this.record({ type: "grade_computed", reportCard, aiGrade }, t);
   }
 
   get log(): readonly RecordedEvent[] {

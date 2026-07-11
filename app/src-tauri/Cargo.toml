@@ -28,3 +28,6 @@ tauri-plugin-log = "2"
 anyhow = "1"
 arrow = "55"
 parquet = { version = "55", features = ["arrow"] }
+# The grading slice (#8) calls the Anthropic Messages API server-side so the key
+# never reaches the webview. rustls avoids a native OpenSSL/build dependency.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

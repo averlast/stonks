@@ -254,6 +254,55 @@ fn start_session(
     Ok(SessionInfo { attempt, path: path.to_string_lossy().into_owned() })
 }
 
+/// The Anthropic API key, kept server-side so the webview never sees it (mirrors how
+/// ingestion isolates the Databento key). Prefers the process env, then the tracked
+/// repo's gitignored `.env` (same file the ingestion venv reads).
+fn anthropic_key() -> Result<String, String> {
+    if let Ok(k) = std::env::var("ANTHROPIC_API_KEY") {
+        if !k.trim().is_empty() {
+            return Ok(k.trim().to_string());
+        }
+    }
+    let env_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../.env");
+    let text = fs::read_to_string(&env_path)
+        .map_err(|e| format!("ANTHROPIC_API_KEY unset and cannot read {}: {e}", env_path.display()))?;
+    for line in text.lines() {
+        let line = line.trim();
+        if let Some(rest) = line.strip_prefix("ANTHROPIC_API_KEY") {
+            let val = rest.trim_start().strip_prefix('=').unwrap_or("").trim();
+            let val = val.trim_matches('"').trim_matches('\'');
+            if !val.is_empty() {
+                return Ok(val.to_string());
+            }
+        }
+    }
+    Err("ANTHROPIC_API_KEY not found in env or repo .env".into())
+}
+
+/// Forward a fully-formed Messages API request to Anthropic, injecting the key. The
+/// frontend owns the prompt/model/schema (grade logic is portable TS); this command
+/// exists only to keep the key off the webview and return the raw JSON response.
+#[tauri::command]
+async fn grade_via_anthropic(request: serde_json::Value) -> Result<serde_json::Value, String> {
+    let key = anthropic_key()?;
+    let client = reqwest::Client::new();
+    let resp = client
+        .post("https://api.anthropic.com/v1/messages")
+        .header("x-api-key", key)
+        .header("anthropic-version", "2023-06-01")
+        .header("content-type", "application/json")
+        .json(&request)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    let status = resp.status();
+    let body: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+    if !status.is_success() {
+        return Err(format!("anthropic {status}: {body}"));
+    }
+    Ok(body)
+}
+
 /// Append one already-serialised NDJSON event line to the active Session log.
 /// Append-only: the record can only ever grow (ADR-0005).
 #[tauri::command]
@@ -290,7 +339,8 @@ pub fn run() {
             unlock_review,
             review_bars,
             start_session,
-            append_event
+            append_event,
+            grade_via_anthropic
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

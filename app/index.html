@@ -77,6 +77,16 @@
         </section>
         <div id="posBox" class="box"></div>
         <div id="tradesBox" class="box"></div>
+        <section id="gradePanel" hidden>
+          <div class="ticket-title">Grade — process over outcome</div>
+          <div class="field">
+            <label>Journal</label>
+            <textarea id="journal" rows="3" placeholder="What did you see, what would you do differently…"></textarea>
+          </div>
+          <button type="button" id="gradeBtn" class="primary">Grade the attempt</button>
+          <div id="gradeMsg" class="msg"></div>
+          <div id="reportCard" class="box" hidden></div>
+        </section>
       </aside>
     </div>
     <script type="module" src="/src/main.ts"></script>

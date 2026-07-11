@@ -2,7 +2,8 @@
 
 Local, single-user **ORB/IB practice simulator**: replay the first 2h of the NY index-futures
 open (NQ/ES), commit a plan, trade forward-only with honest fills, then get AI coaching graded on
-**process, not outcome**. Status: **design complete, build not started.**
+**process, not outcome**. Status: **core loop built through #8 — first graded trade working
+end-to-end** (Prep → attempt → Review → grade).
 
 ## Where everything lives
 - **`SPEC.md`** — the 14 locked decisions + data/fill/grading architecture.
@@ -18,13 +19,14 @@ open (NQ/ES), commit a plan, trade forward-only with honest fills, then get AI c
 3. Build discipline (ADR-0006): prove the **playback + fill engines on the whipsaw day first**,
    then layer on the full environment.
 
-## Next action — issue #8 (grade)
-Issues **#1–#7 DONE** + on-chart trade management, **hand-verified end-to-end** (2026-07-11): the
-full loop runs — **Prep gate** (mark levels/zones on the prior-day chart, prose bias, bull/bear/
-chop, commit freezes & reveals the true levels alongside your own marks, #7) → **attempt**
-(playback + tick-resolved fills + place/manage/exit, sealed as an append-only event log, #5) →
-**Review** (full-day unlock, annotated scrub, #6). Next is **#8 — grade**, the last slice to a
-first graded trade.
+## Next action — the first-graded-trade critical path is COMPLETE
+Issues **#1–#8 DONE** + on-chart trade management. The full loop runs — **Prep gate** (mark
+levels/zones on the prior-day chart, prose bias, bull/bear/chop, commit freezes & reveals the true
+levels alongside your own marks, #7) → **attempt** (playback + tick-resolved fills +
+place/manage/exit, sealed as an append-only event log, #5) → **Review** (full-day unlock,
+annotated scrub, #6) → **grade** (objective report card + AI coaching, sealed to the log, #8).
+Everything past here is enrichment, not the spine: **#16** (HTF context charts / trend read, the
+UX the user asked for), then the deferred-by-design queue below (#17 → #14 → #19, base-rate #18).
 
 ### ⚠ Dev gotchas learned this session (read before running the app)
 - **`app/vite.config.ts` is load-bearing.** Without it Vite full-reloads the webview at startup
@@ -36,7 +38,40 @@ first graded trade.
 - Run the app: `cd app && npx tauri dev` (needs `~/.cargo/bin` on PATH). The gated feed + prep
   bars only work under Tauri; a plain browser (`npm run dev`) degrades (no prep chart).
 
-### #8 build plan (start here on clean context) — ADR-0003, SPEC §5, issue #8
+### #8 outcome (2026-07-11) — grade: report card + AI coaching (ADR-0003, SPEC §5)
+The last slice to a first graded trade. Two buckets that never mix:
+- **Objective report card** (portable TS, `app/src/grade/`): `reportCard.ts` scores the blind
+  level-marking drill — per true level, nearest-mark **precision** credit (full inside a per-symbol
+  tolerance, linear decay to zero) folded with **coverage**; plus a deterministic **bias classifier**
+  over the sealed 2h window (`classifyStructure`: directional when |net|/range ≥ a threshold, else
+  chop) graded against the committed call. Tolerances/thresholds are per-symbol open params in
+  `types.ts` (`GRADE_CONFIGS`, NQ tuned first). Volume-zone accuracy stays deferred (#14).
+- **AI synthesis** (`grade.ts`): `buildDigest` (`digest.ts`) makes a **compact** digest — prep +
+  journal verbatim, day structure, the trade tape (entry proximity to marks, bias alignment, R,
+  MAE/MFE), and the **already-computed** report-card numbers — then `buildGradeRequest` builds one
+  Anthropic Messages call (**structured output**, three-axis JSON: plan adherence / execution /
+  outcome + notes + summary). `parseAiGrade` reads it back. The prompt tells the model to *reference*
+  the objective numbers, **not recompute** them (verified live: it echoed "coverage 0.75,
+  precision 1.0").
+- **Key stays server-side**: new Rust command **`grade_via_anthropic`** (`lib.rs`) reads
+  `ANTHROPIC_API_KEY` from the process env or the gitignored repo `.env`, injects the header, and
+  forwards the frontend-built body (mirrors how ingestion isolates the Databento key). Added
+  `reqwest` (rustls). The webview never sees the key.
+- **Seal + UI**: `grade_computed` event added to the vocabulary (carries `reportCard` + nullable
+  `aiGrade`); `fold` now also reconstructs `prep` (needed to score the marks) and `grade`.
+  `recorder.commitGrade`. In Review a **Grade panel** (`index.html` + `main.ts`) takes a minimal
+  journal note, computes the report card, calls the AI under Tauri (browser dev degrades to
+  report-card-only), seals `grade_computed`, and renders the card + three-axis coaching.
+- **Models**: default `claude-sonnet-5` (Sonnet coaching), `claude-opus-4-8` reserved for the deeper
+  end-of-module pass (constants in `grade.ts`), per the `claude-api` skill.
+- **Tests**: TS `npm test` → 40 (+11 grade: credit decay, coverage/precision, bias classify, digest
+  proximity/alignment, request-shape, parse+clamp, fold). Also **fixed a pre-existing broken session
+  test** (the key-order-independence check dropped `markedZones`, so it had been failing on the clean
+  tree). Rust → 6 (unchanged; the command is a thin passthrough). Typecheck + prod build clean, Rust
+  builds clean. **Live-verified**: real `claude-sonnet-5` call returned valid three-axis JSON, parsed
+  and rendered. *Interactive Grade-panel click-through is a hand-check (repo convention for UX slices).*
+
+### #8 build plan — DONE (kept for the design rationale) — ADR-0003, SPEC §5, issue #8
 Two buckets. **(1) Prep report card — objective, engine-computed** (portable TS, likely a new
 `app/src/grade/` folding the session event log + the levels answer key):
 - **Level-marking accuracy** via the hidden-drill: fold `prep_committed` → the trader's
@@ -52,15 +87,12 @@ to marked levels, consistency with the called bias) + soft inputs (prose bias, j
 objective numbers). Then append a **`grade_computed`** event (already in the event vocabulary) and
 show a report-card panel in Review.
 
-Prerequisites / decisions for #8:
-- **`ANTHROPIC_API_KEY` is not in `.env` yet** — add it before the AI call (never paste in chat).
-- **Where the API call lives:** keep the key server-side → a **Rust command** reading the key
-  (mirrors how ingestion isolates the Databento key), not a frontend fetch. Consult the
-  **`claude-api` skill** when wiring it.
-- **Model IDs:** the open-params list still says `claude-sonnet-4-6` / `claude-opus-4-8` — update
-  to current (Sonnet default, Opus for deep end-of-module coaching) per the `claude-api` skill.
-- The Journal (prose prompts) is an open param (ADR-0003) — a minimal journal field can precede
-  the AI call, or stub it for #8.
+Prerequisites / decisions for #8 (all now resolved):
+- **`ANTHROPIC_API_KEY`** is in the gitignored `.env` and read by the Rust command (never in chat).
+- **Where the API call lives:** server-side `grade_via_anthropic` Rust command reads the key and
+  forwards the frontend-built body — done (see outcome above).
+- **Model IDs:** `claude-sonnet-5` default, `claude-opus-4-8` for deep coaching — done.
+- The Journal is still a minimal single field (open param, ADR-0003); structured prompts are later.
 
 ### Deferred UX the user asked for (2026-07-11) — issue #16
 The user's real prep process reads **daily/hourly over ~a week** for trend; #7's prep is minimal
@@ -266,7 +298,9 @@ level, reason, MAE, MFE, R (R anchored to the initial stop).
 - Commission per contract (+ default slippage already set: 1 tick on stops).
 - The Journal prompt list (structured prompts, ADR-0003 / CONTEXT).
 - Volume-zone overlap threshold (~20% of top 3–4 ranges — profiles module).
-- AI models: default `claude-sonnet-4-6`, `claude-opus-4-8` for deep end-of-module coaching (SPEC §5).
+- AI models: default `claude-sonnet-5`, `claude-opus-4-8` for deep end-of-module coaching (SPEC §5,
+  wired in `app/src/grade/grade.ts`). Per-symbol grade tolerances/bias thresholds live in
+  `app/src/grade/types.ts` (`GRADE_CONFIGS`) — NQ tuned first, others mirror it until hand-calibrated.
 
 ## Deferred by design (post-core, in order)
 Calendar/module/progression (#17) → volume-profile histogram polish (#14) → micro↔mini (#19).

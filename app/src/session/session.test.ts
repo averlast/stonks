@@ -149,7 +149,12 @@ test("cancelling a resting order logs order_cancelled and no trade", async () =>
 
 // --- prep hash is deterministic + tamper-evident ----------------------------
 test("prep hash is stable, key-order-independent, and changes on edit", () => {
-  const reordered = { biasCall: PREP.biasCall, biasProse: PREP.biasProse, markedLevels: PREP.markedLevels };
+  const reordered = {
+    biasCall: PREP.biasCall,
+    biasProse: PREP.biasProse,
+    markedZones: PREP.markedZones,
+    markedLevels: PREP.markedLevels,
+  };
   assert.equal(hashPrep(PREP), hashPrep(reordered), "canonicalised: key order irrelevant");
   assert.notEqual(hashPrep(PREP), hashPrep({ ...PREP, biasCall: "bull" }), "edit shows a new hash");
 });

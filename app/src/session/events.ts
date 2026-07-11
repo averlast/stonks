@@ -1,4 +1,8 @@
 import type { BracketRequest, Fill, Trade } from "../engine/fillEngine";
+import type { AiGrade, ReportCard } from "../grade/types";
+
+/** The three bias reads the trader commits to at the Prep gate (#7). */
+export type BiasCall = "bull" | "bear" | "chop";
 
 /**
  * The Session event vocabulary (ADR-0005 / #5). A Session is one attempt of a
@@ -40,7 +44,7 @@ export interface Prep {
   markedLevels: MarkedLevel[];
   markedZones: MarkedZone[];
   biasProse: string;
-  biasCall: "bull" | "bear" | "chop";
+  biasCall: BiasCall;
 }
 
 export type SessionEvent =
@@ -52,7 +56,8 @@ export type SessionEvent =
   | { type: "stop_moved"; orderId: string; stop: number; target: number }
   | { type: "flatten"; orderId: string; cause: "manual" | "end-of-day"; fill: Fill }
   | { type: "trade_closed"; trade: Trade }
-  | { type: "end_of_day" };
+  | { type: "end_of_day" }
+  | { type: "grade_computed"; reportCard: ReportCard; aiGrade: AiGrade | null };
 
 export type RecordedEvent = SessionEvent & Envelope;
 
@@ -64,10 +69,14 @@ export interface SessionState {
   attempt: number;
   /** Hash of the committed prep, or null until prep is committed. */
   prepHash: string | null;
+  /** The frozen prep itself, or null until committed — needed to grade the marks (#8). */
+  prep: Prep | null;
   /** The sealed trade tape, in close order. */
   trades: Trade[];
   /** True once the attempt reached 11:30 and auto-flattened. */
   endOfDay: boolean;
+  /** The sealed grade, or null until graded in Review (#8). */
+  grade: { reportCard: ReportCard; aiGrade: AiGrade | null } | null;
 }
 
 /** Reconstruct Session state by folding the event log (ADR-0005). This is the
@@ -78,8 +87,10 @@ export function fold(events: readonly RecordedEvent[]): SessionState {
     date: "",
     attempt: 0,
     prepHash: null,
+    prep: null,
     trades: [],
     endOfDay: false,
+    grade: null,
   };
   for (const e of events) {
     switch (e.type) {
@@ -90,12 +101,16 @@ export function fold(events: readonly RecordedEvent[]): SessionState {
         break;
       case "prep_committed":
         s.prepHash = e.hash;
+        s.prep = e.prep;
         break;
       case "trade_closed":
         s.trades.push(e.trade);
         break;
       case "end_of_day":
         s.endOfDay = true;
+        break;
+      case "grade_computed":
+        s.grade = { reportCard: e.reportCard, aiGrade: e.aiGrade };
         break;
       // order_placed / order_cancelled / fill / stop_moved / flatten are the
       // granular audit trail; the folded tape reads from the sealed trade_closed.

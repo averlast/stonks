@@ -17,6 +17,10 @@ import {
 import type { Prep } from "./session/events";
 import { foldDay } from "./review/review";
 import { LevelMarker } from "./prep/levelMarker";
+import { buildReportCard, classifyStructure } from "./grade/reportCard";
+import { buildDigest } from "./grade/digest";
+import { buildGradeRequest, parseAiGrade } from "./grade/grade";
+import { gradeConfig, type AiGrade, type ReportCard } from "./grade/types";
 
 /** A revealed true pre-session level (from the Rust `load_levels` answer key). */
 interface TrueLevel {
@@ -69,6 +73,9 @@ async function main(): Promise<void> {
   let phase: Phase = "prep";
   let prepBars: Sec1Bar[] = [];
   const reviewHistory = new Map<Timeframe, Candle[]>();
+  // The full unlocked day, captured on entering Review — the grader classifies the
+  // realized 2h structure over these sealed bars (#8).
+  let reviewDayBars: Sec1Bar[] = [];
 
   // --- Fill engine (the integrity layer, SPEC §4) ---------------------------
   const fills = new FillEngine(CONTRACTS.NQ, DEFAULT_FILL_CONFIG);
@@ -189,6 +196,7 @@ async function main(): Promise<void> {
       phase = prev;
       return;
     }
+    reviewDayBars = bars;
     reviewHistory.clear();
     for (const tf of TIMEFRAMES) reviewHistory.set(tf, foldDay(bars, tf));
     chart.setData(reviewHistory.get(activeTf)!);
@@ -202,6 +210,7 @@ async function main(): Promise<void> {
     reviewBtn.disabled = true;
     for (const b of speedBtns.values()) b.disabled = true;
     tradePanel.hidden = true; // trading is done; keep the reveal panel visible
+    gradePanel.hidden = false; // the attempt is sealed — it can now be graded (#8)
     syncControls();
     titleEl.textContent =
       `${feed.meta.symbol} · ${feed.meta.date} · attempt ${attempt} · REVIEW`;
@@ -663,6 +672,97 @@ async function main(): Promise<void> {
   showPrepChart();
   marker.start();
   syncPhase();
+
+  // --- Grade (Review report card + AI synthesis, #8 / ADR-0003) --------------
+  const gradePanel = $("gradePanel");
+  const journalEl = $("journal") as HTMLTextAreaElement;
+  const gradeBtn = $("gradeBtn") as HTMLButtonElement;
+  const gradeMsg = $("gradeMsg");
+  const reportCardBox = $("reportCard");
+
+  const pct = (x: number) => `${Math.round(x * 100)}%`;
+
+  function renderReportCard(card: ReportCard, ai: AiGrade | null): void {
+    reportCardBox.hidden = false;
+    const lm = card.levelMarking;
+    const levelRows = lm.levels
+      .map((l) => {
+        const prox =
+          l.nearestMarkDistance === null
+            ? "not marked"
+            : `${l.nearestMarkDistance.toFixed(1)} pts · ${pct(l.points)}`;
+        return `<div class="reveal-row"><span>${l.label}</span><span class="muted">${prox}</span></div>`;
+      })
+      .join("");
+    const b = card.bias;
+    const biasCls = b.correct ? "pnl-pos" : "pnl-neg";
+    const axis = (name: string, a: AiGrade["planAdherence"]) =>
+      `<div class="reveal-row"><span>${name}</span><span>${a.score}/100</span></div>` +
+      `<div class="trade-mfe muted">${a.notes}</div>`;
+    const aiHtml = ai
+      ? `<h4>AI coaching</h4>${axis("Plan adherence", ai.planAdherence)}${axis("Execution", ai.execution)}${axis("Outcome", ai.outcome)}` +
+        `<div class="trade-mfe" style="margin-top:.4rem">${ai.summary}</div>`
+      : `<h4>AI coaching</h4><div class="muted">skipped (dev / unavailable) — report card only</div>`;
+    reportCardBox.innerHTML =
+      `<h4>Level marking</h4>` +
+      `<div class="reveal-row"><span>coverage / precision</span><span>${pct(lm.coverage)} · ${pct(lm.precision)}</span></div>` +
+      levelRows +
+      `<h4>Bias call</h4>` +
+      `<div class="reveal-row"><span>called ${b.called} · realized ${b.realized}</span>` +
+      `<span class="${biasCls}">${b.correct ? "✓" : "✗"} ${b.netPoints >= 0 ? "+" : ""}${b.netPoints.toFixed(0)} / ${b.rangePoints.toFixed(0)} pt</span></div>` +
+      aiHtml;
+  }
+
+  async function runGrade(): Promise<void> {
+    const prep = recorder.state.prep;
+    if (!prep) {
+      gradeMsg.textContent = "no committed prep to grade";
+      return;
+    }
+    gradeBtn.disabled = true;
+    gradeMsg.textContent = "grading…";
+    try {
+      const cfg = gradeConfig(feed.meta.symbol);
+      const truth = await loadTrueLevels(feed.meta.symbol, feed.meta.date);
+      const structure = classifyStructure(reviewDayBars, cfg);
+      const markedPrices = prep.markedLevels.map((m) => m.price);
+      const card = buildReportCard(markedPrices, truth, prep.biasCall, structure, cfg);
+      const digest = buildDigest({
+        symbol: feed.meta.symbol,
+        date: feed.meta.date,
+        attempt,
+        prep,
+        journal: journalEl.value.trim(),
+        trades: fills.trades,
+        structure,
+        reportCard: card,
+      });
+
+      // The objective report card always computes; the AI synthesis needs the
+      // server-side key, so it only runs under Tauri and degrades gracefully.
+      let ai: AiGrade | null = null;
+      if (isTauri()) {
+        try {
+          const resp = await invoke("grade_via_anthropic", { request: buildGradeRequest(digest) });
+          ai = parseAiGrade(resp);
+        } catch (err) {
+          console.error("AI grade failed", err);
+          gradeMsg.textContent = `AI unavailable: ${err instanceof Error ? err.message : err}`;
+        }
+      }
+
+      recorder.commitGrade(card, ai, lastBar ? lastBar.t : 0);
+      renderReportCard(card, ai);
+      if (!gradeMsg.textContent?.startsWith("AI unavailable")) {
+        gradeMsg.textContent = ai ? "graded & sealed" : "report card sealed (AI skipped)";
+      }
+    } catch (err) {
+      gradeMsg.textContent = String(err instanceof Error ? err.message : err);
+    } finally {
+      gradeBtn.disabled = false;
+    }
+  }
+  gradeBtn.onclick = () => void runGrade();
 
   // --- Transport controls ----------------------------------------------------
   playBtn.onclick = () => {
