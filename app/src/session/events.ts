@@ -26,11 +26,19 @@ export interface MarkedLevel {
   label?: string;
 }
 
+/** A marked price range (value area / supply-demand zone). AI-graded, not
+ *  precision-scored (ADR-0003). */
+export interface MarkedZone {
+  low: number;
+  high: number;
+}
+
 /** The frozen pre-market plan committed at the Prep gate (#7 / ADR-0003): the
- *  blind level marks, a prose bias, and a bull/bear/chop call. Hashed into
+ *  blind level + zone marks, a prose bias, and a bull/bear/chop call. Hashed into
  *  `prep_committed` so a post-hoc edit is visible in git (the seal is structural). */
 export interface Prep {
   markedLevels: MarkedLevel[];
+  markedZones: MarkedZone[];
   biasProse: string;
   biasCall: "bull" | "bear" | "chop";
 }

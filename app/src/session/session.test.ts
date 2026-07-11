@@ -10,6 +10,7 @@ import { SessionRecorder, memorySink } from "./recorder";
 
 const PREP: Prep = {
   markedLevels: [{ price: 18400 }, { price: 17600, label: "overnight low" }],
+  markedZones: [{ low: 17500, high: 17650 }],
   biasProse: "gap-down, expect a sweep of the overnight low then a reclaim",
   biasCall: "bear",
 };

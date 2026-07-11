@@ -1,28 +1,43 @@
 import type { ChartView } from "../chart/chartView";
 
-/** One blind mark the trader is placing during Prep. */
-interface Mark {
+/** A single-price mark (a support/resistance level). */
+interface LineMark {
   id: number;
+  kind: "line";
   price: number;
 }
+/** A price-range mark (a zone: value area, supply/demand). */
+interface ZoneMark {
+  id: number;
+  kind: "zone";
+  low: number;
+  high: number;
+}
+type Mark = LineMark | ZoneMark;
+
+type LineEls = { kind: "line"; line: HTMLDivElement };
+type ZoneEls = { kind: "zone"; band: HTMLDivElement; hi: HTMLDivElement; lo: HTMLDivElement };
+type Els = LineEls | ZoneEls;
+
+type DragTarget = { id: number; edge: "line" | "hi" | "lo" };
 
 /**
- * The Prep marking tool (#7): draggable horizontal lines the trader places on the
- * prior-day chart to mark where they believe the pre-session levels are. Built on
- * the same overlay/price↔pixel approach as `bracketEditor.ts` (Lightweight Charts
- * has no native level tool), but holds an arbitrary number of independent lines.
+ * The Prep marking tool (#7): draggable horizontal **levels** and shaded
+ * **ranges** the trader places on the prior-day chart to mark where they believe
+ * the pre-session levels / zones are. Built on the same overlay + price↔pixel
+ * approach as `bracketEditor.ts` (Lightweight Charts has no native tools).
  *
- * The eval is practising the *ritual* of marking, so lines are freely draggable
- * against the visible prior-day/overnight bars; on Commit the tool locks and the
- * true levels are revealed separately (ChartView.setLevelLines).
+ * The eval is practising the *ritual* of marking, so everything is freely
+ * draggable against the visible bars; on Commit the tool locks and the true
+ * levels are revealed separately (ChartView.setLevelLines).
  */
 export class LevelMarker {
   private overlay: HTMLDivElement;
   private marks: Mark[] = [];
-  private lines = new Map<number, HTMLDivElement>();
+  private els = new Map<number, Els>();
   private seq = 0;
   private raf = 0;
-  private dragging: number | null = null;
+  private dragging: DragTarget | null = null;
   private enabled = true;
   private onChangeCb: () => void = () => {};
 
@@ -36,50 +51,77 @@ export class LevelMarker {
     chart.element.appendChild(this.overlay);
   }
 
-  /** Fires on add / drag / remove, so the panel can re-render the marks list. */
+  /** Fires on add / drag / remove / clear, so the panel can re-render the list. */
   onChange(cb: () => void): void {
     this.onChangeCb = cb;
   }
 
-  /** Current marks in placement order (id + price). */
   get marksList(): readonly Mark[] {
     return this.marks;
   }
-  /** Just the marked prices (what the commit freezes). */
-  get prices(): number[] {
-    return this.marks.map((m) => m.price);
+  /** The marked single-price levels (what commit freezes as levels). */
+  get lines(): number[] {
+    return this.marks.filter((m): m is LineMark => m.kind === "line").map((m) => m.price);
+  }
+  /** The marked ranges (what commit freezes as zones). */
+  get zones(): { low: number; high: number }[] {
+    return this.marks
+      .filter((m): m is ZoneMark => m.kind === "zone")
+      .map((m) => ({ low: m.low, high: m.high }));
   }
 
-  /** Begin drawing: show the overlay and start the positioning loop. */
   start(): void {
     this.overlay.classList.add("active");
     if (this.raf === 0) this.loop();
   }
 
-  /** Drop a new draggable mark at `price` (seeded near the visible mid). */
-  add(price: number): void {
+  addLine(price: number): void {
     if (!this.enabled) return;
     const id = ++this.seq;
-    this.marks.push({ id, price: this.round(price) });
-    this.lines.set(id, this.makeLine(id));
+    this.marks.push({ id, kind: "line", price: this.round(price) });
+    const line = this.makeLine("level-line", id, "line");
+    this.els.set(id, { kind: "line", line });
+    this.onChangeCb();
+  }
+
+  addZone(low: number, high: number): void {
+    if (!this.enabled) return;
+    const id = ++this.seq;
+    this.marks.push({ id, kind: "zone", low: this.round(low), high: this.round(high) });
+    const band = document.createElement("div");
+    band.className = "zone-band";
+    this.overlay.appendChild(band);
+    const hi = this.makeLine("zone-edge", id, "hi");
+    const lo = this.makeLine("zone-edge", id, "lo");
+    this.els.set(id, { kind: "zone", band, hi, lo });
     this.onChangeCb();
   }
 
   remove(id: number): void {
     if (!this.enabled) return;
     this.marks = this.marks.filter((m) => m.id !== id);
-    const line = this.lines.get(id);
-    if (line) {
-      line.remove();
-      this.lines.delete(id);
+    const e = this.els.get(id);
+    if (e) {
+      if (e.kind === "line") e.line.remove();
+      else {
+        e.band.remove();
+        e.hi.remove();
+        e.lo.remove();
+      }
+      this.els.delete(id);
     }
     this.onChangeCb();
+  }
+
+  clear(): void {
+    if (!this.enabled) return;
+    for (const id of [...this.els.keys()]) this.remove(id);
   }
 
   /** Freeze the marks (post-commit): no more add/drag/remove. */
   disable(): void {
     this.enabled = false;
-    for (const l of this.lines.values()) l.classList.add("locked");
+    this.overlay.classList.add("locked");
   }
 
   /** Tear down the overlay (leaving Prep for the attempt). */
@@ -90,21 +132,21 @@ export class LevelMarker {
   }
 
   // --- internals ------------------------------------------------------------
-  private makeLine(id: number): HTMLDivElement {
+  private makeLine(cls: string, id: number, edge: DragTarget["edge"]): HTMLDivElement {
     const line = document.createElement("div");
-    line.className = "level-line";
+    line.className = cls;
     const label = document.createElement("span");
     label.className = "level-label";
     line.appendChild(label);
-    line.addEventListener("pointerdown", (e) => this.beginDrag(e, id));
+    line.addEventListener("pointerdown", (e) => this.beginDrag(e, { id, edge }));
     this.overlay.appendChild(line);
     return line;
   }
 
-  private beginDrag(e: PointerEvent, id: number): void {
+  private beginDrag(e: PointerEvent, target: DragTarget): void {
     if (!this.enabled) return;
     e.preventDefault();
-    this.dragging = id;
+    this.dragging = target;
     const move = (ev: PointerEvent) => this.onDrag(ev);
     const up = () => {
       this.dragging = null;
@@ -116,31 +158,55 @@ export class LevelMarker {
   }
 
   private onDrag(e: PointerEvent): void {
-    if (this.dragging === null) return;
+    if (!this.dragging) return;
     const rect = this.chart.element.getBoundingClientRect();
-    const price = this.chart.yToPrice(e.clientY - rect.top);
-    if (price === null) return;
-    const m = this.marks.find((x) => x.id === this.dragging);
-    if (m) {
-      m.price = this.round(price);
-      this.onChangeCb();
+    const raw = this.chart.yToPrice(e.clientY - rect.top);
+    if (raw === null) return;
+    const p = this.round(raw);
+    const mark = this.marks.find((m) => m.id === this.dragging!.id);
+    if (!mark) return;
+    if (mark.kind === "line") {
+      mark.price = p;
+    } else if (this.dragging.edge === "hi") {
+      mark.high = Math.max(p, mark.low + this.tick); // stay above the low edge
+    } else {
+      mark.low = Math.min(p, mark.high - this.tick); // stay below the high edge
     }
+    this.onChangeCb();
   }
 
   private loop = (): void => {
-    for (const m of this.marks) {
-      const line = this.lines.get(m.id)!;
-      const y = this.chart.priceToY(m.price);
-      if (y === null) {
-        line.style.display = "none";
-        continue;
+    for (const mark of this.marks) {
+      const e = this.els.get(mark.id)!;
+      if (mark.kind === "line" && e.kind === "line") {
+        this.place(e.line, mark.price, mark.price.toFixed(2));
+      } else if (mark.kind === "zone" && e.kind === "zone") {
+        const yHi = this.chart.priceToY(mark.high);
+        const yLo = this.chart.priceToY(mark.low);
+        this.place(e.hi, mark.high, `${mark.high.toFixed(2)}`);
+        this.place(e.lo, mark.low, `${mark.low.toFixed(2)}`);
+        if (yHi === null || yLo === null) {
+          e.band.style.display = "none";
+        } else {
+          e.band.style.display = "block";
+          e.band.style.top = `${yHi}px`;
+          e.band.style.height = `${Math.max(0, yLo - yHi)}px`;
+        }
       }
-      line.style.display = "block";
-      line.style.top = `${y}px`;
-      (line.firstChild as HTMLSpanElement).textContent = m.price.toFixed(2);
     }
     this.raf = requestAnimationFrame(this.loop);
   };
+
+  private place(line: HTMLDivElement, price: number, text: string): void {
+    const y = this.chart.priceToY(price);
+    if (y === null) {
+      line.style.display = "none";
+      return;
+    }
+    line.style.display = "block";
+    line.style.top = `${y}px`;
+    (line.firstChild as HTMLSpanElement).textContent = text;
+  }
 
   private round(p: number): number {
     return Math.round(p / this.tick) * this.tick;

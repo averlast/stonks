@@ -24,19 +24,21 @@
       </div>
     </header>
     <div id="workspace">
-      <main id="chart"></main>
+      <main id="chart">
+        <div id="chartTools" hidden>
+          <button type="button" id="addLevel">＋ Level</button>
+          <button type="button" id="addRange">▭ Range</button>
+          <button type="button" id="clearMarks">Clear</button>
+        </div>
+      </main>
       <aside id="sidebar">
         <section id="prepPanel">
           <div class="ticket-title" id="prepTitle">Prep — the day opens locked</div>
           <div id="prepForm">
             <p class="muted prep-hint">
-              Mark the pre-session levels you see on the prior day, call the bias, then commit to
-              freeze your plan and start the session.
+              Use the toolbar on the chart to mark the levels and zones you read on the prior day,
+              call the bias, then commit to freeze your plan and start the session.
             </p>
-            <div class="field">
-              <label>Levels</label>
-              <button type="button" id="addLevel">＋ Add level</button>
-            </div>
             <div id="prepLevels" class="box"></div>
             <div class="field">
               <label>Bias</label>
@@ -55,8 +57,8 @@
           </div>
           <div id="prepReveal" class="box" hidden></div>
         </section>
-        <form id="ticket">
-          <div class="ticket-title">Order ticket</div>
+        <section id="tradePanel" hidden>
+          <div class="ticket-title">Trade — draw the bracket on the chart</div>
           <div class="field">
             <label>Side</label>
             <div class="seg" id="side">
@@ -64,29 +66,15 @@
               <button type="button" data-v="short">Short</button>
             </div>
           </div>
-          <div class="field">
-            <label>Type</label>
-            <select id="entryType">
-              <option value="market">Market</option>
-              <option value="limit">Limit</option>
-              <option value="stop">Stop</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Entry</label><input id="entryPrice" type="number" step="0.25" placeholder="mkt" disabled />
-          </div>
-          <div class="field"><label>Stop</label><input id="stop" type="number" step="0.25" /></div>
-          <div class="field"><label>Target</label><input id="target" type="number" step="0.25" /></div>
           <div class="field"><label>Size</label><input id="size" type="number" step="1" min="1" value="1" /></div>
           <button type="button" id="draw">✎ Draw on chart</button>
-          <button type="submit" id="place">Place from form</button>
           <button type="button" id="arm" class="primary" hidden>Arm bracket</button>
           <button type="button" id="cancelDraw" hidden>Cancel draw</button>
           <button type="button" id="cancelOrder" hidden>Cancel working order</button>
           <button type="button" id="flatten" disabled>Flatten (F)</button>
           <div id="rr" class="muted"></div>
           <div id="ticketMsg" class="msg"></div>
-        </form>
+        </section>
         <div id="posBox" class="box"></div>
         <div id="tradesBox" class="box"></div>
       </aside>

@@ -92,24 +92,25 @@ button:disabled {
 #chart {
   flex: 1;
   min-width: 0;
+  position: relative; /* positioning context for the floating toolbar + overlays */
 }
 
 #sidebar {
-  width: 260px;
+  width: 320px;
   border-left: 1px solid var(--border);
   background: var(--panel);
-  padding: 0.75rem;
+  padding: 1rem;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 1.1rem;
   font-size: 0.85rem;
 }
 
-#ticket {
+#tradePanel {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.7rem;
 }
 
 .ticket-title {
@@ -303,9 +304,63 @@ button:disabled {
   top: -6px;
   height: 12px;
 }
-.level-line.locked {
+.level-overlay.locked .level-line,
+.level-overlay.locked .zone-edge,
+.level-overlay.locked .zone-band {
   opacity: 0.35;
   pointer-events: none;
+}
+
+/* Range/zone mark: two draggable edges + a shaded band between them. */
+.zone-edge {
+  position: absolute;
+  left: 0;
+  right: 56px;
+  height: 0;
+  border-top: 1px dashed #a855f7;
+  pointer-events: auto;
+  cursor: ns-resize;
+  transform: translateY(-0.5px);
+}
+.zone-edge::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -6px;
+  height: 12px;
+}
+.zone-edge .level-label {
+  background: #a855f7;
+}
+.zone-band {
+  position: absolute;
+  left: 0;
+  right: 56px;
+  background: rgba(168, 85, 247, 0.14);
+  pointer-events: none;
+}
+
+/* Floating action bar over the chart (Prep marking tools). */
+#chartTools {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.35rem 0.45rem;
+  background: rgba(20, 26, 34, 0.92);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+#chartTools[hidden] {
+  display: none;
+}
+#chartTools button {
+  padding: 0.35rem 0.7rem;
 }
 .level-label {
   position: absolute;
@@ -323,7 +378,12 @@ button:disabled {
 #prepPanel {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.7rem;
+}
+#prepForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
 }
 .prep-hint {
   font-size: 0.75rem;

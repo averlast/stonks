@@ -7,13 +7,7 @@ import { bucketStart } from "./engine/aggregator";
 import { ChartView, type FillMarker } from "./chart/chartView";
 import { BracketEditor } from "./trading/bracketEditor";
 import { CONTRACTS, DEFAULT_FILL_CONFIG } from "./engine/contracts";
-import {
-  FillEngine,
-  type BracketRequest,
-  type Side,
-  type EntryType,
-  type Fill,
-} from "./engine/fillEngine";
+import { FillEngine, type Side, type EntryType, type Fill } from "./engine/fillEngine";
 import {
   SessionRecorder,
   startTauriSession,
@@ -219,7 +213,7 @@ async function main(): Promise<void> {
     stepBtn.disabled = true;
     reviewBtn.disabled = true;
     for (const b of speedBtns.values()) b.disabled = true;
-    ticketEl.hidden = true; // trading is done; keep the reveal panel visible
+    tradePanel.hidden = true; // trading is done; keep the reveal panel visible
     syncControls();
     titleEl.textContent =
       `${feed.meta.symbol} · ${feed.meta.date} · attempt ${attempt} · REVIEW`;
@@ -253,15 +247,9 @@ async function main(): Promise<void> {
     },
   );
 
-  // --- Order ticket ----------------------------------------------------------
-  const ticket = $("ticket") as HTMLFormElement;
+  // --- Trade controls (chart-first: the bracket is drawn on the chart) -------
   const sideSeg = $("side");
-  const entryTypeEl = $("entryType") as HTMLSelectElement;
-  const entryPriceEl = $("entryPrice") as HTMLInputElement;
-  const stopEl = $("stop") as HTMLInputElement;
-  const targetEl = $("target") as HTMLInputElement;
   const sizeEl = $("size") as HTMLInputElement;
-  const placeBtn = $("place") as HTMLButtonElement;
   const flattenBtn = $("flatten") as HTMLButtonElement;
   const cancelOrderBtn = $("cancelOrder") as HTMLButtonElement;
   const ticketMsg = $("ticketMsg");
@@ -275,35 +263,6 @@ async function main(): Promise<void> {
       editor.setSide(side); // keep an in-progress on-chart draft in sync
     });
   }
-  const syncEntryPriceEnabled = () => {
-    entryPriceEl.disabled = entryTypeEl.value === "market";
-  };
-  entryTypeEl.addEventListener("change", syncEntryPriceEnabled);
-  syncEntryPriceEnabled();
-
-  ticket.addEventListener("submit", (e) => {
-    e.preventDefault();
-    if (phase !== "attempt") return; // locked in prep, over in review
-    ticketMsg.textContent = "";
-    const entryType = entryTypeEl.value as EntryType;
-    const req: BracketRequest = {
-      side,
-      entryType,
-      entryPrice: entryType === "market" ? undefined : Number(entryPriceEl.value),
-      stop: Number(stopEl.value),
-      target: Number(targetEl.value),
-      size: Number(sizeEl.value),
-      level: "manual",
-      reason: "discretionary",
-    };
-    try {
-      fills.place(req, lastBar ? lastBar.t : 0);
-      renderPosition();
-      syncControls();
-    } catch (err) {
-      ticketMsg.textContent = String(err instanceof Error ? err.message : err);
-    }
-  });
 
   flattenBtn.onclick = () => {
     if (lastBar) fills.flatten(lastBar);
@@ -312,10 +271,11 @@ async function main(): Promise<void> {
     fills.cancelPending();
     syncControls();
   };
-  // Keyboard: F flattens the open position (unless typing in the ticket).
+  // Keyboard: F flattens the open position (unless typing in an input/textarea).
   window.addEventListener("keydown", (e) => {
     const el = document.activeElement;
-    const typing = el?.tagName === "INPUT" || el?.tagName === "SELECT";
+    const typing =
+      el?.tagName === "INPUT" || el?.tagName === "SELECT" || el?.tagName === "TEXTAREA";
     if (phase === "attempt" && !typing && (e.key === "f" || e.key === "F") && fills.openPosition && lastBar) {
       fills.flatten(lastBar);
     }
@@ -352,11 +312,6 @@ async function main(): Promise<void> {
       return;
     }
     const type = lastBar ? inferEntryType(d.side, d.entry, lastBar.c) : "limit";
-    entryTypeEl.value = type;
-    syncEntryPriceEnabled();
-    entryPriceEl.value = String(d.entry);
-    stopEl.value = String(d.stop);
-    targetEl.value = String(d.target);
     const risk = Math.abs(d.entry - d.stop);
     const rr = risk > 0 ? Math.abs(d.target - d.entry) / risk : 0;
     rrEl.textContent = `${d.side} · ${type} @ ${d.entry.toFixed(2)} · R:R ${rr.toFixed(2)}`;
@@ -419,7 +374,6 @@ async function main(): Promise<void> {
       if (editor.active) editor.cancel();
       chart.setBracket({ entry: null, stop: null, target: null });
       drawBtn.disabled = true;
-      placeBtn.disabled = true;
       flattenBtn.disabled = true;
       cancelOrderBtn.hidden = true;
       armBtn.hidden = true;
@@ -444,9 +398,7 @@ async function main(): Promise<void> {
     else chart.setBracket({ entry: null, stop: null, target: null });
 
     drawBtn.hidden = placing;
-    placeBtn.hidden = placing;
     drawBtn.disabled = Boolean(pos || pend);
-    placeBtn.disabled = Boolean(pos || pend);
     armBtn.hidden = !placing;
     cancelDrawBtn.hidden = !placing;
     cancelOrderBtn.hidden = !pend;
@@ -540,14 +492,17 @@ async function main(): Promise<void> {
   const prepPanel = $("prepPanel");
   const prepForm = $("prepForm");
   const prepTitle = $("prepTitle");
+  const chartTools = $("chartTools"); // floating action bar over the chart
   const addLevelBtn = $("addLevel") as HTMLButtonElement;
+  const addRangeBtn = $("addRange") as HTMLButtonElement;
+  const clearMarksBtn = $("clearMarks") as HTMLButtonElement;
   const prepLevelsBox = $("prepLevels");
   const biasProseEl = $("biasProse") as HTMLTextAreaElement;
   const biasCallSeg = $("biasCall");
   const commitPrepBtn = $("commitPrep") as HTMLButtonElement;
   const prepMsg = $("prepMsg");
   const prepReveal = $("prepReveal");
-  const ticketEl = $("ticket");
+  const tradePanel = $("tradePanel");
 
   const marker = new LevelMarker(chart, CONTRACTS.NQ.tickSize);
   let biasCall: Prep["biasCall"] | null = null;
@@ -560,17 +515,21 @@ async function main(): Promise<void> {
     });
   }
 
-  function renderPrepLevels(): void {
+  function renderPrepMarks(): void {
     const marks = marker.marksList;
     if (marks.length === 0) {
-      prepLevelsBox.innerHTML = `<div class="muted">no marks yet — Add level, then drag</div>`;
+      prepLevelsBox.innerHTML = `<div class="muted">no marks yet — use ＋ Level / ▭ Range, then drag</div>`;
       return;
     }
     prepLevelsBox.innerHTML = "";
     for (const m of marks) {
       const row = document.createElement("div");
       row.className = "prep-level-row";
-      row.innerHTML = `<span>${m.price.toFixed(2)}</span>`;
+      const text =
+        m.kind === "line"
+          ? `level ${m.price.toFixed(2)}`
+          : `zone ${m.low.toFixed(2)}–${m.high.toFixed(2)}`;
+      row.innerHTML = `<span>${text}</span>`;
       const rm = document.createElement("button");
       rm.type = "button";
       rm.textContent = "✕";
@@ -579,18 +538,23 @@ async function main(): Promise<void> {
       prepLevelsBox.appendChild(row);
     }
   }
-  marker.onChange(renderPrepLevels);
-  renderPrepLevels();
+  marker.onChange(renderPrepMarks);
+  renderPrepMarks();
 
   // Seed a new mark near the middle of the visible prep candles.
-  const prepSeed = (): number => {
+  const prepMid = (): number => {
     if (prepBars.length) {
       const mid = prepBars[Math.floor(prepBars.length / 2)];
       return (mid.h + mid.l) / 2;
     }
     return 0;
   };
-  addLevelBtn.onclick = () => marker.add(prepSeed());
+  addLevelBtn.onclick = () => marker.addLine(prepMid());
+  addRangeBtn.onclick = () => {
+    const m = prepMid();
+    marker.addZone(m - 25, m + 25); // seed a ~50pt band to drag to the real zone
+  };
+  clearMarksBtn.onclick = () => marker.clear();
 
   function renderReveal(truth: TrueLevel[], marks: number[]): void {
     prepReveal.hidden = false;
@@ -617,7 +581,8 @@ async function main(): Promise<void> {
       return;
     }
     const prep: Prep = {
-      markedLevels: marker.prices.map((price) => ({ price })),
+      markedLevels: marker.lines.map((price) => ({ price })),
+      markedZones: marker.zones,
       biasProse: biasProseEl.value.trim(),
       biasCall,
     };
@@ -643,7 +608,8 @@ async function main(): Promise<void> {
   function syncPhase(): void {
     prepForm.hidden = phase !== "prep";
     prepPanel.hidden = phase === "prep" ? false : prepReveal.hidden; // keep reveal visible
-    ticketEl.hidden = phase !== "attempt";
+    chartTools.hidden = phase !== "prep"; // marking toolbar is Prep-only
+    tradePanel.hidden = phase !== "attempt";
     if (phase === "prep") {
       playBtn.disabled = true;
       stepBtn.disabled = true;
@@ -660,12 +626,22 @@ async function main(): Promise<void> {
     syncControls();
   }
 
-  // Enter Prep: show the prior-day + overnight context to mark against.
-  prepBars = await loadPresession(feed.meta.symbol, feed.meta.date);
-  if (prepBars.length) {
+  // Enter Prep: show the prior-day + overnight context to mark against. Vite
+  // injects CSS via JS, so the chart container can measure 0×0 at init and a
+  // setData/fitContent into a zero-size canvas parks the view on empty space.
+  // Wait (via rAF) until the container is actually laid out, then render once.
+  const chartEl = $("chart");
+  function showPrepChart(): void {
+    if (phase !== "prep" || !prepBars.length) return;
+    if (chartEl.clientWidth === 0 || chartEl.clientHeight === 0) {
+      requestAnimationFrame(showPrepChart);
+      return;
+    }
     chart.setData(foldDay(prepBars, activeTf));
     chart.fitContent();
   }
+  prepBars = await loadPresession(feed.meta.symbol, feed.meta.date);
+  showPrepChart();
   marker.start();
   syncPhase();
 

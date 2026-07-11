@@ -172,7 +172,9 @@ fn load_presession(symbol: String, date: String) -> Result<Vec<Sec1Bar>, String>
     let path = bars_dir()
         .join(&symbol)
         .join(format!("{date}_presession-1m.parquet"));
-    bars::load_parquet(&path).map_err(|e| e.to_string())
+    let bars = bars::load_parquet(&path).map_err(|e| e.to_string())?;
+    log::info!("load_presession {symbol} {date}: {} bars", bars.len());
+    Ok(bars)
 }
 
 /// The true pre-session levels for the day — the hidden-drill answer key revealed
