@@ -33,14 +33,30 @@ prior RTH day 09:30–16:00; `ONH`/`ONL` = overnight Globex `[prior 18:00, 09:30
 answer key is committed (PDH 18761 / PDL 18385.75 / ONH 18390 / ONL 17351; ~$0.017). PW/PM H/L,
 prior VAs, and the Asia/London split (ET windows TBD) extend the same file later.
 
-### #7 build plan — one prep-UX fork to settle first
-`prep_committed` shape + hash are already sealed (#5 stub); the answer key exists. To build:
-lock the attempt in a **PREP phase** (transport + trading disabled) → user marks pre-session
-levels + prose bias + bull/bear/chop → **Commit** emits the real `prep_committed` (replacing the
-stub), reveals the true levels (Rust `load_levels` reads the JSON; dev degrades), and unlocks.
-**Fork:** there is *no pre-session chart* to mark on (our bars start at 09:30 and showing them
-early is lookahead), so blind "marking" is almost certainly **numeric price entry**, not
-chart-drawing — confirm before building.
+### #7 prep-UX — RESOLVED: mark on the prior-day chart
+User's call: show the **prior-day chart** and let the trader drag level lines on it. The eval is
+"practice the marking ritual," not hiding the levels — so the drill is coverage/ritual, not a
+blind precision test. Data layer for this is **DONE** (commit `6972bc3`): ingestion persists
+prior-RTH-day + overnight 1m bars (gitignored `..._presession-1m.parquet`), and Rust serves
+`load_presession` (ungated context) + `load_levels` (the answer key). Rust tests → 6.
+
+### #7 REMAINING — the frontend prep phase (next build; hand-verify like #3)
+Add a `phase: "prep" | "attempt" | "review"` to `main.ts` (extends the existing `reviewing`
+flag). On load → **prep**:
+- Show the prep chart from `load_presession` (dev degrades to empty). Lock transport (play/step/
+  End&Review) + trading until commit.
+- **Marking tool** (new, e.g. `app/src/prep/levelMarker.ts`): draggable horizontal level lines
+  on the chart (reuse `ChartView.priceToY/yToPrice` + the overlay pattern from `bracketEditor.ts`);
+  add/drag/remove; captures `{price, label?}[]`.
+- Prep panel (new DOM near the ticket): the marks list + **prose bias** textarea + **bull/bear/
+  chop** segmented + **Commit prep** button.
+- **Commit** → build the real prep `{markedLevels, biasProse, biasCall}`; call
+  `recorder.commitPrep(realPrep)` (REMOVE the auto-stub `commitPrep` currently in `main.ts`);
+  `load_levels` → draw the true levels + a small proximity readout (nearest mark per true level);
+  transition to **attempt**: switch chart to the live RTH feed and unlock transport + trading.
+- Immutability is the event seal (already); guard against a second commit (button disabled after).
+Acceptance maps 1:1: lock-until-commit, hidden-then-revealed levels, capture marks+bias+call
+frozen at commit, immutable via the log.
 
 ### #6 outcome (2026-07-10) — annotated Review scrub (ADR-0002 unlock)
 - **The unlock is server-enforced** (`lib.rs`): `Feed.review_unlocked` (re-armed on every
