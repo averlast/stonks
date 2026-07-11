@@ -5,14 +5,19 @@ Pulls the first two hours of RTH (09:30-11:30 America/New_York) 1-second OHLCV
 bars for one symbol/day from Databento GLBX.MDP3, converts UTC to exchange-local
 time (DST-correct), and writes a gitignored Parquet file queryable via DuckDB.
 
+It also computes the day's true PRE-SESSION LEVELS (prior-day + overnight high/low)
+from cheap 1-minute history and writes them as a small tracked answer key for the
+hidden-level drill (Option C / issue #7 dependency, ADR-0003 amendment).
+
 Design record: SPEC.md decisions 1/2/12/13, ADR-0001 (isolated Python ingestion).
-Bars are a disposable local cache and are never committed; only the manifest is
-tracked. Ticks for ambiguous-bar resolution are a separate concern (issue #4).
+Bars/ticks are a disposable local cache and are never committed; the manifest and
+the derived level numbers are tracked (raw history stays local — license-safe).
 
 Usage:
     python ingestion/fetch_day.py                      # NQ 2024-08-05 (whipsaw day)
     python ingestion/fetch_day.py --symbol ES --date 2024-08-05
     python ingestion/fetch_day.py --quote-only         # cost quote, no pull
+    python ingestion/fetch_day.py --no-ticks --no-levels  # 1s bars only
 """
 
 from __future__ import annotations
@@ -20,7 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime, time
+from datetime import date as date_cls, datetime, time, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -32,11 +37,22 @@ from dotenv import load_dotenv
 DATASET = "GLBX.MDP3"          # CME Globex MDP 3.0
 SCHEMA = "ohlcv-1s"            # 1-second OHLCV is the floor (SPEC 2.1)
 EXCHANGE_TZ = ZoneInfo("America/New_York")
+UTC = ZoneInfo("UTC")
 SESSION_OPEN = time(9, 30)     # RTH open, ET
 SESSION_END = time(11, 30)     # first 2h of the open (SPEC 2, tier 1)
+RTH_CLOSE = time(16, 0)        # RTH close, ET — bounds the prior-day range
+GLOBEX_EVENING = time(18, 0)   # Globex reopen, ET — starts the overnight session
+
+# Pre-session levels (Option C / issue #7 dependency, ADR-0003 amendment). The
+# true pre-session levels a trader marks blind — computed from cheap 1-minute
+# history, not the 1s feed, and written as a small TRACKED answer key (derived
+# numbers only; the raw history stays a gitignored cache).
+LEVELS_SCHEMA = "ohlcv-1m"
+LEVELS_LOOKBACK_DAYS = 5        # enough to reach the prior RTH day across a weekend
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BARS_DIR = REPO_ROOT / "data" / "bars"        # gitignored cache
+LEVELS_DIR = REPO_ROOT / "data" / "levels"    # tracked answer key (JSON, numbers only)
 MANIFEST_PATH = REPO_ROOT / "data" / "manifest.json"  # tracked source of truth
 
 
@@ -54,6 +70,8 @@ def parse_args() -> argparse.Namespace:
                    help="Re-pull even if the Parquet already exists.")
     p.add_argument("--no-ticks", action="store_true",
                    help="Skip the raw-trades pull (bars only).")
+    p.add_argument("--no-levels", action="store_true",
+                   help="Skip computing the true pre-session levels answer key.")
     return p.parse_args()
 
 
@@ -61,7 +79,17 @@ def session_window_utc(day: datetime.date) -> tuple[datetime, datetime]:
     """Return the [09:30, 11:30) ET window as tz-aware UTC datetimes (DST-correct)."""
     start_et = datetime.combine(day, SESSION_OPEN, tzinfo=EXCHANGE_TZ)
     end_et = datetime.combine(day, SESSION_END, tzinfo=EXCHANGE_TZ)
-    return start_et.astimezone(ZoneInfo("UTC")), end_et.astimezone(ZoneInfo("UTC"))
+    return start_et.astimezone(UTC), end_et.astimezone(UTC)
+
+
+def levels_window_utc(day: date_cls) -> tuple[datetime, datetime]:
+    """History window for computing pre-session levels: from midnight ET a few
+    days before the practice day up to the 09:30 open (never past it — these are
+    levels that exist *before* the session, so no lookahead). Returns UTC."""
+    start_et = datetime.combine(day - timedelta(days=LEVELS_LOOKBACK_DAYS),
+                                time(0, 0), tzinfo=EXCHANGE_TZ)
+    end_et = datetime.combine(day, SESSION_OPEN, tzinfo=EXCHANGE_TZ)
+    return start_et.astimezone(UTC), end_et.astimezone(UTC)
 
 
 def main() -> int:
@@ -152,6 +180,8 @@ def main() -> int:
 
     if not args.no_ticks:
         fetch_ticks(client, cont_symbol, request, args, out_dir)
+    if not args.no_levels:
+        fetch_levels(client, cont_symbol, args, day)
     return 0
 
 
@@ -203,7 +233,115 @@ def fetch_ticks(client, cont_symbol, base_request, args, out_dir) -> None:
     )
 
 
-def update_manifest(*, symbol, cont_symbol, date, schema, rows, cost, size, path) -> None:
+def fetch_levels(client, cont_symbol, args, day: date_cls) -> None:
+    """Compute the true pre-session levels for the day and write a tracked answer
+    key (Option C / #7 dependency, ADR-0003 amendment).
+
+    These are levels that exist *before* 09:30, so the hidden-level drill can score
+    a trader's blind marks. Minimal real set for the first cut:
+      - PDH / PDL: prior RTH day (09:30-16:00 ET) high / low
+      - ONH / ONL: overnight Globex session [prior 18:00 ET, 09:30 ET) high / low
+    Computed from 1-minute bars (~60x cheaper than the 1s feed). The raw history
+    is discarded; only the derived numbers are committed (license-safe). PW/PM H/L,
+    prior Value Areas, and the Asia/London split (ET windows still TBD) layer on
+    later against the same schema.
+    """
+    start_utc, end_utc = levels_window_utc(day)
+    req = dict(dataset=DATASET, symbols=[cont_symbol], schema=LEVELS_SCHEMA,
+               start=start_utc, end=end_utc, stype_in="continuous")
+
+    out_path = LEVELS_DIR / f"{args.symbol}-{args.date}.json"
+    if out_path.exists() and not args.force:
+        print(f"Levels already exist: {out_path} (use --force to recompute).")
+        return
+
+    cost = client.metadata.get_cost(**req)
+    size = client.metadata.get_billable_size(**req)
+    print(f"Pre-session levels cost quote ({LEVELS_SCHEMA}, "
+          f"{LEVELS_LOOKBACK_DAYS}d lookback): ${cost:.4f} USD")
+    if cost > args.max_cost:
+        print(f"error: levels quote ${cost:.4f} exceeds --max-cost; skipping levels.",
+              file=sys.stderr)
+        return
+
+    print(f"Pulling {LEVELS_SCHEMA} history for pre-session levels ...")
+    frame = client.timeseries.get_range(**req).to_df(price_type="float")
+    if frame.empty:
+        print("warning: no history returned; cannot compute levels.", file=sys.stderr)
+        return
+
+    frame = frame.reset_index()
+    et = frame["ts_event"].dt.tz_convert(EXCHANGE_TZ)
+    frame["et"] = et
+    frame["et_date"] = et.dt.date
+    frame["mins"] = et.dt.hour * 60 + et.dt.minute  # ET minutes since midnight
+
+    levels: list[dict] = []
+    open_min, close_min = 570, 960  # 09:30, 16:00 ET
+
+    # --- Prior RTH day (PDH/PDL) ----------------------------------------------
+    rth = frame[(frame["mins"] >= open_min) & (frame["mins"] < close_min)
+                & (frame["et_date"] < day)]
+    prior_date = None
+    if rth.empty:
+        print("warning: no prior RTH session in window; PDH/PDL unavailable.",
+              file=sys.stderr)
+    else:
+        prior_date = max(rth["et_date"])
+        prior = rth[rth["et_date"] == prior_date]
+        levels.append(_level("PDH", "Prior day high", prior["high"].max()))
+        levels.append(_level("PDL", "Prior day low", prior["low"].min()))
+
+    # --- Overnight Globex session (ONH/ONL) -----------------------------------
+    on_start = datetime.combine(day - timedelta(days=1), GLOBEX_EVENING, tzinfo=EXCHANGE_TZ)
+    on_end = datetime.combine(day, SESSION_OPEN, tzinfo=EXCHANGE_TZ)
+    overnight = frame[(frame["et"] >= on_start) & (frame["et"] < on_end)]
+    if overnight.empty:
+        print("warning: no overnight bars in window; ONH/ONL unavailable.",
+              file=sys.stderr)
+    else:
+        levels.append(_level("ONH", "Overnight high", overnight["high"].max()))
+        levels.append(_level("ONL", "Overnight low", overnight["low"].min()))
+
+    if not levels:
+        print("error: computed no levels; not writing an empty answer key.",
+              file=sys.stderr)
+        return
+
+    payload = {
+        "schema_version": 1,
+        "symbol": args.symbol,
+        "resolved_symbol": cont_symbol,
+        "date": args.date,
+        "computed_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "source_schema": LEVELS_SCHEMA,
+        "prior_rth_date": prior_date.isoformat() if prior_date else None,
+        "overnight_et": f"{on_start.isoformat(timespec='minutes')} -> "
+                        f"{on_end.isoformat(timespec='minutes')}",
+        "levels": levels,  # the drill's answer key: mark blind, score on commit
+    }
+    LEVELS_DIR.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(payload, indent=2) + "\n")
+    marks = ", ".join(f"{lv['id']} {lv['price']}" for lv in levels)
+    print(f"Wrote {len(levels)} pre-session levels -> {out_path}")
+    print(f"  {marks}")
+
+    update_manifest(
+        symbol=args.symbol, cont_symbol=cont_symbol, date=args.date,
+        schema=LEVELS_SCHEMA, rows=len(frame), cost=cost, size=int(size),
+        path=out_path.relative_to(REPO_ROOT).as_posix(),
+        session_et=f"{LEVELS_LOOKBACK_DAYS}d lookback -> {SESSION_OPEN.isoformat(timespec='minutes')}",
+    )
+
+
+def _level(level_id: str, label: str, price: float) -> dict:
+    """One pre-session level entry for the answer key."""
+    return {"id": level_id, "label": label, "kind": "pre_session",
+            "price": round(float(price), 2)}
+
+
+def update_manifest(*, symbol, cont_symbol, date, schema, rows, cost, size, path,
+                    session_et: str | None = None) -> None:
     """Upsert a pull record into the tracked manifest (SPEC decision 13)."""
     manifest = {"schema_version": 1, "pulls": []}
     if MANIFEST_PATH.exists():
@@ -216,7 +354,8 @@ def update_manifest(*, symbol, cont_symbol, date, schema, rows, cost, size, path
         "stype_in": "continuous",
         "schema": schema,
         "date": date,
-        "session_et": f"{SESSION_OPEN.isoformat(timespec='minutes')}-"
+        "session_et": session_et or
+                      f"{SESSION_OPEN.isoformat(timespec='minutes')}-"
                       f"{SESSION_END.isoformat(timespec='minutes')}",
         "rows": rows,
         "billable_bytes": int(size),
