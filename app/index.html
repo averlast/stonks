@@ -26,6 +26,35 @@
     <div id="workspace">
       <main id="chart"></main>
       <aside id="sidebar">
+        <section id="prepPanel">
+          <div class="ticket-title" id="prepTitle">Prep — the day opens locked</div>
+          <div id="prepForm">
+            <p class="muted prep-hint">
+              Mark the pre-session levels you see on the prior day, call the bias, then commit to
+              freeze your plan and start the session.
+            </p>
+            <div class="field">
+              <label>Levels</label>
+              <button type="button" id="addLevel">＋ Add level</button>
+            </div>
+            <div id="prepLevels" class="box"></div>
+            <div class="field">
+              <label>Bias</label>
+              <textarea id="biasProse" rows="3" placeholder="Prose read of the day…"></textarea>
+            </div>
+            <div class="field">
+              <label>Call</label>
+              <div class="seg" id="biasCall">
+                <button type="button" data-v="bull">Bull</button>
+                <button type="button" data-v="bear">Bear</button>
+                <button type="button" data-v="chop">Chop</button>
+              </div>
+            </div>
+            <button type="button" id="commitPrep" class="primary">Commit prep &amp; start</button>
+            <div id="prepMsg" class="msg"></div>
+          </div>
+          <div id="prepReveal" class="box" hidden></div>
+        </section>
         <form id="ticket">
           <div class="ticket-title">Order ticket</div>
           <div class="field">

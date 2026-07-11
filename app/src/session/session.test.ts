@@ -5,8 +5,14 @@ import assert from "node:assert/strict";
 import type { Sec1Bar } from "../types";
 import { CONTRACTS, type FillConfig } from "../engine/contracts";
 import { FillEngine, type BracketRequest } from "../engine/fillEngine";
-import { fold, hashPrep, type PrepStub, type RecordedEvent } from "./events";
+import { fold, hashPrep, type Prep, type RecordedEvent } from "./events";
 import { SessionRecorder, memorySink } from "./recorder";
+
+const PREP: Prep = {
+  markedLevels: [{ price: 18400 }, { price: 17600, label: "overnight low" }],
+  biasProse: "gap-down, expect a sweep of the overnight low then a reclaim",
+  biasCall: "bear",
+};
 
 const bar = (t: number, o: number, h: number, l: number, c: number): Sec1Bar =>
   ({ t, o, h, l, c, v: 1 });
@@ -25,7 +31,7 @@ function harness() {
   const rec = new SessionRecorder({ symbol: "NQ", date: "2024-08-05", attempt: 1 }, memorySink);
   rec.attach(engine);
   rec.start();
-  rec.commitPrep({ stub: true, symbol: "NQ", date: "2024-08-05" });
+  rec.commitPrep(PREP);
   return { engine, rec };
 }
 const types = (log: readonly RecordedEvent[]) => log.map((e) => e.type);
@@ -142,10 +148,9 @@ test("cancelling a resting order logs order_cancelled and no trade", async () =>
 
 // --- prep hash is deterministic + tamper-evident ----------------------------
 test("prep hash is stable, key-order-independent, and changes on edit", () => {
-  const a: PrepStub & Record<string, unknown> = { stub: true, symbol: "NQ", date: "2024-08-05" };
-  const reordered: Record<string, unknown> = { date: "2024-08-05", symbol: "NQ", stub: true };
-  assert.equal(hashPrep(a), hashPrep(reordered), "canonicalised: key order irrelevant");
-  assert.notEqual(hashPrep(a), hashPrep({ ...a, date: "2024-08-06" }), "edit shows a new hash");
+  const reordered = { biasCall: PREP.biasCall, biasProse: PREP.biasProse, markedLevels: PREP.markedLevels };
+  assert.equal(hashPrep(PREP), hashPrep(reordered), "canonicalised: key order irrelevant");
+  assert.notEqual(hashPrep(PREP), hashPrep({ ...PREP, biasCall: "bull" }), "edit shows a new hash");
 });
 
 process.on("exit", () => {

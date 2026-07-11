@@ -19,17 +19,25 @@ export interface Envelope {
   at: string;
 }
 
-/** A frozen pre-market plan. #7 builds the real prep UI; #5 seals the shape now
- *  so `prep_committed` can carry a hash today (the integrity seal is structural). */
-export interface PrepStub {
-  stub: true;
-  symbol: string;
-  date: string;
+/** One pre-session level the trader marked blind during Prep (#7). `label` is
+ *  optional free text; scoring matches a mark to the nearest true level regardless. */
+export interface MarkedLevel {
+  price: number;
+  label?: string;
+}
+
+/** The frozen pre-market plan committed at the Prep gate (#7 / ADR-0003): the
+ *  blind level marks, a prose bias, and a bull/bear/chop call. Hashed into
+ *  `prep_committed` so a post-hoc edit is visible in git (the seal is structural). */
+export interface Prep {
+  markedLevels: MarkedLevel[];
+  biasProse: string;
+  biasCall: "bull" | "bear" | "chop";
 }
 
 export type SessionEvent =
   | { type: "session_started"; symbol: string; date: string; attempt: number }
-  | { type: "prep_committed"; hash: string; prep: PrepStub }
+  | { type: "prep_committed"; hash: string; prep: Prep }
   | { type: "order_placed"; orderId: string; order: BracketRequest }
   | { type: "order_cancelled"; orderId: string }
   | { type: "fill"; orderId: string; fill: Fill }

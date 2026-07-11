@@ -3,7 +3,7 @@ import type { FillEngine, FillEvent } from "../engine/fillEngine";
 import {
   fold,
   hashPrep,
-  type PrepStub,
+  type Prep,
   type RecordedEvent,
   type SessionEvent,
   type SessionState,
@@ -40,8 +40,8 @@ export class SessionRecorder {
     );
   }
 
-  /** Freeze the pre-market plan and seal its hash (#7 supplies real prep). */
-  commitPrep(prep: PrepStub, t = 0): void {
+  /** Freeze the pre-market plan and seal its hash (Prep gate, #7). */
+  commitPrep(prep: Prep, t = 0): void {
     this.record({ type: "prep_committed", hash: hashPrep(prep), prep }, t);
   }
 

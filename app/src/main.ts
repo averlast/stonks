@@ -20,7 +20,17 @@ import {
   memorySink,
   type PersistSink,
 } from "./session/recorder";
+import type { Prep } from "./session/events";
 import { foldDay } from "./review/review";
+import { LevelMarker } from "./prep/levelMarker";
+
+/** A revealed true pre-session level (from the Rust `load_levels` answer key). */
+interface TrueLevel {
+  id: string;
+  label: string;
+  kind: string;
+  price: number;
+}
 
 const TF_LABEL: Record<Timeframe, string> = { 60: "1m", 300: "5m", 900: "15m" };
 const SPEEDS: Speed[] = [1, 5, 30];
@@ -39,6 +49,29 @@ async function loadFeed(): Promise<BarFeed> {
   return f;
 }
 
+/** Prep-context bars (prior day + overnight) for the Prep chart; [] in browser
+ *  dev (Tauri-only source), so the prep chart just degrades to empty (#7). */
+async function loadPresession(symbol: string, date: string): Promise<Sec1Bar[]> {
+  if (!isTauri()) return [];
+  try {
+    return await invoke<Sec1Bar[]>("load_presession", { symbol, date });
+  } catch (err) {
+    console.warn("no prep-context bars", err);
+    return [];
+  }
+}
+
+/** The true pre-session levels revealed on commit; [] in browser dev (#7). */
+async function loadTrueLevels(symbol: string, date: string): Promise<TrueLevel[]> {
+  if (!isTauri()) return [];
+  try {
+    return await invoke<TrueLevel[]>("load_levels", { symbol, date });
+  } catch (err) {
+    console.warn("no levels answer key", err);
+    return [];
+  }
+}
+
 async function main(): Promise<void> {
   const feed = await loadFeed();
   const engine = new PlaybackEngine(feed);
@@ -46,10 +79,13 @@ async function main(): Promise<void> {
   const chart = new ChartView(document.getElementById("chart")!);
   let activeTf: Timeframe = 60;
 
-  // --- Review state (ADR-0002 unlock) ---------------------------------------
-  // Once the attempt is conceded (flatten/end-of-day), the whole day is handed
-  // over and the full 2h can be scrubbed both directions; trading is locked.
-  let reviewing = false;
+  // --- Phase (ADR-0003 Prep gate → attempt → ADR-0002 Review unlock) --------
+  // The day opens locked in `prep`; committing the plan unlocks the `attempt`;
+  // conceding it (flatten/end-of-day) opens `review` with the whole day handed
+  // over. Trading is live only in `attempt`.
+  type Phase = "prep" | "attempt" | "review";
+  let phase: Phase = "prep";
+  let prepBars: Sec1Bar[] = [];
   const reviewHistory = new Map<Timeframe, Candle[]>();
 
   // --- Fill engine (the integrity layer, SPEC §4) ---------------------------
@@ -90,10 +126,8 @@ async function main(): Promise<void> {
     sink,
   );
   recorder.start();
-  // #7 replaces this stub with the real frozen prep committed from the prep gate;
-  // #5 seals the event + hash shape now so the integrity seal is structural.
-  recorder.commitPrep({ stub: true, symbol: feed.meta.symbol, date: feed.meta.date });
   recorder.attach(fills); // every place/fill/stop-move/close now lands in the log
+  // prep_committed is emitted for real when the trader commits the Prep gate below.
 
   // --- DOM refs --------------------------------------------------------------
   const $ = (id: string) => document.getElementById(id)!;
@@ -139,7 +173,10 @@ async function main(): Promise<void> {
 
   function switchTimeframe(tf: Timeframe): void {
     activeTf = tf;
-    if (reviewing) {
+    if (phase === "prep") {
+      // Prep shows the prior-day + overnight context, folded to this timeframe.
+      chart.setData(foldDay(prepBars, tf));
+    } else if (phase === "review") {
       // The whole day is unlocked: show every candle, freely pannable both ways.
       chart.setData(reviewHistory.get(tf)!);
     } else {
@@ -157,8 +194,9 @@ async function main(): Promise<void> {
    *  every timeframe, and lock trading. The full 2h is now scrubbable both ways
    *  (native chart pan over the complete dataset), trades annotated (#6). */
   async function enterReview(): Promise<void> {
-    if (reviewing) return;
-    reviewing = true;
+    if (phase === "review") return;
+    const prev = phase;
+    phase = "review";
     engine.pause();
     let bars: Sec1Bar[];
     try {
@@ -166,7 +204,7 @@ async function main(): Promise<void> {
       bars = await feed.reviewBars();
     } catch (err) {
       console.error("review unlock failed", err);
-      reviewing = false;
+      phase = prev;
       return;
     }
     reviewHistory.clear();
@@ -181,6 +219,7 @@ async function main(): Promise<void> {
     stepBtn.disabled = true;
     reviewBtn.disabled = true;
     for (const b of speedBtns.values()) b.disabled = true;
+    ticketEl.hidden = true; // trading is done; keep the reveal panel visible
     syncControls();
     titleEl.textContent =
       `${feed.meta.symbol} · ${feed.meta.date} · attempt ${attempt} · REVIEW`;
@@ -244,7 +283,7 @@ async function main(): Promise<void> {
 
   ticket.addEventListener("submit", (e) => {
     e.preventDefault();
-    if (reviewing) return; // the attempt is over
+    if (phase !== "attempt") return; // locked in prep, over in review
     ticketMsg.textContent = "";
     const entryType = entryTypeEl.value as EntryType;
     const req: BracketRequest = {
@@ -277,7 +316,7 @@ async function main(): Promise<void> {
   window.addEventListener("keydown", (e) => {
     const el = document.activeElement;
     const typing = el?.tagName === "INPUT" || el?.tagName === "SELECT";
-    if (!reviewing && !typing && (e.key === "f" || e.key === "F") && fills.openPosition && lastBar) {
+    if (phase === "attempt" && !typing && (e.key === "f" || e.key === "F") && fills.openPosition && lastBar) {
       fills.flatten(lastBar);
     }
   });
@@ -375,8 +414,8 @@ async function main(): Promise<void> {
     const pos = fills.openPosition;
     const pend = fills.pendingEntry;
 
-    if (reviewing) {
-      // The attempt is sealed: no placement, no bracket editing, no flatten.
+    if (phase !== "attempt") {
+      // Prep (not yet started) or Review (sealed): no placement/editing/flatten.
       if (editor.active) editor.cancel();
       chart.setBracket({ entry: null, stop: null, target: null });
       drawBtn.disabled = true;
@@ -496,6 +535,139 @@ async function main(): Promise<void> {
   renderPosition();
   renderTrades();
   syncControls();
+
+  // --- Prep gate (#7 / ADR-0003) --------------------------------------------
+  const prepPanel = $("prepPanel");
+  const prepForm = $("prepForm");
+  const prepTitle = $("prepTitle");
+  const addLevelBtn = $("addLevel") as HTMLButtonElement;
+  const prepLevelsBox = $("prepLevels");
+  const biasProseEl = $("biasProse") as HTMLTextAreaElement;
+  const biasCallSeg = $("biasCall");
+  const commitPrepBtn = $("commitPrep") as HTMLButtonElement;
+  const prepMsg = $("prepMsg");
+  const prepReveal = $("prepReveal");
+  const ticketEl = $("ticket");
+
+  const marker = new LevelMarker(chart, CONTRACTS.NQ.tickSize);
+  let biasCall: Prep["biasCall"] | null = null;
+
+  for (const b of biasCallSeg.querySelectorAll("button")) {
+    b.addEventListener("click", () => {
+      biasCall = (b as HTMLButtonElement).dataset.v as Prep["biasCall"];
+      for (const x of biasCallSeg.querySelectorAll("button")) x.classList.remove("active");
+      b.classList.add("active");
+    });
+  }
+
+  function renderPrepLevels(): void {
+    const marks = marker.marksList;
+    if (marks.length === 0) {
+      prepLevelsBox.innerHTML = `<div class="muted">no marks yet — Add level, then drag</div>`;
+      return;
+    }
+    prepLevelsBox.innerHTML = "";
+    for (const m of marks) {
+      const row = document.createElement("div");
+      row.className = "prep-level-row";
+      row.innerHTML = `<span>${m.price.toFixed(2)}</span>`;
+      const rm = document.createElement("button");
+      rm.type = "button";
+      rm.textContent = "✕";
+      rm.onclick = () => marker.remove(m.id);
+      row.appendChild(rm);
+      prepLevelsBox.appendChild(row);
+    }
+  }
+  marker.onChange(renderPrepLevels);
+  renderPrepLevels();
+
+  // Seed a new mark near the middle of the visible prep candles.
+  const prepSeed = (): number => {
+    if (prepBars.length) {
+      const mid = prepBars[Math.floor(prepBars.length / 2)];
+      return (mid.h + mid.l) / 2;
+    }
+    return 0;
+  };
+  addLevelBtn.onclick = () => marker.add(prepSeed());
+
+  function renderReveal(truth: TrueLevel[], marks: number[]): void {
+    prepReveal.hidden = false;
+    if (truth.length === 0) {
+      prepReveal.innerHTML = `<h4>Levels revealed</h4><div class="muted">answer key unavailable (dev)</div>`;
+      return;
+    }
+    const rows = truth
+      .map((l) => {
+        const nearest = marks.length
+          ? Math.min(...marks.map((m) => Math.abs(m - l.price)))
+          : null;
+        const prox = nearest === null ? "not marked" : `nearest ${nearest.toFixed(2)} pts`;
+        return `<div class="reveal-row"><span>${l.id} ${l.price.toFixed(2)}</span><span class="muted">${prox}</span></div>`;
+      })
+      .join("");
+    prepReveal.innerHTML = `<h4>Levels revealed</h4>${rows}`;
+  }
+
+  async function commitPrep(): Promise<void> {
+    if (phase !== "prep") return;
+    if (!biasCall) {
+      prepMsg.textContent = "call the bias (bull / bear / chop) first";
+      return;
+    }
+    const prep: Prep = {
+      markedLevels: marker.prices.map((price) => ({ price })),
+      biasProse: biasProseEl.value.trim(),
+      biasCall,
+    };
+    // Freeze the plan (event-sourced seal, immutable) at the current sim second.
+    recorder.commitPrep(prep, lastBar ? lastBar.t : 0);
+    marker.disable();
+
+    // Reveal the true levels as persistent reference lines + a proximity readout.
+    const truth = await loadTrueLevels(feed.meta.symbol, feed.meta.date);
+    chart.setLevelLines(truth.map((l) => ({ label: l.id, price: l.price })));
+    renderReveal(truth, prep.markedLevels.map((m) => m.price));
+
+    // Unlock the attempt: drop the prep chart, swap to the live RTH feed.
+    phase = "attempt";
+    marker.destroy();
+    chart.setData(engine.historyOf(activeTf)); // empty; playback fills it forward
+    chart.fitContent();
+    syncPhase();
+  }
+  commitPrepBtn.onclick = () => void commitPrep();
+
+  /** Reconcile phase-scoped chrome: prep panel vs ticket, transport lock, title. */
+  function syncPhase(): void {
+    prepForm.hidden = phase !== "prep";
+    prepPanel.hidden = phase === "prep" ? false : prepReveal.hidden; // keep reveal visible
+    ticketEl.hidden = phase !== "attempt";
+    if (phase === "prep") {
+      playBtn.disabled = true;
+      stepBtn.disabled = true;
+      reviewBtn.disabled = true;
+      prepTitle.textContent = "Prep — the day opens locked";
+      titleEl.textContent = `${feed.meta.symbol} · ${feed.meta.date} · attempt ${attempt} · PREP`;
+    } else if (phase === "attempt") {
+      playBtn.disabled = false;
+      stepBtn.disabled = false;
+      reviewBtn.disabled = false;
+      prepTitle.textContent = "Prep — committed";
+      titleEl.textContent = `${feed.meta.symbol} · ${feed.meta.date} · attempt ${attempt}`;
+    }
+    syncControls();
+  }
+
+  // Enter Prep: show the prior-day + overnight context to mark against.
+  prepBars = await loadPresession(feed.meta.symbol, feed.meta.date);
+  if (prepBars.length) {
+    chart.setData(foldDay(prepBars, activeTf));
+    chart.fitContent();
+  }
+  marker.start();
+  syncPhase();
 
   // --- Transport controls ----------------------------------------------------
   playBtn.onclick = () => {

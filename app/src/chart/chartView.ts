@@ -37,6 +37,7 @@ export class ChartView {
   private series: ISeriesApi<"Candlestick">;
   private markers: ISeriesMarkersPluginApi<Time>;
   private priceLines: IPriceLine[] = [];
+  private levelLines: IPriceLine[] = [];
   readonly element: HTMLElement;
 
   constructor(container: HTMLElement) {
@@ -89,6 +90,23 @@ export class ChartView {
     if (b.entry !== null) add(b.entry, "#3b82f6", "entry");
     if (b.stop !== null) add(b.stop, "#ef5350", "stop");
     if (b.target !== null) add(b.target, "#26a69a", "target");
+  }
+
+  /** Draw the revealed true pre-session levels as persistent solid price lines
+   *  (#7). Kept separate from the working-order bracket lines so the two never
+   *  clobber each other, and they survive `setData` into the attempt. */
+  setLevelLines(levels: readonly { label: string; price: number }[]): void {
+    for (const l of this.levelLines) this.series.removePriceLine(l);
+    this.levelLines = levels.map((lv) =>
+      this.series.createPriceLine({
+        price: lv.price,
+        color: "#eab308",
+        lineWidth: 1,
+        lineStyle: LineStyle.Solid,
+        axisLabelVisible: true,
+        title: lv.label,
+      }),
+    );
   }
 
   setFillMarkers(marks: readonly FillMarker[]): void {

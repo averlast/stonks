@@ -273,3 +273,88 @@ button:disabled {
   border-radius: 3px;
   white-space: nowrap;
 }
+
+/* --- Prep level-marking overlay (#7) --- */
+.level-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  display: none;
+}
+.level-overlay.active {
+  display: block;
+}
+.level-line {
+  position: absolute;
+  left: 0;
+  right: 56px; /* clear the price axis */
+  height: 0;
+  border-top: 1px dashed #3b82f6;
+  pointer-events: auto;
+  cursor: ns-resize;
+  transform: translateY(-0.5px);
+}
+.level-line::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -6px;
+  height: 12px;
+}
+.level-line.locked {
+  opacity: 0.35;
+  pointer-events: none;
+}
+.level-label {
+  position: absolute;
+  left: 6px;
+  top: -9px;
+  background: #3b82f6;
+  color: #0e1116;
+  font: 600 11px/1.4 ui-monospace, monospace;
+  padding: 0 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+/* --- Prep panel (#7) --- */
+#prepPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.prep-hint {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  margin: 0;
+}
+#biasProse {
+  flex: 1;
+  background: #0e1116;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0.3rem 0.4rem;
+  font-family: ui-monospace, monospace;
+  resize: vertical;
+}
+.prep-level-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+  padding: 0.15rem 0;
+}
+.prep-level-row button {
+  padding: 0.1rem 0.4rem;
+}
+.reveal-row {
+  display: flex;
+  justify-content: space-between;
+  font-family: ui-monospace, monospace;
+  font-size: 0.76rem;
+  padding: 0.12rem 0;
+}

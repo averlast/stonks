@@ -18,12 +18,15 @@ open (NQ/ES), commit a plan, trade forward-only with honest fills, then get AI c
 3. Build discipline (ADR-0006): prove the **playback + fill engines on the whipsaw day first**,
    then layer on the full environment.
 
-## Next action — issue #7 (prep gate)
-Issues **#1–#6 DONE** + on-chart trade management. The engine core is proven on the whipsaw day
-(playback + tick-resolved fills + place/manage/exit), every attempt is **sealed** as an append-only
-event log (#5), and after the attempt the full day unlocks for annotated **Review** (#6). Next is
-**#7 (prep gate)** → **#8 (grade)**. #7 supplies the real frozen prep that replaces #5's
-`prep_committed` stub.
+## Next action — issue #8 (grade)
+Issues **#1–#7 DONE** + on-chart trade management. Full loop now runs: **Prep gate** (mark levels
++ bias + call, commit freezes & reveals true levels, #7) → **attempt** (playback + tick-resolved
+fills + place/manage/exit, sealed as an append-only event log, #5) → **Review** (full-day unlock,
+annotated scrub, #6). Next is **#8 — grade** (ADR-0003): the objective Prep report card
+(level-marking coverage/precision + bias call) + AI hard/soft synthesis. The frozen prep
+(`prep_committed`) and trade tape are both in the event log for the grader to fold.
+*Hand-verify pending:* the interactive Prep marking/commit UI (like #3) — boots clean, all
+tests pass, but the drag/commit click-through wasn't self-verified.
 
 ### #7 level source — RESOLVED (Option C, 2026-07-10)
 The "true" pre-session levels the hidden-level drill reveals are now computed by ingestion and
@@ -33,30 +36,26 @@ prior RTH day 09:30–16:00; `ONH`/`ONL` = overnight Globex `[prior 18:00, 09:30
 answer key is committed (PDH 18761 / PDL 18385.75 / ONH 18390 / ONL 17351; ~$0.017). PW/PM H/L,
 prior VAs, and the Asia/London split (ET windows TBD) extend the same file later.
 
-### #7 prep-UX — RESOLVED: mark on the prior-day chart
-User's call: show the **prior-day chart** and let the trader drag level lines on it. The eval is
-"practice the marking ritual," not hiding the levels — so the drill is coverage/ritual, not a
-blind precision test. Data layer for this is **DONE** (commit `6972bc3`): ingestion persists
-prior-RTH-day + overnight 1m bars (gitignored `..._presession-1m.parquet`), and Rust serves
-`load_presession` (ungated context) + `load_levels` (the answer key). Rust tests → 6.
-
-### #7 REMAINING — the frontend prep phase (next build; hand-verify like #3)
-Add a `phase: "prep" | "attempt" | "review"` to `main.ts` (extends the existing `reviewing`
-flag). On load → **prep**:
-- Show the prep chart from `load_presession` (dev degrades to empty). Lock transport (play/step/
-  End&Review) + trading until commit.
-- **Marking tool** (new, e.g. `app/src/prep/levelMarker.ts`): draggable horizontal level lines
-  on the chart (reuse `ChartView.priceToY/yToPrice` + the overlay pattern from `bracketEditor.ts`);
-  add/drag/remove; captures `{price, label?}[]`.
-- Prep panel (new DOM near the ticket): the marks list + **prose bias** textarea + **bull/bear/
-  chop** segmented + **Commit prep** button.
-- **Commit** → build the real prep `{markedLevels, biasProse, biasCall}`; call
-  `recorder.commitPrep(realPrep)` (REMOVE the auto-stub `commitPrep` currently in `main.ts`);
-  `load_levels` → draw the true levels + a small proximity readout (nearest mark per true level);
-  transition to **attempt**: switch chart to the live RTH feed and unlock transport + trading.
-- Immutability is the event seal (already); guard against a second commit (button disabled after).
-Acceptance maps 1:1: lock-until-commit, hidden-then-revealed levels, capture marks+bias+call
-frozen at commit, immutable via the log.
+### #7 outcome (2026-07-10) — Prep gate (ADR-0003)
+Prep-UX per the user: mark on the **prior-day chart** (the eval is practising the marking ritual,
+not hiding levels), so the drill is coverage/proximity, not a blind precision test.
+- **Data layer** (`6972bc3`): ingestion persists prior-RTH-day + overnight 1m bars (gitignored
+  `..._presession-1m.parquet`); Rust `load_presession` (ungated context) + `load_levels` (answer
+  key). The true-level source is Option C (`data/levels/{symbol}-{date}.json`).
+- **Prep model** (`session/events.ts`): `Prep { markedLevels, biasProse, biasCall }` replaces the
+  #5 `PrepStub`; `prep_committed` carries it, hashed. `recorder.commitPrep(Prep)`.
+- **Marking tool** (`prep/levelMarker.ts`): draggable horizontal level lines (own overlay, same
+  price↔pixel approach as `bracketEditor.ts`); add/drag/remove; `ChartView.setLevelLines` draws
+  the revealed true levels as persistent native price lines (separate from the bracket lines).
+- **Phase machine** (`main.ts`): `phase: "prep" | "attempt" | "review"` (subsumes the old
+  `reviewing` flag). On load → **prep**: show the `load_presession` chart (dev degrades to empty),
+  lock transport + trading. Prep panel = marks list + prose bias + bull/bear/chop + Commit.
+  **Commit** → real `prep_committed` (immutable seal; #5 auto-stub removed) → `load_levels` reveals
+  the true levels + a nearest-mark proximity readout → transition to **attempt** (swap to the live
+  RTH feed, unlock trading). A second commit is impossible (guarded + marker destroyed).
+- **Tests**: TS `npm test` → 29 (session tests updated to the real `Prep`); Rust → 6. Typecheck +
+  build clean; app boots clean in Prep. *Interactive drag/commit is a hand-check (repo UX
+  convention, like #3).*
 
 ### #6 outcome (2026-07-10) — annotated Review scrub (ADR-0002 unlock)
 - **The unlock is server-enforced** (`lib.rs`): `Feed.review_unlocked` (re-armed on every
