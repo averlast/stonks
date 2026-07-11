@@ -43,18 +43,6 @@ async function loadFeed(): Promise<BarFeed> {
   return f;
 }
 
-/** Prep-context bars (prior day + overnight) for the Prep chart; [] in browser
- *  dev (Tauri-only source), so the prep chart just degrades to empty (#7). */
-async function loadPresession(symbol: string, date: string): Promise<Sec1Bar[]> {
-  if (!isTauri()) return [];
-  try {
-    return await invoke<Sec1Bar[]>("load_presession", { symbol, date });
-  } catch (err) {
-    console.warn("no prep-context bars", err);
-    return [];
-  }
-}
-
 /** The true pre-session levels revealed on commit; [] in browser dev (#7). */
 async function loadTrueLevels(symbol: string, date: string): Promise<TrueLevel[]> {
   if (!isTauri()) return [];
@@ -633,14 +621,31 @@ async function main(): Promise<void> {
   const chartEl = $("chart");
   function showPrepChart(): void {
     if (phase !== "prep" || !prepBars.length) return;
+    // Wait for the container to be laid out; a setData/fitContent into a 0-width
+    // canvas parks the view on empty space.
     if (chartEl.clientWidth === 0 || chartEl.clientHeight === 0) {
       requestAnimationFrame(showPrepChart);
       return;
     }
     chart.setData(foldDay(prepBars, activeTf));
     chart.fitContent();
+    // Re-fit once more after the width has settled, so the whole day is framed
+    // (fitContent at a mid-resize width otherwise leaves it zoomed to the tail).
+    requestAnimationFrame(() => {
+      if (phase === "prep") chart.fitContent();
+    });
   }
-  prepBars = await loadPresession(feed.meta.symbol, feed.meta.date);
+  try {
+    prepBars = isTauri()
+      ? await invoke<Sec1Bar[]>("load_presession", {
+          symbol: feed.meta.symbol,
+          date: feed.meta.date,
+        })
+      : [];
+  } catch (err) {
+    console.warn("no prep-context bars", err);
+    prepBars = [];
+  }
   showPrepChart();
   marker.start();
   syncPhase();

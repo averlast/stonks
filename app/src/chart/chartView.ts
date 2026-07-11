@@ -149,6 +149,7 @@ export class ChartView {
   setPriceAutoScale(on: boolean): void {
     this.chart.priceScale("right").applyOptions({ autoScale: on });
   }
+
 }
 
 function toLwc(c: Candle): CandlestickData {
