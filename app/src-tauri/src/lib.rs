@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use bars::Sec1Bar;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 
 /// The day's bars plus a forward-only cursor. The webview never gets a handle to
@@ -81,11 +81,33 @@ fn bars_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data/bars")
 }
 
+/// One true pre-session level (the hidden-drill answer key, ADR-0003 amendment),
+/// mirroring an entry in `data/levels/{symbol}-{date}.json`.
+#[derive(Deserialize, Serialize)]
+struct Level {
+    id: String,
+    label: String,
+    kind: String,
+    price: f64,
+}
+
+/// The levels answer-key file; extra keys (metadata) are ignored on parse.
+#[derive(Deserialize)]
+struct LevelsFile {
+    levels: Vec<Level>,
+}
+
 /// Tracked Session records root: repo/data/sessions (NOT gitignored — records are
 /// the source of truth, decisions 12–13). Bundled builds resolve an app data dir
 /// (deferred with the bars path; slice-0 is dev-run).
 fn sessions_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data/sessions")
+}
+
+/// Tracked pre-session levels root: repo/data/levels (the drill's answer key —
+/// derived numbers, committed; the raw history it was computed from stays local).
+fn levels_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data/levels")
 }
 
 /// The next attempt number for (date, symbol): one past the highest existing
@@ -139,6 +161,28 @@ fn load_day(symbol: String, date: String, state: State<AppState>) -> Result<DayM
     feed.set_day(loaded, symbol.clone(), date.clone());
     feed.ticks = ticks;
     Ok(DayMeta { symbol, date, count })
+}
+
+/// The prep-context bars (prior RTH day + overnight, 1m) for the Prep phase (#7).
+/// Ungated on purpose: these are levels/price that existed BEFORE 09:30, so
+/// showing them is not a peek at the session's future. Empty cache → error →
+/// the frontend degrades (no prep chart).
+#[tauri::command]
+fn load_presession(symbol: String, date: String) -> Result<Vec<Sec1Bar>, String> {
+    let path = bars_dir()
+        .join(&symbol)
+        .join(format!("{date}_presession-1m.parquet"));
+    bars::load_parquet(&path).map_err(|e| e.to_string())
+}
+
+/// The true pre-session levels for the day — the hidden-drill answer key revealed
+/// on prep commit (#7 / ADR-0003). Read from the tracked `data/levels` JSON.
+#[tauri::command]
+fn load_levels(symbol: String, date: String) -> Result<Vec<Level>, String> {
+    let path = levels_dir().join(format!("{symbol}-{date}.json"));
+    let text = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let file: LevelsFile = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+    Ok(file.levels)
 }
 
 /// The gated feed: returns only the NEXT unseen second, or null at end of day.
@@ -236,6 +280,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             load_day,
+            load_presession,
+            load_levels,
             next_sim_second,
             reset_feed,
             ticks_for_second,
@@ -286,6 +332,19 @@ mod tests {
         assert!(bars.len() > 7000, "expected ~7188 bars, got {}", bars.len());
         assert_eq!(bars[0].t, 1_722_850_200, "first bar is 09:30:00 ET");
         assert!(bars.windows(2).all(|w| w[0].t <= w[1].t), "bars are time-ordered");
+    }
+
+    #[test]
+    fn loads_the_pre_session_levels_answer_key() {
+        let path = levels_dir().join("NQ-2024-08-05.json");
+        let text = fs::read_to_string(&path).expect("levels answer key present");
+        let file: LevelsFile = serde_json::from_str(&text).expect("parse levels json");
+        // The minimal real set: prior-day + overnight high/low.
+        let ids: Vec<&str> = file.levels.iter().map(|l| l.id.as_str()).collect();
+        assert!(ids.contains(&"PDH") && ids.contains(&"PDL"));
+        assert!(ids.contains(&"ONH") && ids.contains(&"ONL"));
+        let pdh = file.levels.iter().find(|l| l.id == "PDH").unwrap();
+        assert!(pdh.price > 18000.0, "PDH is a real NQ price, got {}", pdh.price);
     }
 
     #[test]

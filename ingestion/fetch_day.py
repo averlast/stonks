@@ -308,6 +308,22 @@ def fetch_levels(client, cont_symbol, args, day: date_cls) -> None:
               file=sys.stderr)
         return
 
+    # Persist the prep-context bars (prior RTH day + overnight, 1m) so the app can
+    # show a real chart to mark levels against during Prep (#7). Cache-like and
+    # gitignored, same canonical `t` (ET wall clock as epoch seconds) as the 1s
+    # bars, so Rust's load_parquet reads it unchanged.
+    context_start = (datetime.combine(prior_date, SESSION_OPEN, tzinfo=EXCHANGE_TZ)
+                     if prior_date else on_start)
+    ctx = frame[(frame["et"] >= context_start) & (frame["et"] < on_end)].copy()
+    if ctx.empty:
+        print("warning: no prep-context bars to persist.", file=sys.stderr)
+    else:
+        ctx["t"] = ctx["et"].dt.tz_localize(None).astype("int64") // 10**9
+        ctx_path = BARS_DIR / args.symbol / f"{args.date}_presession-1m.parquet"
+        ctx_path.parent.mkdir(parents=True, exist_ok=True)
+        ctx[["t", "open", "high", "low", "close", "volume"]].to_parquet(ctx_path, index=False)
+        print(f"Wrote {len(ctx):,} prep-context bars -> {ctx_path}")
+
     payload = {
         "schema_version": 1,
         "symbol": args.symbol,
