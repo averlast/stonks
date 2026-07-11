@@ -25,16 +25,22 @@ event log (#5), and after the attempt the full day unlocks for annotated **Revie
 **#7 (prep gate)** → **#8 (grade)**. #7 supplies the real frozen prep that replaces #5's
 `prep_committed` stub.
 
-### #7 OPEN QUESTION before building — where do "true" pre-session levels come from?
-#7 reveals true pre-session levels on Commit for the hidden-level drill (ADR-0003). But those
-levels — PDH/PDL, PW/PM H/L, Asia/London/overnight H/L, prior VAs — **require data we don't
-ingest**: our bars are only 09:30–11:30. Options to resolve with the user before #7:
-(a) a hand-populated sidecar `data/levels/{symbol}-{date}.json` for the whipsaw day (fastest);
-(b) extend `fetch_day.py` to also pull prior-day RTH + overnight sessions and compute them (a
-real ingestion sub-task); (c) ship #7's gate/seal/reveal mechanic with a **placeholder** true-set
-and defer precision scoring (which is #8) until the level source lands. The prep-gate *flow*
-(lock → mark → bias → call → commit → reveal → unlock) has no dependency; only the *reveal
-payload* does.
+### #7 level source — RESOLVED (Option C, 2026-07-10)
+The "true" pre-session levels the hidden-level drill reveals are now computed by ingestion and
+committed as a tracked answer key. `ingestion/fetch_day.py` (+`--no-levels`) folds cheap
+`ohlcv-1m` history into **`data/levels/{symbol}-{date}.json`** (minimal real set: `PDH`/`PDL` =
+prior RTH day 09:30–16:00; `ONH`/`ONL` = overnight Globex `[prior 18:00, 09:30)`). NQ 2024-08-05
+answer key is committed (PDH 18761 / PDL 18385.75 / ONH 18390 / ONL 17351; ~$0.017). PW/PM H/L,
+prior VAs, and the Asia/London split (ET windows TBD) extend the same file later.
+
+### #7 build plan — one prep-UX fork to settle first
+`prep_committed` shape + hash are already sealed (#5 stub); the answer key exists. To build:
+lock the attempt in a **PREP phase** (transport + trading disabled) → user marks pre-session
+levels + prose bias + bull/bear/chop → **Commit** emits the real `prep_committed` (replacing the
+stub), reveals the true levels (Rust `load_levels` reads the JSON; dev degrades), and unlocks.
+**Fork:** there is *no pre-session chart* to mark on (our bars start at 09:30 and showing them
+early is lookahead), so blind "marking" is almost certainly **numeric price entry**, not
+chart-drawing — confirm before building.
 
 ### #6 outcome (2026-07-10) — annotated Review scrub (ADR-0002 unlock)
 - **The unlock is server-enforced** (`lib.rs`): `Feed.review_unlocked` (re-armed on every
