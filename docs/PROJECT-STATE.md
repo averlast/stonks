@@ -19,14 +19,53 @@ open (NQ/ES), commit a plan, trade forward-only with honest fills, then get AI c
    then layer on the full environment.
 
 ## Next action — issue #8 (grade)
-Issues **#1–#7 DONE** + on-chart trade management. Full loop now runs: **Prep gate** (mark levels
-+ bias + call, commit freezes & reveals true levels, #7) → **attempt** (playback + tick-resolved
-fills + place/manage/exit, sealed as an append-only event log, #5) → **Review** (full-day unlock,
-annotated scrub, #6). Next is **#8 — grade** (ADR-0003): the objective Prep report card
-(level-marking coverage/precision + bias call) + AI hard/soft synthesis. The frozen prep
-(`prep_committed`) and trade tape are both in the event log for the grader to fold.
-*Hand-verify pending:* the interactive Prep marking/commit UI (like #3) — boots clean, all
-tests pass, but the drag/commit click-through wasn't self-verified.
+Issues **#1–#7 DONE** + on-chart trade management, **hand-verified end-to-end** (2026-07-11): the
+full loop runs — **Prep gate** (mark levels/zones on the prior-day chart, prose bias, bull/bear/
+chop, commit freezes & reveals the true levels alongside your own marks, #7) → **attempt**
+(playback + tick-resolved fills + place/manage/exit, sealed as an append-only event log, #5) →
+**Review** (full-day unlock, annotated scrub, #6). Next is **#8 — grade**, the last slice to a
+first graded trade.
+
+### ⚠ Dev gotchas learned this session (read before running the app)
+- **`app/vite.config.ts` is load-bearing.** Without it Vite full-reloads the webview at startup
+  (dep pre-bundle), and that reload races Tauri's `__TAURI_INTERNALS__` injection → `isTauri()`
+  flips **false** → the app silently falls back to browser-dev mode (gated feed + prep bars stop
+  loading, chart goes blank). The config pins `optimizeDeps.include` + `strictPort` to stop it.
+- **Editing frontend files while `tauri dev` runs triggers an HMR reload that can also drop Tauri
+  mode.** After code changes, do a **fresh `npx tauri dev`** rather than trusting the hot-reload.
+- Run the app: `cd app && npx tauri dev` (needs `~/.cargo/bin` on PATH). The gated feed + prep
+  bars only work under Tauri; a plain browser (`npm run dev`) degrades (no prep chart).
+
+### #8 build plan (start here on clean context) — ADR-0003, SPEC §5, issue #8
+Two buckets. **(1) Prep report card — objective, engine-computed** (portable TS, likely a new
+`app/src/grade/` folding the session event log + the levels answer key):
+- **Level-marking accuracy** via the hidden-drill: fold `prep_committed` → the trader's
+  `markedLevels`; load the true levels (`load_levels`). Score **coverage** (did they mark each
+  in-scope level — the toggle set is `PDH/PDL/ONH/ONL` today) + **precision** (distance per mark,
+  full credit within a few pts, graceful decay; **per-symbol tolerance is an open param**).
+- **Bias call** (bull/bear/chop) vs the realized session — needs a **deterministic bias
+  classifier over the 2h traded window** (thresholds are an **open param**, ADR-0003).
+- Volume-zone accuracy is **deferred** (ships with the profiles module, #14) — not slice-0.
+**(2) AI synthesis (hard + soft)**: build a **hard digest** (trades, R, MAE/MFE, entry proximity
+to marked levels, consistency with the called bias) + soft inputs (prose bias, journal) → one
+**Anthropic call** that narrates adherence/execution/outcome and coaches (it does NOT compute the
+objective numbers). Then append a **`grade_computed`** event (already in the event vocabulary) and
+show a report-card panel in Review.
+
+Prerequisites / decisions for #8:
+- **`ANTHROPIC_API_KEY` is not in `.env` yet** — add it before the AI call (never paste in chat).
+- **Where the API call lives:** keep the key server-side → a **Rust command** reading the key
+  (mirrors how ingestion isolates the Databento key), not a frontend fetch. Consult the
+  **`claude-api` skill** when wiring it.
+- **Model IDs:** the open-params list still says `claude-sonnet-4-6` / `claude-opus-4-8` — update
+  to current (Sonnet default, Opus for deep end-of-module coaching) per the `claude-api` skill.
+- The Journal (prose prompts) is an open param (ADR-0003) — a minimal journal field can precede
+  the AI call, or stub it for #8.
+
+### Deferred UX the user asked for (2026-07-11) — issue #16
+The user's real prep process reads **daily/hourly over ~a week** for trend; #7's prep is minimal
+(1m/5m/15m over prior-day + overnight only). Higher-timeframe context is **issue #16 (HTF context
+charts + trend read: 30m/1h/4h + up/down/range trend)**. Daily + a week of history folds in there.
 
 ### #7 level source — RESOLVED (Option C, 2026-07-10)
 The "true" pre-session levels the hidden-level drill reveals are now computed by ingestion and
@@ -60,9 +99,17 @@ not hiding levels), so the drill is coverage/proximity, not a blind precision te
   **Commit** → real `prep_committed` (immutable seal; #5 auto-stub removed) → `load_levels` reveals
   the true levels + a nearest-mark proximity readout → transition to **attempt** (swap to the live
   RTH feed, unlock trading). A second commit is impossible (guarded + marker destroyed).
+- **Post-hand-test polish (2026-07-11, user-confirmed working)**: (a) the blank-chart root cause
+  was the missing `vite.config.ts` (see Dev gotchas above), not rendering — LWC held all 1380
+  candles fine. (b) On commit the attempt now shows **both** the true levels (yellow, descriptive
+  labels "Overnight high" etc.) **and the trader's own marks** (levels blue-dashed, zone edges
+  purple-dashed) via `ChartView.setLevelLines` (now per-line color + dashed). (c) The reveal panel
+  uses descriptive level names. (d) Added a "press ▶ Play to start" hint (the attempt chart is
+  empty until playback runs). *Note for this crash day: the true levels (18385–18761) sit far
+  above the ~17561 open, so their lines are off the top of the RTH view until you zoom out; the
+  reveal panel lists all prices.*
 - **Tests**: TS `npm test` → 29 (session tests updated to the real `Prep`); Rust → 6. Typecheck +
-  build clean; app boots clean in Prep. *Interactive drag/commit is a hand-check (repo UX
-  convention, like #3).*
+  build clean; hand-verified end-to-end in the running app.
 
 ### #6 outcome (2026-07-10) — annotated Review scrub (ADR-0002 unlock)
 - **The unlock is server-enforced** (`lib.rs`): `Feed.review_unlocked` (re-armed on every
