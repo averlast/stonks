@@ -18,7 +18,7 @@
       <div class="group" id="speeds" title="Speed changes cadence only"></div>
       <div class="group" id="timeframes" title="Co-primary timeframes"></div>
       <div class="group readout">
-        <span class="label">clock</span><span id="clock" class="mono">--:--:--</span>
+        <span class="label">clock (ET)</span><span id="clock" class="mono">--:--:--</span>
         <span class="label">last</span><span id="price" class="mono">—</span>
         <span class="label">bars</span><span id="progress" class="mono">0 / 0</span>
       </div>
@@ -64,6 +64,21 @@
             <div class="seg" id="side">
               <button type="button" data-v="long" class="active">Long</button>
               <button type="button" data-v="short">Short</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>Order</label>
+            <div class="seg" id="orderType">
+              <button type="button" data-v="market" class="active">Market</button>
+              <button type="button" data-v="limit">Limit</button>
+              <button type="button" data-v="stop">Stop</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>Draw</label>
+            <div class="seg" id="drawMode" title="Click = click to set entry, then drag stop/target · Drag = drag all three from a seed">
+              <button type="button" data-v="click" class="active">Click</button>
+              <button type="button" data-v="drag">Drag</button>
             </div>
           </div>
           <div class="field"><label>Size</label><input id="size" type="number" step="1" min="1" value="1" /></div>

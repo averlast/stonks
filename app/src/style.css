@@ -151,6 +151,12 @@ button:disabled {
 .seg button {
   padding: 0.3rem 0.55rem;
 }
+.seg.disabled {
+  opacity: 0.4;
+}
+.seg button:disabled {
+  cursor: not-allowed;
+}
 
 #place {
   background: var(--accent);
@@ -344,7 +350,7 @@ button:disabled {
 /* Floating action bar over the chart (Prep marking tools). */
 #chartTools {
   position: absolute;
-  bottom: 14px;
+  top: 12px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 6;
@@ -361,6 +367,12 @@ button:disabled {
 }
 #chartTools button {
   padding: 0.35rem 0.7rem;
+}
+/* A level being placed: follows the cursor, dashed + translucent, click to drop. */
+.level-line.ghost {
+  pointer-events: none;
+  opacity: 0.75;
+  border-top-style: dashed;
 }
 .level-label {
   position: absolute;

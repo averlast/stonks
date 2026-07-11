@@ -23,8 +23,11 @@ export class BracketEditor {
   private raf = 0;
   private draft: DraftBracket | null = null;
   private dragging: Handle | null = null;
-  private mode: "place" | "manage" | null = null;
+  private mode: "place" | "place-entry" | "manage" | null = null;
   private draggable = new Set<Handle>();
+  /** Side chosen for a click-to-place entry, before the entry click lands. */
+  private pendingSide: Side = "long";
+  private placeCleanup: (() => void) | null = null;
   private onChangeCb: (d: DraftBracket | null) => void = () => {};
 
   constructor(
@@ -43,9 +46,9 @@ export class BracketEditor {
   }
 
   get active(): boolean {
-    return this.draft !== null;
+    return this.draft !== null || this.mode === "place-entry";
   }
-  get editMode(): "place" | "manage" | null {
+  get editMode(): "place" | "place-entry" | "manage" | null {
     return this.mode;
   }
   get value(): DraftBracket | null {
@@ -55,17 +58,83 @@ export class BracketEditor {
     this.onChangeCb = cb;
   }
 
-  /** PLACEMENT: seed a fresh bracket around `entry`; all three lines draggable.
-   *  Pins the price scale so the lines don't drift while aiming. */
-  start(side: Side, entry: number): void {
+  /** Seed a bracket around `entry` and enter placement with `draggable` handles
+   *  editable. Pins the price scale so the lines don't drift while aiming. */
+  private seedPlace(side: Side, entry: number, draggable: Set<Handle>): void {
     const dir = side === "long" ? 1 : -1;
-    this.begin("place", new Set(["entry", "stop", "target"]), {
+    this.begin("place", draggable, {
       side,
       entry: this.round(entry),
       stop: this.round(entry - 30 * dir),
       target: this.round(entry + 60 * dir),
     });
     this.chart.setPriceAutoScale(false);
+  }
+
+  /** PLACEMENT (drag style): all three lines draggable from a seed price. */
+  start(side: Side, entry: number): void {
+    this.seedPlace(side, entry, new Set(["entry", "stop", "target"]));
+  }
+
+  /** PLACEMENT (market): entry is fixed at the current price; drag stop/target only. */
+  startMarket(side: Side, current: number): void {
+    this.seedPlace(side, current, new Set(["stop", "target"]));
+  }
+
+  /** PLACEMENT (click style): a ghost entry line tracks the cursor; the next click on
+   *  the chart sets the entry, then stop/target appear as draggable bars. Escape
+   *  cancels. Entry stays fixed after the click. */
+  startClickPlace(side: Side): void {
+    this.pendingSide = side;
+    this.mode = "place-entry";
+    this.overlay.classList.add("active");
+    this.chart.setPriceAutoScale(false);
+    const el = this.chart.element;
+    const entryLine = this.lines.entry;
+    this.lines.stop.style.display = "none";
+    this.lines.target.style.display = "none";
+    let price = 0;
+
+    const paint = (y: number): void => {
+      entryLine.style.display = "block";
+      entryLine.style.top = `${y}px`;
+      (entryLine.firstChild as HTMLSpanElement).textContent =
+        `entry ${price.toFixed(2)} · click to set`;
+    };
+    const yOf = (ev: PointerEvent): number => ev.clientY - el.getBoundingClientRect().top;
+    const move = (ev: PointerEvent): void => {
+      const y = yOf(ev);
+      const p = this.chart.yToPrice(y);
+      if (p === null) return;
+      price = this.round(p);
+      paint(y);
+    };
+    const set = (ev: PointerEvent): void => {
+      const p = this.chart.yToPrice(yOf(ev));
+      if (p === null) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const entry = this.round(p);
+      this.clearPlaceEntry();
+      this.seedPlace(this.pendingSide, entry, new Set(["stop", "target"]));
+    };
+    const key = (ev: KeyboardEvent): void => {
+      if (ev.key === "Escape") this.cancel();
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("click", set);
+    window.addEventListener("keydown", key);
+    this.placeCleanup = () => {
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("click", set);
+      window.removeEventListener("keydown", key);
+    };
+    this.onChangeCb(null); // no draft to arm until the entry is clicked
+  }
+
+  private clearPlaceEntry(): void {
+    this.placeCleanup?.();
+    this.placeCleanup = null;
   }
 
   /** MANAGEMENT: attach to a LIVE position; entry is fixed, stop/target draggable
@@ -89,6 +158,10 @@ export class BracketEditor {
   }
 
   setSide(side: Side): void {
+    if (this.mode === "place-entry") {
+      this.pendingSide = side; // the entry click hasn't landed yet
+      return;
+    }
     if (this.mode !== "place" || !this.draft || this.draft.side === side) return;
     // Flip stop/target across the entry so the geometry stays valid.
     const { entry } = this.draft;
@@ -100,11 +173,13 @@ export class BracketEditor {
   }
 
   cancel(): void {
+    this.clearPlaceEntry(); // drop any in-flight entry-click listeners
     this.draft = null;
     this.dragging = null;
     this.mode = null;
     this.draggable.clear();
     this.overlay.classList.remove("active");
+    for (const h of ["entry", "stop", "target"] as Handle[]) this.lines[h].style.display = "none";
     this.chart.setPriceAutoScale(true); // restore live autoscale
     if (this.raf) cancelAnimationFrame(this.raf);
     this.raf = 0;

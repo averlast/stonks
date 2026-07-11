@@ -250,7 +250,12 @@ async function main(): Promise<void> {
   const flattenBtn = $("flatten") as HTMLButtonElement;
   const cancelOrderBtn = $("cancelOrder") as HTMLButtonElement;
   const ticketMsg = $("ticketMsg");
+  const orderTypeSeg = $("orderType");
+  const drawModeSeg = $("drawMode");
   let side: Side = "long";
+  // Explicit entry type (replaces the old geometry inference) and draw style.
+  let orderType: EntryType = "market";
+  let drawMode: "click" | "drag" = "click";
 
   for (const b of sideSeg.querySelectorAll("button")) {
     b.addEventListener("click", () => {
@@ -260,6 +265,29 @@ async function main(): Promise<void> {
       editor.setSide(side); // keep an in-progress on-chart draft in sync
     });
   }
+
+  // Draw style only matters for limit/stop — a market entry is always the current price.
+  function syncDrawModeEnabled(): void {
+    const off = orderType === "market";
+    drawModeSeg.classList.toggle("disabled", off);
+    for (const b of drawModeSeg.querySelectorAll("button")) (b as HTMLButtonElement).disabled = off;
+  }
+  for (const b of orderTypeSeg.querySelectorAll("button")) {
+    b.addEventListener("click", () => {
+      orderType = (b as HTMLButtonElement).dataset.v as EntryType;
+      for (const x of orderTypeSeg.querySelectorAll("button")) x.classList.remove("active");
+      b.classList.add("active");
+      syncDrawModeEnabled();
+    });
+  }
+  for (const b of drawModeSeg.querySelectorAll("button")) {
+    b.addEventListener("click", () => {
+      drawMode = (b as HTMLButtonElement).dataset.v as "click" | "drag";
+      for (const x of drawModeSeg.querySelectorAll("button")) x.classList.remove("active");
+      b.classList.add("active");
+    });
+  }
+  syncDrawModeEnabled();
 
   flattenBtn.onclick = () => {
     if (lastBar) fills.flatten(lastBar);
@@ -288,12 +316,6 @@ async function main(): Promise<void> {
   const seedPrice = (): number | null =>
     lastBar ? lastBar.c : (engine.formingOf(activeTf)?.close ?? null);
 
-  function inferEntryType(s: Side, entry: number, last: number): EntryType {
-    if (Math.abs(entry - last) <= CONTRACTS.NQ.tickSize / 2) return "market";
-    const above = entry > last;
-    return s === "long" ? (above ? "stop" : "limit") : above ? "limit" : "stop";
-  }
-
   editor.onChange((d) => {
     if (!d) {
       rrEl.textContent = "";
@@ -308,10 +330,10 @@ async function main(): Promise<void> {
       if (p) rrEl.textContent = `managing · stop ${p.stop.toFixed(2)} · tgt ${p.target.toFixed(2)}`;
       return;
     }
-    const type = lastBar ? inferEntryType(d.side, d.entry, lastBar.c) : "limit";
     const risk = Math.abs(d.entry - d.stop);
     const rr = risk > 0 ? Math.abs(d.target - d.entry) / risk : 0;
-    rrEl.textContent = `${d.side} · ${type} @ ${d.entry.toFixed(2)} · R:R ${rr.toFixed(2)}`;
+    const at = orderType === "market" ? "at market" : `@ ${d.entry.toFixed(2)}`;
+    rrEl.textContent = `${d.side} · ${orderType} ${at} · R:R ${rr.toFixed(2)}`;
   });
 
   drawBtn.onclick = () => {
@@ -320,8 +342,19 @@ async function main(): Promise<void> {
       ticketMsg.textContent = "step or play forward first";
       return;
     }
-    ticketMsg.textContent = "";
-    editor.start(side, seed);
+    if (orderType === "market") {
+      // Entry is the current price; just place the protective bars.
+      editor.startMarket(side, seed);
+      ticketMsg.textContent = "market entry at last — drag stop/target, then arm";
+    } else if (drawMode === "click") {
+      // Click the chart to set the entry, then drag stop/target.
+      editor.startClickPlace(side);
+      ticketMsg.textContent = "click the chart to set your entry";
+    } else {
+      // Drag style: all three lines seeded and draggable.
+      editor.start(side, seed);
+      ticketMsg.textContent = "";
+    }
     syncControls();
   };
   cancelDrawBtn.onclick = () => {
@@ -332,7 +365,7 @@ async function main(): Promise<void> {
   armBtn.onclick = () => {
     const v = editor.value;
     if (!v) return;
-    const type = lastBar ? inferEntryType(v.side, v.entry, lastBar.c) : "limit";
+    const type = orderType;
     try {
       fills.place(
         {
@@ -386,7 +419,7 @@ async function main(): Promise<void> {
       editor.cancel();
     }
 
-    const placing = editor.editMode === "place";
+    const placing = editor.editMode === "place" || editor.editMode === "place-entry";
     // The draggable overlay owns the live/placement bracket; horizontal price-
     // lines only draw a resting (unfilled) order.
     if (editor.active) chart.setBracket({ entry: null, stop: null, target: null });
@@ -396,7 +429,9 @@ async function main(): Promise<void> {
 
     drawBtn.hidden = placing;
     drawBtn.disabled = Boolean(pos || pend);
-    armBtn.hidden = !placing;
+    // Arm only once there's a bracket to arm (during place-entry the entry click
+    // hasn't landed yet, so there's nothing to submit).
+    armBtn.hidden = !placing || editor.value === null;
     cancelDrawBtn.hidden = !placing;
     cancelOrderBtn.hidden = !pend;
     flattenBtn.disabled = pos === null;
@@ -535,7 +570,10 @@ async function main(): Promise<void> {
       prepLevelsBox.appendChild(row);
     }
   }
-  marker.onChange(renderPrepMarks);
+  marker.onChange(() => {
+    renderPrepMarks();
+    addLevelBtn.classList.toggle("active", marker.placingLine);
+  });
   renderPrepMarks();
 
   // Seed a new mark near the middle of the visible prep candles.
@@ -546,7 +584,10 @@ async function main(): Promise<void> {
     }
     return 0;
   };
-  addLevelBtn.onclick = () => marker.addLine(prepMid());
+  addLevelBtn.onclick = () => {
+    marker.beginPlaceLine(prepMid()); // ghost follows the cursor; click to drop
+    addLevelBtn.classList.toggle("active", marker.placingLine);
+  };
   addRangeBtn.onclick = () => {
     const m = prepMid();
     marker.addZone(m - 25, m + 25); // seed a ~50pt band to drag to the real zone

@@ -38,6 +38,9 @@ export class LevelMarker {
   private seq = 0;
   private raf = 0;
   private dragging: DragTarget | null = null;
+  /** A level being placed click-to-drop: its ghost element + the live price. */
+  private placing: { line: HTMLDivElement; price: number } | null = null;
+  private placeCleanup: (() => void) | null = null;
   private enabled = true;
   private onChangeCb: () => void = () => {};
 
@@ -84,6 +87,82 @@ export class LevelMarker {
     this.onChangeCb();
   }
 
+  /** Enter click-to-place: a ghost level tracks the cursor over the chart and the
+   *  next click drops it there. `seed` positions it before the first mouse move (and
+   *  is where a click-without-move lands). Clicking the tool again, or Escape,
+   *  cancels. Preferred over `addLine` for the ＋ Level button — placing feels direct. */
+  beginPlaceLine(seed: number): void {
+    if (!this.enabled) return;
+    if (this.placing) {
+      this.cancelPlace(); // toggle off if already arming
+      return;
+    }
+    const line = document.createElement("div");
+    line.className = "level-line ghost";
+    line.appendChild(Object.assign(document.createElement("span"), { className: "level-label" }));
+    this.overlay.appendChild(line);
+    this.placing = { line, price: this.round(seed) };
+    this.paintGhost(this.chart.priceToY(this.placing.price));
+
+    const el = this.chart.element;
+    const move = (ev: PointerEvent) => {
+      if (!this.placing) return;
+      const y = ev.clientY - el.getBoundingClientRect().top;
+      const raw = this.chart.yToPrice(y);
+      if (raw === null) return;
+      this.placing.price = this.round(raw);
+      this.paintGhost(y);
+    };
+    const drop = (ev: PointerEvent) => {
+      if (!this.placing) return;
+      // The toolbar sits inside the chart, so its clicks bubble here too (including the
+      // ＋ Level click that armed this) — those are never placements.
+      if ((ev.target as HTMLElement | null)?.closest("#chartTools")) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const price = this.placing.price;
+      this.cancelPlace();
+      this.addLine(price);
+    };
+    const key = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") this.cancelPlace();
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("click", drop);
+    window.addEventListener("keydown", key);
+    this.placeCleanup = () => {
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("click", drop);
+      window.removeEventListener("keydown", key);
+    };
+  }
+
+  /** True while a level is arming (so the panel can reflect the tool state). */
+  get placingLine(): boolean {
+    return this.placing !== null;
+  }
+
+  private paintGhost(y: number | null): void {
+    if (!this.placing) return;
+    const line = this.placing.line;
+    if (y === null) {
+      line.style.display = "none";
+      return;
+    }
+    line.style.display = "block";
+    line.style.top = `${y}px`;
+    (line.firstChild as HTMLSpanElement).textContent = this.placing.price.toFixed(2);
+  }
+
+  private cancelPlace(): void {
+    if (!this.placing) return;
+    this.placing.line.remove();
+    this.placing = null;
+    this.placeCleanup?.();
+    this.placeCleanup = null;
+    this.onChangeCb(); // so the toolbar can drop the armed highlight
+  }
+
   addZone(low: number, high: number): void {
     if (!this.enabled) return;
     const id = ++this.seq;
@@ -120,12 +199,14 @@ export class LevelMarker {
 
   /** Freeze the marks (post-commit): no more add/drag/remove. */
   disable(): void {
+    this.cancelPlace();
     this.enabled = false;
     this.overlay.classList.add("locked");
   }
 
   /** Tear down the overlay (leaving Prep for the attempt). */
   destroy(): void {
+    this.cancelPlace();
     if (this.raf) cancelAnimationFrame(this.raf);
     this.raf = 0;
     this.overlay.remove();

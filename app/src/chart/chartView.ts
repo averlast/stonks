@@ -58,7 +58,13 @@ export class ChartView {
         secondsVisible: false,
         borderColor: "#2a3038",
         rightOffset: 3,
+        // `t` is the ET wall clock encoded as a UTC epoch (ingestion convention), so
+        // formatting its UTC components always yields ET — no browser-locale or DST
+        // drift, ever. Axis ticks show HH:MM.
+        tickMarkFormatter: etHm,
       },
+      // Crosshair vertical label shows the ET wall clock to the second.
+      localization: { timeFormatter: etHms },
       rightPriceScale: { borderColor: "#2a3038" },
       crosshair: { mode: 0 },
     });
@@ -152,6 +158,15 @@ export class ChartView {
     this.chart.priceScale("right").applyOptions({ autoScale: on });
   }
 
+}
+
+/** ET wall clock (HH:MM:SS) from an ET-as-UTC epoch. Non-numeric Time (business
+ *  days) never occurs for our intraday feed, but is handled defensively. */
+function etHms(t: Time): string {
+  return typeof t === "number" ? new Date(t * 1000).toISOString().slice(11, 19) : String(t);
+}
+function etHm(t: Time): string {
+  return typeof t === "number" ? new Date(t * 1000).toISOString().slice(11, 16) : String(t);
 }
 
 function toLwc(c: Candle): CandlestickData {
