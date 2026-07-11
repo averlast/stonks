@@ -44,9 +44,16 @@ not hiding levels), so the drill is coverage/proximity, not a blind precision te
   key). The true-level source is Option C (`data/levels/{symbol}-{date}.json`).
 - **Prep model** (`session/events.ts`): `Prep { markedLevels, biasProse, biasCall }` replaces the
   #5 `PrepStub`; `prep_committed` carries it, hashed. `recorder.commitPrep(Prep)`.
-- **Marking tool** (`prep/levelMarker.ts`): draggable horizontal level lines (own overlay, same
-  price↔pixel approach as `bracketEditor.ts`); add/drag/remove; `ChartView.setLevelLines` draws
-  the revealed true levels as persistent native price lines (separate from the bracket lines).
+- **Marking tool** (`prep/levelMarker.ts`): draggable **level lines** AND **range/zone** marks
+  (low/high edges + shaded band), via a **floating toolbar over the chart** (＋ Level / ▭ Range /
+  Clear). `ChartView.setLevelLines` draws the revealed true levels as persistent native price
+  lines. Prep carries `markedLevels` + `markedZones` (zones AI-graded, not precision-scored).
+- **UX revision (2026-07-10, post-hand-test)**: fixed a blank prep chart — the prior-day candles
+  now render only once the chart container has a non-zero size (Vite injects CSS via JS, so at
+  init the container could measure 0×0 and setData parked the view on empty space). Marking moved
+  off the cramped sidebar into the floating toolbar; the manual **order-entry form was removed**
+  (trading is chart-first: draw the bracket) — kept side/size/draw/arm/cancel/flatten; sidebar
+  widened 260→320px with more gap.
 - **Phase machine** (`main.ts`): `phase: "prep" | "attempt" | "review"` (subsumes the old
   `reviewing` flag). On load → **prep**: show the `load_presession` chart (dev degrades to empty),
   lock transport + trading. Prep panel = marks list + prose bias + bull/bear/chop + Commit.
