@@ -556,7 +556,7 @@ async function main(): Promise<void> {
           ? Math.min(...marks.map((m) => Math.abs(m - l.price)))
           : null;
         const prox = nearest === null ? "not marked" : `nearest ${nearest.toFixed(2)} pts`;
-        return `<div class="reveal-row"><span>${l.id} ${l.price.toFixed(2)}</span><span class="muted">${prox}</span></div>`;
+        return `<div class="reveal-row"><span>${l.label} ${l.price.toFixed(2)}</span><span class="muted">${prox}</span></div>`;
       })
       .join("");
     prepReveal.innerHTML = `<h4>Levels revealed</h4>${rows}`;
@@ -578,9 +578,22 @@ async function main(): Promise<void> {
     recorder.commitPrep(prep, lastBar ? lastBar.t : 0);
     marker.disable();
 
-    // Reveal the true levels as persistent reference lines + a proximity readout.
+    // Reveal the true levels (yellow) alongside the trader's own marks — levels
+    // (blue) and zone edges (purple, dashed) — as persistent reference lines, plus
+    // a proximity readout. All survive the switch to the live feed.
     const truth = await loadTrueLevels(feed.meta.symbol, feed.meta.date);
-    chart.setLevelLines(truth.map((l) => ({ label: l.id, price: l.price })));
+    const trueLines = truth.map((l) => ({ label: l.label, price: l.price, color: "#eab308" }));
+    const myLines = prep.markedLevels.map((m) => ({
+      label: "my level",
+      price: m.price,
+      color: "#3b82f6",
+      dashed: true,
+    }));
+    const myZones = prep.markedZones.flatMap((z) => [
+      { label: "my zone", price: z.high, color: "#a855f7", dashed: true },
+      { label: "my zone", price: z.low, color: "#a855f7", dashed: true },
+    ]);
+    chart.setLevelLines([...trueLines, ...myLines, ...myZones]);
     renderReveal(truth, prep.markedLevels.map((m) => m.price));
 
     // Unlock the attempt: drop the prep chart, swap to the live RTH feed.
@@ -589,6 +602,7 @@ async function main(): Promise<void> {
     chart.setData(engine.historyOf(activeTf)); // empty; playback fills it forward
     chart.fitContent();
     syncPhase();
+    ticketMsg.textContent = "Prep committed — press ▶ Play to start the session.";
   }
   commitPrepBtn.onclick = () => void commitPrep();
 

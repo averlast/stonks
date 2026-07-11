@@ -92,17 +92,19 @@ export class ChartView {
     if (b.target !== null) add(b.target, "#26a69a", "target");
   }
 
-  /** Draw the revealed true pre-session levels as persistent solid price lines
-   *  (#7). Kept separate from the working-order bracket lines so the two never
-   *  clobber each other, and they survive `setData` into the attempt. */
-  setLevelLines(levels: readonly { label: string; price: number }[]): void {
+  /** Draw persistent horizontal reference lines that survive `setData` into the
+   *  attempt (#7): the revealed true levels plus the trader's own marks. Kept
+   *  separate from the working-order bracket lines so the two never clobber. */
+  setLevelLines(
+    levels: readonly { label: string; price: number; color?: string; dashed?: boolean }[],
+  ): void {
     for (const l of this.levelLines) this.series.removePriceLine(l);
     this.levelLines = levels.map((lv) =>
       this.series.createPriceLine({
         price: lv.price,
-        color: "#eab308",
+        color: lv.color ?? "#eab308",
         lineWidth: 1,
-        lineStyle: LineStyle.Solid,
+        lineStyle: lv.dashed ? LineStyle.Dashed : LineStyle.Solid,
         axisLabelVisible: true,
         title: lv.label,
       }),
