@@ -20,12 +20,13 @@ end-to-end** (Prep → attempt → Review → grade).
    then layer on the full environment.
 
 ## Next action — pick the next enrichment slice (critical path #1–#8 COMPLETE)
-Issues **#1–#8 DONE** + on-chart trade management. The full loop runs — **Prep gate** (#7) →
+Issues **#1–#9 DONE** + on-chart trade management. The full loop runs — **Prep gate** (#7) →
 **attempt** (#5) → **Review** (#6) → **grade** (#8). Everything past here is enrichment, not the
-spine. **Unblocked now** (every "Blocked by" is in #1–#8):
-- **#9 Multi-timeframe live-forming (1m/5m/15m)** — foundational; unblocks #16 (HTF context) and
-  #10 (confirmation flags). *(1m/5m/15m already fold live via `aggregator.ts` from #2 — read the
-  issue for what #9 adds beyond that before starting.)*
+spine. **Unblocked now** (every "Blocked by" is in #1–#9):
+- **#10 Confirmation flags** — now unblocked (#9 makes 5m — the confirmation timeframe — a
+  first-class live fold).
+- **#16 HTF context charts + trend read (30m/1h/4h)** — now unblocked by #9; folds in daily + a
+  week of history (the user's real prep process, deferred from #7).
 - **#12 Objective level catalog + multi-anchor VWAP** — unblocks the whole profiles chain
   (#13 → #14 → #15).
 - **#11 Scale-in / scale-out** — full position lifecycle on top of the fill engine (#3; the fill
@@ -34,8 +35,29 @@ spine. **Unblocked now** (every "Blocked by" is in #1–#8):
 - **#18 Base-rate stats, as-of the practiced day** — no-lookahead stats (ADR-0008), on #1 + #8.
 - **#19 Micro↔mini multiplier toggle** — the contract-size switch (#3; `CONTRACTS` already has
   MNQ/MES).
-Still blocked: **#10** (needs #9), **#13/#14/#15** (profiles chain after #12), **#16** (needs #9).
-**#9 and #12 unblock the most downstream** — start there if unsure.
+Still blocked: **#13/#14/#15** (profiles chain after #12).
+**#12 unblocks the most downstream** — start there if unsure.
+
+### #9 outcome (2026-07-12) — multi-timeframe live-forming, verified (ADR-0002 amendment)
+The engine work landed early: since **#2**, `PlaybackEngine.step()` folds every 1s bar through all
+three `TimeframeAggregator`s (1m/5m/15m) each tick, retaining per-TF sealed `history` + the live
+`forming` candle, and `main.ts` `switchTimeframe()` already lets the trader flip timeframe in any
+phase (prep folds `prepBars`, attempt reads `historyOf(tf)`+`formingOf(tf)`, review reads
+`reviewHistory`). So #9 was **not** new code — it was **closing the acceptance criteria with tests
+that exercise the real UI code paths** (the folding was previously only covered by an isolated-fold
+and a speed-determinism test, neither of which proves the live multi-TF output is *correct*):
+- **Criterion 3 (HTF == reference):** new test steps the engine second-by-second over a synthetic
+  1000s day and, at **every** second, deep-equals `[...historyOf(tf), formingOf(tf)]` against
+  `foldDay(barsProcessedSoFar, tf)` (the independent reference that re-buckets from scratch) for all
+  three timeframes. Proves the live fold is exactly the reference — no drift, no off-by-one seal.
+- **Criterion 2 (switch preserves the forward-only wall):** new test stops mid-attempt (second 733,
+  mid-bucket on every tf), reconstructs exactly what `switchTimeframe()` would draw, and asserts (a)
+  no candle opens on/after the bucket the clock is still filling, (b) it equals `foldDay(seen, tf)`,
+  and (c) it is **strictly shorter** than the full-day fold — future buckets are withheld, ADR-0002.
+- **Semantic roles** (issue): 5m is the confirmation timeframe (feeds #10), 15m carries the Opening
+  Range (feeds #16) — both are now first-class live folds available to those downstream slices.
+- **Tests**: TS `npm test` → 42 (+2 aggregator: reference-match, mid-attempt wall). Typecheck + prod
+  build clean. **No product source changed** (test-only), so no runtime behavior to hand-verify.
 
 ### Post-#8 UX polish (2026-07-12, hand-test feedback) — commit `04d5220`
 Frontend-only tweaks from driving the app; no engine/logic change:
