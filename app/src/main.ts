@@ -614,9 +614,13 @@ async function main(): Promise<void> {
       prepLevelsBox.appendChild(row);
     }
   }
+  function syncMarkTools(): void {
+    addLevelBtn.classList.toggle("active", marker.placingLine);
+    addRangeBtn.classList.toggle("active", marker.placingZoneActive);
+  }
   marker.onChange(() => {
     renderPrepMarks();
-    addLevelBtn.classList.toggle("active", marker.placingLine);
+    syncMarkTools();
   });
   renderPrepMarks();
 
@@ -630,11 +634,13 @@ async function main(): Promise<void> {
   };
   addLevelBtn.onclick = () => {
     marker.beginPlaceLine(prepMid()); // ghost follows the cursor; click to drop
-    addLevelBtn.classList.toggle("active", marker.placingLine);
+    syncMarkTools();
   };
   addRangeBtn.onclick = () => {
-    const m = prepMid();
-    marker.addZone(m - 25, m + 25); // seed a ~50pt band to drag to the real zone
+    // Ghost band (default ~100pt span) follows the cursor; click to drop, then drag
+    // the high/low edges to size it.
+    marker.beginPlaceZone(prepMid(), 100);
+    syncMarkTools();
   };
   clearMarksBtn.onclick = () => marker.clear();
 

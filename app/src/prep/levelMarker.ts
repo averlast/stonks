@@ -41,6 +41,9 @@ export class LevelMarker {
   /** A level being placed click-to-drop: its ghost element + the live price. */
   private placing: { line: HTMLDivElement; price: number } | null = null;
   private placeCleanup: (() => void) | null = null;
+  /** A zone being placed click-to-drop: its ghost band + the live low/high edges. */
+  private placingZone: { band: HTMLDivElement; low: number; high: number } | null = null;
+  private placeZoneCleanup: (() => void) | null = null;
   private enabled = true;
   private onChangeCb: () => void = () => {};
 
@@ -93,6 +96,7 @@ export class LevelMarker {
    *  cancels. Preferred over `addLine` for the ＋ Level button — placing feels direct. */
   beginPlaceLine(seed: number): void {
     if (!this.enabled) return;
+    this.cancelPlaceZone(); // never arm a level and a zone at once
     if (this.placing) {
       this.cancelPlace(); // toggle off if already arming
       return;
@@ -163,6 +167,88 @@ export class LevelMarker {
     this.onChangeCb(); // so the toolbar can drop the armed highlight
   }
 
+  /** Enter click-to-place for a zone: a shaded ghost band of fixed `span` tracks the
+   *  cursor (centred on it) and the next click drops it there; the high/low edges are
+   *  then draggable to size it. Escape or re-clicking the tool cancels. The zone twin
+   *  of `beginPlaceLine` — direct placement instead of seeding a band at chart-centre. */
+  beginPlaceZone(seed: number, span = 100): void {
+    if (!this.enabled) return;
+    this.cancelPlace(); // never arm a level and a zone at once
+    if (this.placingZone) {
+      this.cancelPlaceZone(); // toggle off if already arming
+      return;
+    }
+    const half = span / 2;
+    const band = document.createElement("div");
+    band.className = "zone-band ghost";
+    band.appendChild(Object.assign(document.createElement("span"), { className: "level-label" }));
+    this.overlay.appendChild(band);
+    this.placingZone = { band, low: this.round(seed - half), high: this.round(seed + half) };
+    this.paintZoneGhost();
+
+    const el = this.chart.element;
+    const move = (ev: PointerEvent) => {
+      if (!this.placingZone) return;
+      const y = ev.clientY - el.getBoundingClientRect().top;
+      const raw = this.chart.yToPrice(y);
+      if (raw === null) return;
+      this.placingZone.low = this.round(raw - half);
+      this.placingZone.high = this.round(raw + half);
+      this.paintZoneGhost();
+    };
+    const drop = (ev: PointerEvent) => {
+      if (!this.placingZone) return;
+      // The toolbar sits inside the chart, so its clicks bubble here too (including the
+      // ▭ Range click that armed this) — those are never placements.
+      if ((ev.target as HTMLElement | null)?.closest("#chartTools")) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const { low, high } = this.placingZone;
+      this.cancelPlaceZone();
+      this.addZone(low, high);
+    };
+    const key = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") this.cancelPlaceZone();
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("click", drop);
+    window.addEventListener("keydown", key);
+    this.placeZoneCleanup = () => {
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("click", drop);
+      window.removeEventListener("keydown", key);
+    };
+  }
+
+  /** True while a zone is arming (so the panel can reflect the tool state). */
+  get placingZoneActive(): boolean {
+    return this.placingZone !== null;
+  }
+
+  private paintZoneGhost(): void {
+    if (!this.placingZone) return;
+    const { band, low, high } = this.placingZone;
+    const yHi = this.chart.priceToY(high);
+    const yLo = this.chart.priceToY(low);
+    if (yHi === null || yLo === null) {
+      band.style.display = "none";
+      return;
+    }
+    band.style.display = "block";
+    band.style.top = `${yHi}px`;
+    band.style.height = `${Math.max(0, yLo - yHi)}px`;
+    (band.firstChild as HTMLSpanElement).textContent = `${low.toFixed(2)}–${high.toFixed(2)}`;
+  }
+
+  private cancelPlaceZone(): void {
+    if (!this.placingZone) return;
+    this.placingZone.band.remove();
+    this.placingZone = null;
+    this.placeZoneCleanup?.();
+    this.placeZoneCleanup = null;
+    this.onChangeCb();
+  }
+
   addZone(low: number, high: number): void {
     if (!this.enabled) return;
     const id = ++this.seq;
@@ -200,6 +286,7 @@ export class LevelMarker {
   /** Freeze the marks (post-commit): no more add/drag/remove. */
   disable(): void {
     this.cancelPlace();
+    this.cancelPlaceZone();
     this.enabled = false;
     this.overlay.classList.add("locked");
   }
@@ -207,6 +294,7 @@ export class LevelMarker {
   /** Tear down the overlay (leaving Prep for the attempt). */
   destroy(): void {
     this.cancelPlace();
+    this.cancelPlaceZone();
     if (this.raf) cancelAnimationFrame(this.raf);
     this.raf = 0;
     this.overlay.remove();

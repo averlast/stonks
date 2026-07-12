@@ -374,6 +374,14 @@ button:disabled {
   opacity: 0.75;
   border-top-style: dashed;
 }
+/* A zone being placed: a dashed ghost band that tracks the cursor, click to drop. */
+.zone-band.ghost {
+  pointer-events: none;
+  border: 1px dashed #a855f7;
+}
+.zone-band.ghost .level-label {
+  background: #a855f7;
+}
 .level-label {
   position: absolute;
   left: 6px;
