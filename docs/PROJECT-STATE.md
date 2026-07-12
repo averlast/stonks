@@ -20,15 +20,15 @@ end-to-end** (Prep → attempt → Review → grade).
    then layer on the full environment.
 
 ## Next action — pick the next enrichment slice (critical path #1–#8 COMPLETE)
-Issues **#1–#9 DONE** + on-chart trade management. The full loop runs — **Prep gate** (#7) →
+Issues **#1–#10 DONE** + on-chart trade management. The full loop runs — **Prep gate** (#7) →
 **attempt** (#5) → **Review** (#6) → **grade** (#8). Everything past here is enrichment, not the
-spine. **Unblocked now** (every "Blocked by" is in #1–#9):
-- **#10 Confirmation flags** — now unblocked (#9 makes 5m — the confirmation timeframe — a
-  first-class live fold).
+spine. **Unblocked now** (every "Blocked by" is in #1–#10):
 - **#16 HTF context charts + trend read (30m/1h/4h)** — now unblocked by #9; folds in daily + a
   week of history (the user's real prep process, deferred from #7).
 - **#12 Objective level catalog + multi-anchor VWAP** — unblocks the whole profiles chain
-  (#13 → #14 → #15).
+  (#13 → #14 → #15). *Note: it's a large slice with a paid-data fork — see the scoping options
+  raised 2026-07-12 (intraday OR/IB/VWAP engine is buildable now; expanded scored pre-session
+  catalog needs a paid Databento re-pull).*
 - **#11 Scale-in / scale-out** — full position lifecycle on top of the fill engine (#3; the fill
   list is already ordered so layers add cleanly — see the #3 note).
 - **#17 Calendar + module/progression tracking** — sits directly on the sealed event logs (#8).
@@ -37,6 +37,39 @@ spine. **Unblocked now** (every "Blocked by" is in #1–#9):
   MNQ/MES).
 Still blocked: **#13/#14/#15** (profiles chain after #12).
 **#12 unblocks the most downstream** — start there if unsure.
+
+### #10 outcome (2026-07-12) — confirmation flags + per-trade setup tags (ADR-0003)
+At each entry the engine now stamps four OBJECTIVE, deterministic confirmation flags, and each
+trade carries a user setup tag; both ride the trade record into the grade digest and the AI
+narrates on them (never scores them). Sits directly on #3 (fill engine) + #9 (5m/15m folds).
+- **Pure engine** (`app/src/engine/confirmation.ts`, portable TS): `computeConfirmation` over the
+  sealed 5m/15m snapshots at entry returns `{ fiveMinCloseBeyond, volumeIncrease, engulfing,
+  withHtfTrend, htfTrend }`. 5m is the confirmation timeframe (close-beyond / volume / engulfing),
+  15m is the HTF trend. **Entry price stands in for the traded level** (chart-drawn entries carry
+  no separate level price) — documented. Per-symbol open params in `CONFIRMATION_CONFIGS`
+  (volumeLookback/factor, htfTrendPts; NQ tuned first, mirrors `GRADE_CONFIGS`). `SETUP_TAGS` = the
+  six CONTEXT archetypes; `isSetupTag` guard.
+- **Fill-engine wiring** (`fillEngine.ts`): `setConfirmationProvider` (injected like the straddle
+  resolver, keeps the engine portable) is called the instant an entry fills — so flags are captured
+  even on a same-bar whipsaw close. `Position`/`Trade`/`BracketRequest` gained `setupTag?` +
+  `confirmation?`; both copy onto the closed `Trade`, so they seal in `trade_closed` and fold back
+  with no new event type. No look-ahead: `historyOf(300/900)` is sealed-only; the 5m/15m candle
+  containing the entry second is still forming.
+- **Digest + prompt** (`digest.ts`, `types.ts`, `grade.ts`): `TradeDigest` carries `setupTag` +
+  `confirmation`; `distillTrade` copies them; the system prompt tells the coach to weigh execution
+  higher for entries taken WITH confirmation / a matching tag, and flag entries against a flat or
+  opposing read — without recomputing the flags.
+- **UI** (`main.ts`, `index.html`): a **Setup** `<select>` in the ticket (populated from
+  `SETUP_TAGS`) tags the next trade; the position box + trades list render the tag and a compact
+  flag read (`5m✓ vol· eng· htf✓ (up)`). Provider wired from the engine's 5m/15m history — **works
+  in browser dev too** (the aggregators run regardless of feed; only the AI half needs Tauri).
+- **Tests**: TS `npm test` → 55 (+10 confirmation: each flag true/false + thin-history + determinism
+  + vocabulary; +2 fillEngine: provider stamps at entry, tag+flags ride to the trade, and a
+  no-provider trade still closes; +1 grade: tag+flags reach the digest and the prompt string).
+  Typecheck + prod build clean. **Headless integration check** (scratch): real
+  PlaybackEngine + FillEngine + real `computeConfirmation` over synthetic bars stamped live-computed
+  flags onto an actual trade (htfTrend up / withHtfTrend true for a long in an uptrend; tag carried).
+  *Interactive ticket click-through is a hand-check (repo convention for UX slices).*
 
 ### #9 outcome (2026-07-12) — multi-timeframe live-forming, verified — commit `8a33766`
 ADR-0002 amendment. Issue closed.

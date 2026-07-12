@@ -177,6 +177,37 @@ test("buildDigest folds proximity, bias alignment, and session totals", () => {
   assert.equal(d.reportCard.bias.called, "bull");
 });
 
+test("buildDigest carries each trade's setup tag and confirmation flags (#10)", () => {
+  const structure = classifyStructure([bar(0, 100, 200, 100, 180)], CFG);
+  const card = buildReportCard([18400], TRUTH, "bull", structure, CFG);
+  const tagged = trade({
+    setupTag: "sweep-reversal",
+    confirmation: {
+      fiveMinCloseBeyond: true,
+      volumeIncrease: false,
+      engulfing: true,
+      withHtfTrend: true,
+      htfTrend: "up",
+    },
+  });
+  const d = buildDigest({
+    symbol: "NQ",
+    date: "2024-08-05",
+    attempt: 1,
+    prep: PREP,
+    journal: "",
+    trades: [tagged],
+    structure,
+    reportCard: card,
+  });
+  assert.equal(d.trades[0].setupTag, "sweep-reversal");
+  assert.equal(d.trades[0].confirmation!.withHtfTrend, true);
+  assert.equal(d.trades[0].confirmation!.htfTrend, "up");
+  // ...and they survive into the prompt string the model receives.
+  const req = buildGradeRequest(d) as any;
+  assert.ok(String(req.messages[0].content).includes("sweep-reversal"));
+});
+
 test("buildGradeRequest targets Sonnet with the three-axis schema and the digest", () => {
   const structure = classifyStructure([bar(0, 100, 200, 100, 180)], CFG);
   const card = buildReportCard([18400], TRUTH, "bull", structure, CFG);

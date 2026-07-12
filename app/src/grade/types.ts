@@ -12,6 +12,7 @@
  * types from here, so there is no import cycle between `session/` and `grade/`.
  */
 import type { BiasCall } from "../session/events";
+import type { ConfirmationFlags, SetupTag } from "../engine/confirmation";
 
 export type { BiasCall };
 
@@ -122,6 +123,10 @@ export interface TradeDigest {
   /** Was the trade's direction consistent with the committed bias call? */
   alignedWithBias: boolean;
   heldSeconds: number;
+  /** The trader's setup archetype for this trade (#10), if tagged. */
+  setupTag?: SetupTag;
+  /** The objective confirmation flags stamped at entry (#10). */
+  confirmation?: ConfirmationFlags;
 }
 
 /** The compact digest handed to the AI: prep + journal verbatim, the objective

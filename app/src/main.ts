@@ -21,6 +21,13 @@ import { buildReportCard, classifyStructure } from "./grade/reportCard";
 import { buildDigest } from "./grade/digest";
 import { buildGradeRequest, parseAiGrade } from "./grade/grade";
 import { gradeConfig, type AiGrade, type ReportCard } from "./grade/types";
+import {
+  computeConfirmation,
+  confirmationConfig,
+  SETUP_TAGS,
+  type SetupTag,
+  type ConfirmationFlags,
+} from "./engine/confirmation";
 
 /** A revealed true pre-session level (from the Rust `load_levels` answer key). */
 interface TrueLevel {
@@ -89,6 +96,18 @@ async function main(): Promise<void> {
       }
     });
   }
+  // Stamp objective confirmation flags at each entry from the 5m/15m folds (#10).
+  // Works in browser dev too — the aggregators run regardless of the feed source.
+  const confCfg = confirmationConfig(feed.meta.symbol);
+  fills.setConfirmationProvider(({ side, entryPrice }) =>
+    computeConfirmation({
+      side,
+      entryPrice,
+      m5Sealed: engine.historyOf(300),
+      m15Sealed: engine.historyOf(900),
+      config: confCfg,
+    }),
+  );
   let lastBar: Sec1Bar | null = null;
   fills.onClosed(() => {
     renderTrades();
@@ -252,10 +271,22 @@ async function main(): Promise<void> {
   const ticketMsg = $("ticketMsg");
   const orderTypeSeg = $("orderType");
   const drawModeSeg = $("drawMode");
+  const setupTagSel = $("setupTag") as HTMLSelectElement;
   let side: Side = "long";
   // Explicit entry type (replaces the old geometry inference) and draw style.
   let orderType: EntryType = "market";
   let drawMode: "click" | "drag" = "click";
+  // The trader's setup tag for the next trade (#10); "" = untagged.
+  let setupTag: SetupTag | "" = "";
+  for (const tag of SETUP_TAGS) {
+    const opt = document.createElement("option");
+    opt.value = tag;
+    opt.textContent = tag;
+    setupTagSel.appendChild(opt);
+  }
+  setupTagSel.addEventListener("change", () => {
+    setupTag = setupTagSel.value as SetupTag | "";
+  });
 
   for (const b of sideSeg.querySelectorAll("button")) {
     b.addEventListener("click", () => {
@@ -377,6 +408,7 @@ async function main(): Promise<void> {
           size: Number(sizeEl.value),
           level: "chart",
           reason: "drawn",
+          setupTag: setupTag || undefined,
         },
         lastBar ? lastBar.t : 0,
       );
@@ -456,6 +488,13 @@ async function main(): Promise<void> {
     chart.setFillMarkers(marks);
   }
 
+  /** Compact confirmation read: e.g. "5m✓ vol· eng· htf✓ (up)". Blank if unstamped. */
+  function fmtConf(c?: ConfirmationFlags): string {
+    if (!c) return "";
+    const m = (b: boolean) => (b ? "✓" : "·");
+    return `5m${m(c.fiveMinCloseBeyond)} vol${m(c.volumeIncrease)} eng${m(c.engulfing)} htf${m(c.withHtfTrend)} (${c.htfTrend})`;
+  }
+
   function renderPosition(): void {
     const p = fills.openPosition;
     const pend = fills.pendingEntry;
@@ -482,7 +521,9 @@ async function main(): Promise<void> {
       `<div class="kv"><span class="pos-${p.side}">${p.side} ×${p.size}</span><span>@ ${p.avgEntry.toFixed(2)}</span></div>` +
       `<div class="kv"><span>stop / tgt</span><span>${p.stop.toFixed(2)} / ${p.target.toFixed(2)}</span></div>` +
       `<div class="kv"><span>unreal</span><span class="${cls}">${r >= 0 ? "+" : ""}${r.toFixed(2)}R · ${usd >= 0 ? "+" : ""}$${usd.toFixed(0)}</span></div>` +
-      `<div class="kv"><span>MAE / MFE</span><span>${p.maePoints.toFixed(2)} / ${p.mfePoints.toFixed(2)}</span></div>`;
+      `<div class="kv"><span>MAE / MFE</span><span>${p.maePoints.toFixed(2)} / ${p.mfePoints.toFixed(2)}</span></div>` +
+      (p.setupTag ? `<div class="kv"><span>setup</span><span>${p.setupTag}</span></div>` : "") +
+      (p.confirmation ? `<div class="trade-mfe muted">${fmtConf(p.confirmation)}</div>` : "");
   }
 
   function renderTrades(): void {
@@ -504,7 +545,10 @@ async function main(): Promise<void> {
           `<span>${t.exitReason}${flag}</span>` +
           `<span class="${cls}">${t.rMultiple >= 0 ? "+" : ""}${t.rMultiple.toFixed(2)}R</span>` +
           `<span class="${cls}">$${t.pnlUsd.toFixed(0)}</span></div>` +
-          `<div class="trade-mfe muted">MAE ${t.maePoints.toFixed(2)} · MFE ${t.mfePoints.toFixed(2)}</div>`
+          `<div class="trade-mfe muted">MAE ${t.maePoints.toFixed(2)} · MFE ${t.mfePoints.toFixed(2)}</div>` +
+          (t.setupTag || t.confirmation
+            ? `<div class="trade-mfe muted">${t.setupTag ?? "untagged"}${t.confirmation ? " · " + fmtConf(t.confirmation) : ""}</div>`
+            : "")
         );
       })
       .join("");

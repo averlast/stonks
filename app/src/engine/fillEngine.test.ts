@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import type { Sec1Bar } from "../types";
 import { CONTRACTS, type FillConfig } from "./contracts";
 import { FillEngine, type BracketRequest } from "./fillEngine";
+import type { ConfirmationFlags } from "./confirmation";
 
 const bar = (t: number, o: number, h: number, l: number, c: number): Sec1Bar =>
   ({ t, o, h, l, c, v: 1 });
@@ -217,6 +218,46 @@ await atest("straddle falls back to pessimistic when ticks are unavailable", asy
   await e.onBar(bar(2, 105, 108, 103, 106));
   assert.equal(e.trades[0].exitMethod, "pessimistic");
   assert.equal(e.trades[0].exitReason, "stop");
+});
+
+// --- confirmation flags + setup tag (#10) -----------------------------------
+await atest("the confirmation provider stamps flags at entry; tag + flags ride to the trade", async () => {
+  const e = engine();
+  const flags: ConfirmationFlags = {
+    fiveMinCloseBeyond: true,
+    volumeIncrease: false,
+    engulfing: true,
+    withHtfTrend: true,
+    htfTrend: "up",
+  };
+  let seen: { side: string; entryPrice: number; t: number } | null = null;
+  e.setConfirmationProvider((ctx) => {
+    seen = ctx;
+    return flags;
+  });
+  e.place(LONG({ setupTag: "sweep-reversal" }), 0);
+  await e.onBar(bar(1, 105, 105, 105, 105)); // market entry at 105 + 1 tick
+
+  // The provider saw the actual fill price and side.
+  assert.equal(seen!.side, "long");
+  approx(seen!.entryPrice, 105.25);
+  // Stamped onto the live position...
+  assert.deepEqual(e.openPosition!.confirmation, flags);
+  assert.equal(e.openPosition!.setupTag, "sweep-reversal");
+
+  await e.onBar(bar(2, 105, 111, 104, 110)); // target
+  const tr = e.trades[0];
+  assert.deepEqual(tr.confirmation, flags); // ...and carried onto the closed trade
+  assert.equal(tr.setupTag, "sweep-reversal");
+});
+
+await atest("no provider → the trade still closes with confirmation undefined", async () => {
+  const e = engine();
+  e.place(LONG(), 0);
+  await e.onBar(bar(1, 105, 105, 105, 105));
+  await e.onBar(bar(2, 105, 111, 104, 110));
+  assert.equal(e.trades[0].confirmation, undefined);
+  assert.equal(e.trades[0].setupTag, undefined);
 });
 
 console.log(`\n${passed} passed`);

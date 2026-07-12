@@ -57,6 +57,11 @@ const SYSTEM_PROMPT = [
   "- planAdherence: did the trades honor the committed bias and lean on the marked levels?",
   "- execution: entry/exit/stop quality and trade management as a process, independent of P&L.",
   "- outcome: the realized R/$ result, contextualized; weight this least.",
+  "Each trade may carry a user setup tag (its intended archetype) and objective confirmation flags",
+  "stamped at entry — a 5m close beyond the level, a volume increase, an in-direction engulfing",
+  "candle, and agreement with the HTF trend. Weigh execution higher when entries were taken WITH",
+  "confirmation and the tag matched what the tape shows; flag entries taken against a flat/opposing",
+  "read or with no confirmation. These flags are given, not for you to recompute.",
   "Be specific and reference concrete numbers from the digest. Keep the summary to 2–3 sentences.",
 ].join("\n");
 

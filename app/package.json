@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "tsx src/engine/aggregator.test.ts && tsx src/engine/fillEngine.test.ts && tsx src/session/session.test.ts && tsx src/review/review.test.ts && tsx src/grade/grade.test.ts"
+    "test": "tsx src/engine/aggregator.test.ts && tsx src/engine/confirmation.test.ts && tsx src/engine/fillEngine.test.ts && tsx src/session/session.test.ts && tsx src/review/review.test.ts && tsx src/grade/grade.test.ts"
   },
   "devDependencies": {
     "@tauri-apps/api": "^2.11.1",

@@ -1,5 +1,6 @@
 import type { Sec1Bar } from "../types";
 import type { Contract, FillConfig } from "./contracts";
+import type { ConfirmationFlags, SetupTag } from "./confirmation";
 
 /**
  * The fill engine — the integrity layer (SPEC §4). It adjudicates working orders
@@ -26,6 +27,16 @@ export type FillMethod = "clean" | "pessimistic" | "tick-true";
  *  command under Tauri (ADR-0004). */
 export type StraddleResolver = (t: number) => Promise<number[] | null>;
 
+/** Stamps the objective confirmation flags for an entry from the multi-timeframe
+ *  state at the fill second (#10). Injected (like the straddle resolver) so the fill
+ *  engine stays portable — the caller reads the playback engine's 5m/15m snapshots
+ *  and computes the flags. Returns null when no market context is available (dev). */
+export type ConfirmationProvider = (ctx: {
+  side: Side;
+  entryPrice: number;
+  t: number;
+}) => ConfirmationFlags | null;
+
 export interface Fill {
   t: number;
   price: number;
@@ -45,6 +56,8 @@ export interface BracketRequest {
   size: number;
   level?: string;
   reason?: string;
+  /** The trader's setup archetype for this trade, from the SETUP_TAGS vocabulary (#10). */
+  setupTag?: SetupTag;
 }
 
 interface PendingEntry extends BracketRequest {
@@ -62,6 +75,9 @@ interface Position {
   target: number;
   level?: string;
   reason?: string;
+  setupTag?: SetupTag;
+  /** Objective confirmation flags stamped at entry (#10), null if unprovided. */
+  confirmation?: ConfirmationFlags;
   fills: Fill[];
   maePoints: number;
   mfePoints: number;
@@ -73,6 +89,9 @@ export interface Trade {
   side: Side;
   level?: string;
   reason?: string;
+  setupTag?: SetupTag;
+  /** The four objective confirmation flags present at entry (#10). */
+  confirmation?: ConfirmationFlags;
   fills: Fill[];
   avgEntry: number;
   exitPrice: number;
@@ -114,6 +133,7 @@ export class FillEngine {
   private onTrade: (t: Trade) => void = () => {};
   private emit: (e: FillEvent) => void = () => {};
   private resolver: StraddleResolver | null = null;
+  private confirmationProvider: ConfirmationProvider | null = null;
   /** Latest sim second seen, so between-bar commands timestamp honestly. */
   private now = 0;
   /** Effective stop/target last written to the log, to coalesce a drag (which
@@ -129,6 +149,11 @@ export class FillEngine {
   /** Supply a tick source to resolve straddled seconds by true print order. */
   setStraddleResolver(fn: StraddleResolver): void {
     this.resolver = fn;
+  }
+
+  /** Supply the confirmation-flag stamper, called the moment an entry fills (#10). */
+  setConfirmationProvider(fn: ConfirmationProvider): void {
+    this.confirmationProvider = fn;
   }
 
   get trades(): readonly Trade[] {
@@ -248,11 +273,17 @@ export class FillEngine {
       target: e.target,
       level: e.level,
       reason: e.reason,
+      setupTag: e.setupTag,
       fills: [fill],
       maePoints: 0,
       mfePoints: 0,
       openedAt: bar.t,
     };
+    // Stamp the objective confirmation flags from the market state at the fill (#10).
+    if (this.confirmationProvider) {
+      this.position.confirmation =
+        this.confirmationProvider({ side: e.side, entryPrice: price, t: bar.t }) ?? undefined;
+    }
     this.pending = null;
     // Seed the coalesce baseline so the opening bracket isn't mistaken for a move.
     this.recordedStop = e.stop;
@@ -342,6 +373,8 @@ export class FillEngine {
       side: p.side,
       level: p.level,
       reason: p.reason,
+      setupTag: p.setupTag,
+      confirmation: p.confirmation,
       fills: p.fills,
       avgEntry: p.avgEntry,
       exitPrice,
