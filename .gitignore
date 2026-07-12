@@ -10,6 +10,11 @@
 *.sqlite3
 /data/index.db
 
+# Session records ARE the source of truth (decision 12) and meant to be tracked — but every
+# dev/test boot writes a throwaway attempt log, so ignore the dir by default and force-add
+# curated real records: `git add -f data/sessions/<date>/<symbol>-N.ndjson`
+/data/sessions/
+
 # Local secrets — Anthropic + Databento API keys never leave the machine (§5)
 .env
 .env.*

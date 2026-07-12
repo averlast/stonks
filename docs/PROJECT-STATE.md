@@ -19,14 +19,37 @@ end-to-end** (Prep → attempt → Review → grade).
 3. Build discipline (ADR-0006): prove the **playback + fill engines on the whipsaw day first**,
    then layer on the full environment.
 
-## Next action — the first-graded-trade critical path is COMPLETE
-Issues **#1–#8 DONE** + on-chart trade management. The full loop runs — **Prep gate** (mark
-levels/zones on the prior-day chart, prose bias, bull/bear/chop, commit freezes & reveals the true
-levels alongside your own marks, #7) → **attempt** (playback + tick-resolved fills +
-place/manage/exit, sealed as an append-only event log, #5) → **Review** (full-day unlock,
-annotated scrub, #6) → **grade** (objective report card + AI coaching, sealed to the log, #8).
-Everything past here is enrichment, not the spine: **#16** (HTF context charts / trend read, the
-UX the user asked for), then the deferred-by-design queue below (#17 → #14 → #19, base-rate #18).
+## Next action — pick the next enrichment slice (critical path #1–#8 COMPLETE)
+Issues **#1–#8 DONE** + on-chart trade management. The full loop runs — **Prep gate** (#7) →
+**attempt** (#5) → **Review** (#6) → **grade** (#8). Everything past here is enrichment, not the
+spine. **Unblocked now** (every "Blocked by" is in #1–#8):
+- **#9 Multi-timeframe live-forming (1m/5m/15m)** — foundational; unblocks #16 (HTF context) and
+  #10 (confirmation flags). *(1m/5m/15m already fold live via `aggregator.ts` from #2 — read the
+  issue for what #9 adds beyond that before starting.)*
+- **#12 Objective level catalog + multi-anchor VWAP** — unblocks the whole profiles chain
+  (#13 → #14 → #15).
+- **#11 Scale-in / scale-out** — full position lifecycle on top of the fill engine (#3; the fill
+  list is already ordered so layers add cleanly — see the #3 note).
+- **#17 Calendar + module/progression tracking** — sits directly on the sealed event logs (#8).
+- **#18 Base-rate stats, as-of the practiced day** — no-lookahead stats (ADR-0008), on #1 + #8.
+- **#19 Micro↔mini multiplier toggle** — the contract-size switch (#3; `CONTRACTS` already has
+  MNQ/MES).
+Still blocked: **#10** (needs #9), **#13/#14/#15** (profiles chain after #12), **#16** (needs #9).
+**#9 and #12 unblock the most downstream** — start there if unsure.
+
+### Post-#8 UX polish (2026-07-12, hand-test feedback) — commit `04d5220`
+Frontend-only tweaks from driving the app; no engine/logic change:
+- **Chart time is always ET** (DST-proof, browser-locale-independent): `chartView` sets
+  `timeScale.tickMarkFormatter` + `localization.timeFormatter` to format the ET-as-UTC epoch's UTC
+  components (= the ET wall clock). Toolbar clock labelled "clock (ET)".
+- **Prep marking toolbar moved to the top** of the chart (was over the time axis). **＋ Level is
+  click-to-place** (`LevelMarker.beginPlaceLine`): a dashed ghost follows the cursor, click to drop
+  (Esc / re-click cancels; toolbar clicks never register as placements). ▭ Range still drags a band.
+- **Trade draw** gained a **Draw-style toggle** (`main.ts` `drawMode`): **Click** = click to set the
+  entry then drag stop/target bars (`BracketEditor.startClickPlace`, new `place-entry` mode);
+  **Drag** = the old seed-all-three (`start`). **Market** fixes the entry at last and greys the
+  toggle (`startMarket`). An explicit **Order type** selector (Market/Limit/Stop) replaces the old
+  geometry inference; **Arm** is hidden until an entry is set.
 
 ### ⚠ Dev gotchas learned this session (read before running the app)
 - **`app/vite.config.ts` is load-bearing.** Without it Vite full-reloads the webview at startup
@@ -37,6 +60,9 @@ UX the user asked for), then the deferred-by-design queue below (#17 → #14 →
   mode.** After code changes, do a **fresh `npx tauri dev`** rather than trusting the hot-reload.
 - Run the app: `cd app && npx tauri dev` (needs `~/.cargo/bin` on PATH). The gated feed + prep
   bars only work under Tauri; a plain browser (`npm run dev`) degrades (no prep chart).
+- **`data/sessions/` is gitignored** — every dev/test boot writes a throwaway attempt log
+  (`session_started` + whatever you do). Records are still the tracked source of truth *by design*
+  (decision 12): force-add a curated real one with `git add -f data/sessions/<date>/<symbol>-N.ndjson`.
 
 ### #8 outcome (2026-07-11) — grade: report card + AI coaching (ADR-0003, SPEC §5)
 The last slice to a first graded trade. Two buckets that never mix:
