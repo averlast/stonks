@@ -38,7 +38,8 @@ spine. **Unblocked now** (every "Blocked by" is in #1–#9):
 Still blocked: **#13/#14/#15** (profiles chain after #12).
 **#12 unblocks the most downstream** — start there if unsure.
 
-### #9 outcome (2026-07-12) — multi-timeframe live-forming, verified (ADR-0002 amendment)
+### #9 outcome (2026-07-12) — multi-timeframe live-forming, verified — commit `8a33766`
+ADR-0002 amendment. Issue closed.
 The engine work landed early: since **#2**, `PlaybackEngine.step()` folds every 1s bar through all
 three `TimeframeAggregator`s (1m/5m/15m) each tick, retaining per-TF sealed `history` + the live
 `forming` candle, and `main.ts` `switchTimeframe()` already lets the trader flip timeframe in any
