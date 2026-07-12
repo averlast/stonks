@@ -107,6 +107,16 @@ Frontend-only tweaks from driving the app; no engine/logic change:
   toggle (`startMarket`). An explicit **Order type** selector (Market/Limit/Stop) replaces the old
   geometry inference; **Arm** is hidden until an entry is set.
 
+### Prep UX: range tool click-to-place (2026-07-12) — commit `8d22d1e`
+Frontend-only, user-confirmed by hand. **▭ Range now mirrors ＋ Level**: it arms a dashed,
+shaded **ghost band** (default ~100pt span, centred on the cursor) via
+`LevelMarker.beginPlaceZone(seed, span)`; a click drops it and the high/low edges are then
+draggable to size it (replacing the old drop-a-fixed-band-at-chart-centre). Level and zone
+placement are **mutually exclusive** (arming one cancels the other) and both tear down on
+Commit (`disable`) and on leaving Prep (`destroy`); `main.ts` `syncMarkTools()` reflects the armed
+tool on both toolbar buttons. New CSS `.zone-band.ghost` (dashed purple, `pointer-events:none` so
+it never eats the drop click). No engine/logic change; `npm test` unaffected, typecheck + build clean.
+
 ### ⚠ Dev gotchas learned this session (read before running the app)
 - **`app/vite.config.ts` is load-bearing.** Without it Vite full-reloads the webview at startup
   (dep pre-bundle), and that reload races Tauri's `__TAURI_INTERNALS__` injection → `isTauri()`
