@@ -158,6 +158,15 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.scale-row {
+  display: flex;
+  gap: 0.25rem;
+}
+.scale-row button {
+  flex: 1;
+  padding: 0.3rem 0.4rem;
+}
+
 #place {
   background: var(--accent);
   border-color: var(--accent);
@@ -214,6 +223,29 @@ button:disabled {
   font-family: ui-monospace, monospace;
   font-size: 0.68rem;
   padding: 0 0 0.15rem;
+}
+
+/* Working-orders list on the open position (#11): adds + take-profit legs. */
+.order-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  justify-content: space-between;
+  font-family: ui-monospace, monospace;
+  font-size: 0.76rem;
+  padding: 0.12rem 0;
+  border-top: 1px solid #191f27;
+}
+.order-row > span:nth-child(2) {
+  margin-left: auto;
+}
+.ord-x {
+  padding: 0 0.4rem;
+  line-height: 1.4;
+  min-width: 1.4rem;
+}
+.ord-x.muted {
+  opacity: 0.4;
 }
 
 .pnl-pos {
@@ -279,6 +311,12 @@ button:disabled {
   padding: 0 5px;
   border-radius: 3px;
   white-space: nowrap;
+}
+
+/* Ghost line for single-price click placement of an in-position order (#11). */
+.bracket-line.ghost {
+  pointer-events: none;
+  opacity: 0.85;
 }
 
 /* --- Prep level-marking overlay (#7) --- */

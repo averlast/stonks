@@ -123,6 +123,10 @@ export interface TradeDigest {
   /** Was the trade's direction consistent with the committed bias call? */
   alignedWithBias: boolean;
   heldSeconds: number;
+  /** How many entry adds / partial exits built and unwound this position (#11).
+   *  1/1 is a plain single-bracket trade; more means the trader scaled in/out. */
+  entryCount: number;
+  exitCount: number;
   /** The trader's setup archetype for this trade (#10), if tagged. */
   setupTag?: SetupTag;
   /** The objective confirmation flags stamped at entry (#10). */

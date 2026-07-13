@@ -20,23 +20,103 @@ end-to-end** (Prep → attempt → Review → grade).
    then layer on the full environment.
 
 ## Next action — pick the next enrichment slice (critical path #1–#8 COMPLETE)
-Issues **#1–#10 DONE** + on-chart trade management. The full loop runs — **Prep gate** (#7) →
+Issues **#1–#11 DONE** + on-chart trade management. The full loop runs — **Prep gate** (#7) →
 **attempt** (#5) → **Review** (#6) → **grade** (#8). Everything past here is enrichment, not the
-spine. **Unblocked now** (every "Blocked by" is in #1–#10):
+spine. **Unblocked now** (every "Blocked by" is in #1–#11):
 - **#16 HTF context charts + trend read (30m/1h/4h)** — now unblocked by #9; folds in daily + a
   week of history (the user's real prep process, deferred from #7).
 - **#12 Objective level catalog + multi-anchor VWAP** — unblocks the whole profiles chain
   (#13 → #14 → #15). *Note: it's a large slice with a paid-data fork — see the scoping options
   raised 2026-07-12 (intraday OR/IB/VWAP engine is buildable now; expanded scored pre-session
   catalog needs a paid Databento re-pull).*
-- **#11 Scale-in / scale-out** — full position lifecycle on top of the fill engine (#3; the fill
-  list is already ordered so layers add cleanly — see the #3 note).
 - **#17 Calendar + module/progression tracking** — sits directly on the sealed event logs (#8).
 - **#18 Base-rate stats, as-of the practiced day** — no-lookahead stats (ADR-0008), on #1 + #8.
 - **#19 Micro↔mini multiplier toggle** — the contract-size switch (#3; `CONTRACTS` already has
   MNQ/MES).
 Still blocked: **#13/#14/#15** (profiles chain after #12).
 **#12 unblocks the most downstream** — start there if unsure.
+
+### #11 UI pivot (2026-07-13) — order-centric scaling, TradingView-style (Option 2)
+The staged **TP1/TP2/Runner widget was removed** in favour of the real-platform model: scaling is
+emergent from **placing ordinary orders**, not a bespoke object. Engine + tests unchanged in intent;
+this reshapes *how the trader drives it* (user chose Option 2 after we walked through how TV works).
+- **Buy/Sell ticket** (was Long/Short). Flat: Buy opens long, Sell opens short. In a position:
+  same-direction = **scale in**, opposite = **scale out** (`isAddOrder` maps side↔position).
+- **Opening** = a plain bracket (entry + protective stop + one optional full-cover target).
+- **In a position** the same Draw flow places an ordinary order: **market = one click** (immediate
+  add / partial close); **limit/stop = click a price** (`BracketEditor.pickPrice` ghost line) →
+  drops a **resting order**. Several may rest at once. A **Working orders** panel lists each add +
+  take-profit leg with a ✕ to cancel; reduce legs stay draggable on the chart to reprice.
+- **Close ½ / Close ×** on the position panel = market partial close (TV's position-panel affordance).
+- **Engine additions** (`fillEngine.ts`): `targetCoversAll` moved to a **per-leg `coversAll`** flag
+  (attached target covers all + grows with adds; ordinary reduce-limits are fixed size). `target`
+  is now **optional** (stop-only brackets). `pendingAdd` → **`pendingAdds[]`** (multiple working
+  adds, ids); new `placeReduceLimit(price,size)` rests a take-profit; `cancelAdd(id)`,
+  `cancelTarget(index)`, `modifyAdd(id,price)`. `+3 fillEngine` tests (multiple working adds fill
+  independently; placeReduceLimit partial then runner; kept the covers-all + straddle cases).
+- **Tests** → **65** total; typecheck + prod build clean. Headless smoke: open long → buy-limit add
+  fills on a dip → sell-limit TP banks a piece → full-cover target closes the runner (2 in / 2 out).
+- **Deferred** (v1): a resting *add* line isn't chart-draggable yet (cancel from the panel, or
+  reprice by cancel+replace); a partial *sell-stop* reduce isn't wired (scale out via limit/market;
+  the attached stop covers the rest). Reduce-limit place/cancel emit no granular audit event yet
+  (the sealed fills + `trade_closed` are complete).
+
+### #11 outcome (2026-07-12) — scale-in / scale-out: full position lifecycle (ADR-0007)
+*(Engine mechanics below still stand; the staged-target **UI** here was replaced by the order-centric
+pivot above. The full-cover behaviour moved from a position-level flag to a per-leg `coversAll`.)*
+A **Trade** is now a full position lifecycle — from flat, through any number of entry adds and
+partial exits, back to flat — layered onto the proven single-bracket engine (the single-entry /
+single-exit trade is the degenerate case, so the event log (ADR-0005) needs **no** structural
+change: extra fills are more `fill` lines; `trade_closed` still fires once, at flat).
+- **Pure engine** (`app/src/engine/fillEngine.ts`): a `Position` now tracks running `size`,
+  size-weighted `avgEntry` (re-weighted on each add), the accumulators for a size-weighted average
+  exit, and — the 1R anchor — `firstEntryPrice`+`initialSize`, **never rewritten by adds**.
+  - **Scale-in**: `addToPosition(AddRequest, now)` queues a working market/limit/stop add (one at a
+    time) that fills against the bar stream via the shared `fillPrice` helper and merges into the
+    position. `cancelAdd` / `workingAdd` getter.
+  - **Scale-out**: staged `targets: {price,size}[]` on the bracket (TP1/TP2/runner, fixed leg
+    sizes), each filling clean at its price; plus manual `reducePosition(size, bar)` at market. A
+    plain single `target` is **full-cover** (`targetCoversAll`): it protects scale-ins and hitting
+    it closes the WHOLE position (so an add is never a naked runner — the fix below). The single
+    protective **stop always covers the whole remaining size**.
+  - **R** anchors to the first entry: `1R$ = initialSize × |firstEntry − initialStop| × $/pt`,
+    `rMultiple = netUsd / 1R$`; total PnL computed from the balanced fills so it's exact regardless
+    of fill order. **MAE/MFE** span the whole lifecycle. `Trade` gained `entryCount`/`exitCount`.
+  - **Straddle integrity preserved**: `walkTicks` generalises the #4 tick-true resolver to legs —
+    a print can take a partial target *before* the stop takes the rest (tick-true); no ticks →
+    pessimistic full stop-out (never optimistic). The risky adjudication is identical at any size.
+- **Session/grade**: no recorder change (fold reads `trade_closed`). `TradeDigest` carries
+  `entryCount`/`exitCount`; the coach prompt tells the model to read a scaled position as management
+  (adding into confirmation + banking partials = process; averaging down = not), size-weighted
+  avg entry/exit, R anchored to the first entry — **not** to recompute.
+- **UI** (`main.ts`, `index.html`, `style.css`): a scale row on the open position — **＋ Add**
+  (market scale-in of the ticket Size), **－ Exit ½**, **－ Exit** (partial market scale-out). The
+  position box shows a `scaled` line (N entries · M targets); the trades list shows `N in / M out`.
+- **Staged-target UI (2026-07-12)**: a **Scale-out** selector in the ticket (`1× · TP+run ·
+  TP1/2/run`) splits the ticket Size into 1–3 legs (`splitSize`: remainder to the earliest legs, so
+  TP1 is largest and the Runner smallest; never more legs than contracts). `BracketEditor` was
+  generalised from one target line to **N draggable target lines** (`DraftBracket.targets:
+  {price,size}[]`, indexed drag handles, TP1/TP2/Runner labels with per-leg qty). On Arm, >1 leg
+  goes through as `targets[]`; a single leg stays the full-cover target. Verified headless: enter ×3
+  with TP1/TP2/Runner → legs fill 112/118 then the trailed stop takes the runner, one Trade,
+  `exitCount 3`.
+- **Draggable staged legs on the live position (2026-07-12)**: management now shows **every
+  remaining** staged target as its own draggable line (TP1/TP2/Runner ×qty), not just the runner.
+  New engine `modifyTarget(index, price)` retargets one leg; leg order is **stable** (legs are never
+  re-sorted after placement, so an overlay index addresses the same leg until it fills — furthest is
+  recomputed via `refreshFurthestTarget`, not "last"). `syncControls` re-attaches the manage overlay
+  whenever a leg fills (`manageLegCount` guard), so a filled line drops off and the rest stay
+  draggable. `+1 fillEngine` test: retarget a leg by a stable index, fill it at the moved price.
+- **Hand-test fix (2026-07-12)**: a plain single target was covering only the *initial* size, so
+  adding to the position left the added contracts as an unprotected runner and the target reveal
+  read as "nothing happened." A single target is now **full-cover** (`targetCoversAll`) — hitting it
+  closes the whole scaled position; explicit staged `targets[]` keep fixed leg sizes.
+- **Tests**: TS `npm test` → 64 (+9 fillEngine: scale-in re-weights avg entry / 1R unchanged;
+  single target covers scaled-in size; manual partial + runner in one trade; staged legs +
+  trailed-stop runner; straddle-with-partial tick order; modifyTarget by stable index; lifecycle
+  MAE/MFE; + 2 lifecycle guards).
+  All prior fill/straddle/#10 cases pass unchanged (the single-bracket path is the degenerate case).
+  Typecheck + prod build clean. *Interactive scale-row click-through is a hand-check.*
 
 ### #10 outcome (2026-07-12) — confirmation flags + per-trade setup tags (ADR-0003)
 At each entry the engine now stamps four OBJECTIVE, deterministic confirmation flags, and each

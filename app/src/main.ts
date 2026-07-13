@@ -5,7 +5,7 @@ import { DevJsonFeed, TauriFeed, isTauri, type BarFeed } from "./engine/barFeed"
 import { PlaybackEngine, TIMEFRAMES, type Speed } from "./engine/playback";
 import { bucketStart } from "./engine/aggregator";
 import { ChartView, type FillMarker } from "./chart/chartView";
-import { BracketEditor } from "./trading/bracketEditor";
+import { BracketEditor, type DraftBracket } from "./trading/bracketEditor";
 import { CONTRACTS, DEFAULT_FILL_CONFIG } from "./engine/contracts";
 import { FillEngine, type Side, type EntryType, type Fill } from "./engine/fillEngine";
 import {
@@ -272,12 +272,16 @@ async function main(): Promise<void> {
   const orderTypeSeg = $("orderType");
   const drawModeSeg = $("drawMode");
   const setupTagSel = $("setupTag") as HTMLSelectElement;
-  let side: Side = "long";
-  // Explicit entry type (replaces the old geometry inference) and draw style.
+  const ticketTitle = $("ticketTitle");
+  // Buy/Sell like a real platform: flat → Buy opens long / Sell opens short; in a
+  // position → same-direction adds (scale in), opposite takes profit (scale out).
+  let orderSide: "buy" | "sell" = "buy";
   let orderType: EntryType = "market";
   let drawMode: "click" | "drag" = "click";
   // The trader's setup tag for the next trade (#10); "" = untagged.
   let setupTag: SetupTag | "" = "";
+  const ticketSize = () => Math.max(1, Math.floor(Number(sizeEl.value) || 1));
+  const engineSide = (os: "buy" | "sell"): Side => (os === "buy" ? "long" : "short");
   for (const tag of SETUP_TAGS) {
     const opt = document.createElement("option");
     opt.value = tag;
@@ -290,10 +294,11 @@ async function main(): Promise<void> {
 
   for (const b of sideSeg.querySelectorAll("button")) {
     b.addEventListener("click", () => {
-      side = (b as HTMLButtonElement).dataset.v as Side;
+      orderSide = (b as HTMLButtonElement).dataset.v as "buy" | "sell";
       for (const x of sideSeg.querySelectorAll("button")) x.classList.remove("active");
       b.classList.add("active");
-      editor.setSide(side); // keep an in-progress on-chart draft in sync
+      if (!fills.openPosition) editor.setSide(engineSide(orderSide)); // sync an opening draft
+      syncControls();
     });
   }
 
@@ -309,6 +314,7 @@ async function main(): Promise<void> {
       for (const x of orderTypeSeg.querySelectorAll("button")) x.classList.remove("active");
       b.classList.add("active");
       syncDrawModeEnabled();
+      syncControls();
     });
   }
   for (const b of drawModeSeg.querySelectorAll("button")) {
@@ -320,11 +326,36 @@ async function main(): Promise<void> {
   }
   syncDrawModeEnabled();
 
+  /** Does this Buy/Sell order add to (true) or reduce (false) the open position? */
+  const isAddOrder = (): boolean => {
+    const p = fills.openPosition!;
+    return (p.side === "long") === (orderSide === "buy");
+  };
+
   flattenBtn.onclick = () => {
     if (lastBar) fills.flatten(lastBar);
   };
   cancelOrderBtn.onclick = () => {
     fills.cancelPending();
+    syncControls();
+  };
+
+  // --- Close part of the position at market (position-panel partial close) ----
+  const scaleRow = $("scaleRow");
+  const exitHalfBtn = $("exitHalf") as HTMLButtonElement;
+  const scaleOutBtn = $("scaleOut") as HTMLButtonElement;
+  exitHalfBtn.onclick = () => {
+    const p = fills.openPosition;
+    if (!p || !lastBar) return;
+    fills.reducePosition(Math.max(1, Math.floor(p.size / 2)), lastBar);
+    renderPosition();
+    syncControls();
+  };
+  scaleOutBtn.onclick = () => {
+    const p = fills.openPosition;
+    if (!p || !lastBar) return;
+    fills.reducePosition(Math.min(ticketSize(), p.size), lastBar);
+    renderPosition();
     syncControls();
   };
   // Keyboard: F flattens the open position (unless typing in an input/textarea).
@@ -339,6 +370,9 @@ async function main(): Promise<void> {
 
   // --- On-chart bracket editor ----------------------------------------------
   const editor = new BracketEditor(chart, CONTRACTS.NQ.tickSize);
+  // Remaining target-leg count the manage overlay is currently attached to, so it
+  // re-syncs when a staged leg fills (#11). -1 = not attached.
+  let manageLegCount = -1;
   const drawBtn = $("draw") as HTMLButtonElement;
   const armBtn = $("arm") as HTMLButtonElement;
   const cancelDrawBtn = $("cancelDraw") as HTMLButtonElement;
@@ -347,56 +381,124 @@ async function main(): Promise<void> {
   const seedPrice = (): number | null =>
     lastBar ? lastBar.c : (engine.formingOf(activeTf)?.close ?? null);
 
+  // The furthest target line drives the opening R:R readout and management retarget.
+  const runnerLeg = (d: DraftBracket) =>
+    d.targets.reduce((acc, l) =>
+      (d.side === "long" ? l.price > acc.price : l.price < acc.price) ? l : acc,
+    );
   editor.onChange((d) => {
     if (!d) {
       rrEl.textContent = "";
       return;
     }
     if (editor.editMode === "manage") {
-      // Live trade management: apply the dragged stop/target immediately (OCO,
-      // R still anchored to the initial stop). Takes effect next bar.
-      fills.modifyBracket({ stop: d.stop, target: d.target });
+      // Live trade management: apply the dragged stop and each resting take-profit
+      // leg immediately (OCO, R still anchored to the initial stop). Overlay leg
+      // order matches the engine's (legs are never re-sorted), so index i lines up
+      // until the leg fills and syncControls re-attaches. Takes effect next bar.
+      fills.modifyBracket({ stop: d.stop });
+      d.targets.forEach((leg, i) => fills.modifyTarget(i, leg.price));
       renderPosition();
       const p = fills.openPosition;
-      if (p) rrEl.textContent = `managing · stop ${p.stop.toFixed(2)} · tgt ${p.target.toFixed(2)}`;
+      if (p) {
+        const tgts =
+          p.targets.length === 0 ? "no target"
+          : p.targets.length === 1 && Number.isFinite(p.target) ? "tgt " + p.target.toFixed(2)
+          : `${p.targets.length} targets`;
+        rrEl.textContent = `managing · stop ${p.stop.toFixed(2)} · ${tgts}`;
+      }
       return;
     }
     const risk = Math.abs(d.entry - d.stop);
-    const rr = risk > 0 ? Math.abs(d.target - d.entry) / risk : 0;
+    const rr = risk > 0 ? Math.abs(runnerLeg(d).price - d.entry) / risk : 0;
     const at = orderType === "market" ? "at market" : `@ ${d.entry.toFixed(2)}`;
-    rrEl.textContent = `${d.side} · ${orderType} ${at} · R:R ${rr.toFixed(2)}`;
+    rrEl.textContent = `${orderSide} · ${orderType} ${at} · R:R ${rr.toFixed(2)}`;
   });
 
+  /** Place an ordinary order against the OPEN position (TradingView-style, #11):
+   *  Buy/Sell decides add vs reduce; market places now, limit/stop clicks a price. */
+  function placeInPositionOrder(pos: NonNullable<typeof fills.openPosition>): void {
+    const add = isAddOrder();
+    const size = ticketSize();
+    const t = lastBar ? lastBar.t : 0;
+    if (orderType === "market") {
+      if (!lastBar) {
+        ticketMsg.textContent = "step or play forward first";
+        return;
+      }
+      if (add) {
+        fills.addToPosition({ entryType: "market", size }, t);
+        ticketMsg.textContent = `adding ×${size} at market`;
+      } else {
+        const n = Math.min(size, pos.size);
+        fills.reducePosition(n, lastBar);
+        ticketMsg.textContent = `closing ×${n} at market`;
+      }
+      renderPosition();
+      renderMarkers();
+      syncControls();
+      return;
+    }
+    // limit/stop → click a price on the chart to drop the resting order.
+    if (!add && orderType === "stop") {
+      ticketMsg.textContent = "scale out with a limit or market — the stop covers the rest";
+      return;
+    }
+    const label = add ? `${orderSide} ${orderType} +${size}` : `TP limit −${size}`;
+    editor.pickPrice(label, (price) => {
+      try {
+        if (add) fills.addToPosition({ entryType: orderType, entryPrice: price, size }, t);
+        else fills.placeReduceLimit(price, size, t);
+        ticketMsg.textContent = "";
+      } catch (err) {
+        ticketMsg.textContent = String(err instanceof Error ? err.message : err);
+      }
+      renderPosition();
+      renderMarkers();
+      syncControls();
+    });
+    ticketMsg.textContent = "click a price to drop the order (Esc cancels)";
+    syncControls();
+  }
+
   drawBtn.onclick = () => {
+    const pos = fills.openPosition;
+    if (pos) {
+      placeInPositionOrder(pos);
+      return;
+    }
+    // --- opening a new position from flat: draw the bracket ---
     const seed = seedPrice();
     if (seed === null) {
       ticketMsg.textContent = "step or play forward first";
       return;
     }
+    const es = engineSide(orderSide);
+    const legs = [ticketSize()];
     if (orderType === "market") {
-      // Entry is the current price; just place the protective bars.
-      editor.startMarket(side, seed);
+      editor.startMarket(es, seed, legs);
       ticketMsg.textContent = "market entry at last — drag stop/target, then arm";
     } else if (drawMode === "click") {
-      // Click the chart to set the entry, then drag stop/target.
-      editor.startClickPlace(side);
-      ticketMsg.textContent = "click the chart to set your entry";
+      editor.startClickPlace(es, legs);
+      ticketMsg.textContent = "click to set entry — then drag any line to adjust, then arm";
     } else {
-      // Drag style: all three lines seeded and draggable.
-      editor.start(side, seed);
+      editor.start(es, seed, legs);
       ticketMsg.textContent = "";
     }
     syncControls();
   };
   cancelDrawBtn.onclick = () => {
     editor.cancel();
+    editor.cancelPick();
     rrEl.textContent = "";
+    ticketMsg.textContent = "";
     syncControls();
   };
   armBtn.onclick = () => {
     const v = editor.value;
     if (!v) return;
     const type = orderType;
+    const runner = runnerLeg(v);
     try {
       fills.place(
         {
@@ -404,8 +506,8 @@ async function main(): Promise<void> {
           entryType: type,
           entryPrice: type === "market" ? undefined : v.entry,
           stop: v.stop,
-          target: v.target,
-          size: Number(sizeEl.value),
+          target: runner.price, // single full-cover target; scale out with more orders
+          size: ticketSize(),
           level: "chart",
           reason: "drawn",
           setupTag: setupTag || undefined,
@@ -423,8 +525,10 @@ async function main(): Promise<void> {
 
   // --- Trading render helpers ------------------------------------------------
   const posBox = $("posBox");
+  const ordersBox = $("ordersBox");
   const tradesBox = $("tradesBox");
   const nq = CONTRACTS.NQ;
+  const fmtPx = (n: number) => (Number.isFinite(n) ? n.toFixed(2) : "—");
 
   /** One place that reconciles all trade controls with engine state. */
   function syncControls(): void {
@@ -440,33 +544,100 @@ async function main(): Promise<void> {
       cancelOrderBtn.hidden = true;
       armBtn.hidden = true;
       cancelDrawBtn.hidden = true;
+      scaleRow.hidden = true;
       return;
     }
 
-    // Attach/detach the on-chart manage overlay as the position opens/closes,
-    // without disturbing an in-progress placement draw.
-    if (pos && editor.editMode === null) {
-      editor.manage(pos.side, pos.avgEntry, pos.stop, pos.target);
+    // Attach/detach the on-chart manage overlay as the position opens/closes, and
+    // re-attach with the current legs whenever one fills (so a filled TP1/TP2 line
+    // drops off and the rest stay draggable) — without disturbing a placement draw.
+    if (pos && (editor.editMode === null || (editor.editMode === "manage" && manageLegCount !== pos.targets.length))) {
+      editor.manage(pos.side, pos.avgEntry, pos.stop, pos.targets);
+      manageLegCount = pos.targets.length;
     } else if (!pos && editor.editMode === "manage") {
       editor.cancel();
+      manageLegCount = -1;
     }
 
     const placing = editor.editMode === "place" || editor.editMode === "place-entry";
+    const picking = editor.picking;
     // The draggable overlay owns the live/placement bracket; horizontal price-
-    // lines only draw a resting (unfilled) order.
+    // lines only draw a resting (unfilled) opening order.
     if (editor.active) chart.setBracket({ entry: null, stop: null, target: null });
     else if (pend)
-      chart.setBracket({ entry: pend.entryPrice ?? null, stop: pend.stop, target: pend.target });
+      chart.setBracket({ entry: pend.entryPrice ?? null, stop: pend.stop, target: pend.target ?? null });
     else chart.setBracket({ entry: null, stop: null, target: null });
 
+    // The Draw button is contextual (#11 Option 2): a bracket when flat, an ordinary
+    // add/reduce order when in a position. Market places on one click; limit/stop
+    // arms a price-click.
     drawBtn.hidden = placing;
-    drawBtn.disabled = Boolean(pos || pend);
+    drawBtn.disabled = pend !== null || picking;
+    drawBtn.textContent = !pos
+      ? "✎ Draw on chart"
+      : orderType === "market"
+        ? isAddOrder() ? `＋ ${orderSide} ×${ticketSize()} (mkt)` : `－ close ×${ticketSize()} (mkt)`
+        : isAddOrder() ? `＋ ${orderSide} ${orderType} (click)` : `－ TP limit (click)`;
+    ticketTitle.textContent = pos
+      ? "Manage — place orders on the position"
+      : "Trade — draw the bracket on the chart";
     // Arm only once there's a bracket to arm (during place-entry the entry click
     // hasn't landed yet, so there's nothing to submit).
     armBtn.hidden = !placing || editor.value === null;
-    cancelDrawBtn.hidden = !placing;
+    cancelDrawBtn.hidden = !placing && !picking;
     cancelOrderBtn.hidden = !pend;
     flattenBtn.disabled = pos === null;
+    scaleRow.hidden = pos === null;
+    exitHalfBtn.disabled = pos === null || pos.size <= 1;
+    scaleOutBtn.disabled = pos === null;
+    renderOrders();
+  }
+
+  /** Resting working orders on the open position: scale-in adds + take-profit legs,
+   *  each cancelable (the attached full-cover target is part of the bracket, #11). */
+  function renderOrders(): void {
+    const p = fills.openPosition;
+    const adds = fills.workingAdds;
+    if (!p || (adds.length === 0 && p.targets.length === 0)) {
+      ordersBox.hidden = true;
+      ordersBox.innerHTML = "";
+      return;
+    }
+    ordersBox.hidden = false;
+    const rows: string[] = [];
+    for (const a of adds) {
+      const px = a.entryPrice != null ? a.entryPrice.toFixed(2) : "mkt";
+      rows.push(
+        `<div class="order-row"><span class="pos-${p.side}">add ${a.entryType}</span>` +
+          `<span>${px} ×${a.size}</span><button class="ord-x" data-cancel-add="${a.id}">✕</button></div>`,
+      );
+    }
+    p.targets.forEach((leg, i) => {
+      const qty = leg.coversAll ? p.size : leg.size;
+      const x = leg.coversAll
+        ? `<span class="ord-x muted">·</span>`
+        : `<button class="ord-x" data-cancel-tgt="${i}">✕</button>`;
+      rows.push(
+        `<div class="order-row"><span>${leg.coversAll ? "target" : "TP limit"}</span>` +
+          `<span>${leg.price.toFixed(2)} ×${qty}</span>${x}</div>`,
+      );
+    });
+    ordersBox.innerHTML = `<h4>Working orders</h4>${rows.join("")}`;
+    for (const b of ordersBox.querySelectorAll<HTMLButtonElement>("[data-cancel-add]")) {
+      b.onclick = () => {
+        fills.cancelAdd(b.dataset.cancelAdd!);
+        renderOrders();
+        syncControls();
+      };
+    }
+    for (const b of ordersBox.querySelectorAll<HTMLButtonElement>("[data-cancel-tgt]")) {
+      b.onclick = () => {
+        fills.cancelTarget(Number(b.dataset.cancelTgt));
+        renderPosition();
+        renderOrders();
+        syncControls();
+      };
+    }
   }
 
   function renderMarkers(): void {
@@ -503,7 +674,7 @@ async function main(): Promise<void> {
       posBox.innerHTML =
         `<h4>Working order</h4>` +
         `<div class="kv"><span class="pos-${pend.side}">${pend.side} ×${pend.size}</span><span>${pend.entryType}${at}</span></div>` +
-        `<div class="kv"><span>stop / tgt</span><span>${pend.stop} / ${pend.target}</span></div>`;
+        `<div class="kv"><span>stop / tgt</span><span>${pend.stop} / ${pend.target ?? "—"}</span></div>`;
       return;
     }
     if (!p) {
@@ -516,10 +687,18 @@ async function main(): Promise<void> {
     const r = risk > 0 ? pnlPts / risk : 0;
     const usd = pnlPts * nq.pointValue * p.size;
     const cls = pnlPts >= 0 ? "pnl-pos" : "pnl-neg";
+    // Surface the scaled lifecycle (#11): how many entries built this position and
+    // how many scale-out legs are still resting under the single stop.
+    const entries = p.fills.filter((f) => f.reason === "entry").length;
+    const scaled =
+      entries > 1 || p.targets.length > 1
+        ? `<div class="kv muted"><span>scaled</span><span>${entries} entr${entries === 1 ? "y" : "ies"} · ${p.targets.length} target${p.targets.length === 1 ? "" : "s"}</span></div>`
+        : "";
     posBox.innerHTML =
       `<h4>Position</h4>` +
       `<div class="kv"><span class="pos-${p.side}">${p.side} ×${p.size}</span><span>@ ${p.avgEntry.toFixed(2)}</span></div>` +
-      `<div class="kv"><span>stop / tgt</span><span>${p.stop.toFixed(2)} / ${p.target.toFixed(2)}</span></div>` +
+      `<div class="kv"><span>stop / tgt</span><span>${fmtPx(p.stop)} / ${fmtPx(p.target)}</span></div>` +
+      scaled +
       `<div class="kv"><span>unreal</span><span class="${cls}">${r >= 0 ? "+" : ""}${r.toFixed(2)}R · ${usd >= 0 ? "+" : ""}$${usd.toFixed(0)}</span></div>` +
       `<div class="kv"><span>MAE / MFE</span><span>${p.maePoints.toFixed(2)} / ${p.mfePoints.toFixed(2)}</span></div>` +
       (p.setupTag ? `<div class="kv"><span>setup</span><span>${p.setupTag}</span></div>` : "") +
@@ -545,7 +724,9 @@ async function main(): Promise<void> {
           `<span>${t.exitReason}${flag}</span>` +
           `<span class="${cls}">${t.rMultiple >= 0 ? "+" : ""}${t.rMultiple.toFixed(2)}R</span>` +
           `<span class="${cls}">$${t.pnlUsd.toFixed(0)}</span></div>` +
-          `<div class="trade-mfe muted">MAE ${t.maePoints.toFixed(2)} · MFE ${t.mfePoints.toFixed(2)}</div>` +
+          `<div class="trade-mfe muted">MAE ${t.maePoints.toFixed(2)} · MFE ${t.mfePoints.toFixed(2)}` +
+          (t.entryCount > 1 || t.exitCount > 1 ? ` · ${t.entryCount} in / ${t.exitCount} out` : "") +
+          `</div>` +
           (t.setupTag || t.confirmation
             ? `<div class="trade-mfe muted">${t.setupTag ?? "untagged"}${t.confirmation ? " · " + fmtConf(t.confirmation) : ""}</div>`
             : "")

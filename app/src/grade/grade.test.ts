@@ -136,6 +136,8 @@ function trade(o: Partial<Trade> = {}): Trade {
     pnlUsd: 1700,
     commissionUsd: 5,
     rMultiple: 4.25,
+    entryCount: 1,
+    exitCount: 1,
     openedAt: 100,
     closedAt: 340,
     ...o,

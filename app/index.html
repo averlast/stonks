@@ -58,12 +58,12 @@
           <div id="prepReveal" class="box" hidden></div>
         </section>
         <section id="tradePanel" hidden>
-          <div class="ticket-title">Trade — draw the bracket on the chart</div>
+          <div class="ticket-title" id="ticketTitle">Trade — draw the bracket on the chart</div>
           <div class="field">
             <label>Side</label>
-            <div class="seg" id="side">
-              <button type="button" data-v="long" class="active">Long</button>
-              <button type="button" data-v="short">Short</button>
+            <div class="seg" id="side" title="Buy/Sell. Flat: Buy opens long, Sell opens short. In a position: same-direction adds (scale in), opposite takes profit (scale out).">
+              <button type="button" data-v="buy" class="active">Buy</button>
+              <button type="button" data-v="sell">Sell</button>
             </div>
           </div>
           <div class="field">
@@ -92,10 +92,15 @@
           <button type="button" id="arm" class="primary" hidden>Arm bracket</button>
           <button type="button" id="cancelDraw" hidden>Cancel draw</button>
           <button type="button" id="cancelOrder" hidden>Cancel working order</button>
+          <div class="scale-row" id="scaleRow" hidden>
+            <button type="button" id="exitHalf" title="Close half the open position at market">Close ½</button>
+            <button type="button" id="scaleOut" title="Close the Size above from the open position at market">Close ×</button>
+          </div>
           <button type="button" id="flatten" disabled>Flatten (F)</button>
           <div id="rr" class="muted"></div>
           <div id="ticketMsg" class="msg"></div>
         </section>
+        <div id="ordersBox" class="box" hidden></div>
         <div id="posBox" class="box"></div>
         <div id="tradesBox" class="box"></div>
         <section id="gradePanel" hidden>

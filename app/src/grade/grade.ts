@@ -62,6 +62,10 @@ const SYSTEM_PROMPT = [
   "candle, and agreement with the HTF trend. Weigh execution higher when entries were taken WITH",
   "confirmation and the tag matched what the tape shows; flag entries taken against a flat/opposing",
   "read or with no confirmation. These flags are given, not for you to recompute.",
+  "A trade may be a scaled position: entryCount>1 means the trader added (scaled in), exitCount>1",
+  "means partial exits / a runner (scaled out). avgEntry and exitPrice are size-weighted across the",
+  "adds, and R is anchored to the FIRST entry's risk. Judge scaling as management: adding into",
+  "confirmation and banking partials is process; adding into an adverse move (averaging down) is not.",
   "Be specific and reference concrete numbers from the digest. Keep the summary to 2–3 sentences.",
 ].join("\n");
 

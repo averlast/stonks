@@ -41,6 +41,8 @@ function distillTrade(
     entryProximityToMark: nearestMarkDistance(t.avgEntry, markedPrices),
     alignedWithBias,
     heldSeconds: t.closedAt - t.openedAt,
+    entryCount: t.entryCount,
+    exitCount: t.exitCount,
     setupTag: t.setupTag,
     confirmation: t.confirmation,
   };
