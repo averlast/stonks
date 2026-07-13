@@ -36,7 +36,7 @@ here is enrichment, not the spine. **Unblocked now**:
 still need the deferred **paid Databento re-pull** (pre-09:30 history). Decide that data spend
 before starting the profiles chain.
 
-### #12 outcome (2026-07-13) — intraday objective-level engine (no-cost half; paid fork deferred)
+### #12 outcome (2026-07-13) — intraday objective-level engine (no-cost half; paid fork deferred) — commit `1a42a6a`, issue OPEN (criterion 3 partial)
 Built the **buildable half** of #12 — the intraday OR/IB/VWAP engine — and **deferred the paid
 half** (the *scored* expanded pre-session catalog + daily/weekly VWAP anchors need pre-09:30
 history = a paid Databento re-pull; the fork was flagged 2026-07-12). Acceptance criteria: (1)
