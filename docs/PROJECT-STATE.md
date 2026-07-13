@@ -2,8 +2,9 @@
 
 Local, single-user **ORB/IB practice simulator**: replay the first 2h of the NY index-futures
 open (NQ/ES), commit a plan, trade forward-only with honest fills, then get AI coaching graded on
-**process, not outcome**. Status: **core loop built through #8 — first graded trade working
-end-to-end** (Prep → attempt → Review → grade).
+**process, not outcome**. Status: **core loop complete (through #8) + enrichment slices #9–#11
+shipped**. The full loop runs end-to-end (Prep → attempt → Review → grade) and a Trade is now a
+full scaled position lifecycle (scale in/out via ordinary orders, #11).
 
 ## Where everything lives
 - **`SPEC.md`** — the 14 locked decisions + data/fill/grading architecture.
@@ -36,7 +37,13 @@ spine. **Unblocked now** (every "Blocked by" is in #1–#11):
 Still blocked: **#13/#14/#15** (profiles chain after #12).
 **#12 unblocks the most downstream** — start there if unsure.
 
-### #11 UI pivot (2026-07-13) — order-centric scaling, TradingView-style (Option 2)
+### #11 UI pivot (2026-07-13) — order-centric scaling, TradingView-style (Option 2) — commit `9298e50`, issue closed
+**Follow-ups deferred to a later slice** (open, noted here so they aren't lost): (a) resting *add*
+lines aren't chart-draggable yet — cancel from the Working-orders panel or cancel+replace to
+reprice (TP legs already drag); (b) a partial *sell-stop* reduce isn't wired — scale out via
+limit/market, the attached stop covers the rest; (c) reduce-limit place/cancel emit no granular
+audit event yet (sealed fills + `trade_closed` are complete). Engine mechanics under this pivot:
+
 The staged **TP1/TP2/Runner widget was removed** in favour of the real-platform model: scaling is
 emergent from **placing ordinary orders**, not a bespoke object. Engine + tests unchanged in intent;
 this reshapes *how the trader drives it* (user chose Option 2 after we walked through how TV works).
