@@ -2,7 +2,7 @@
  * The grade vocabulary (#8 / ADR-0003, SPEC §5). A grade has two buckets that never
  * mix:
  *   (1) the **report card** — objective, engine-computed here in portable TS
- *       (level-marking accuracy + bias call vs the realized 2h window), and
+ *       (the bias call vs the realized 2h window), and
  *   (2) the **AI synthesis** — one Anthropic call that narrates adherence / execution
  *       / outcome and coaches. It is handed the already-computed report-card numbers
  *       and must NOT recompute them.
@@ -16,64 +16,27 @@ import type { ConfirmationFlags, SetupTag } from "../engine/confirmation";
 
 export type { BiasCall };
 
-/** A revealed true pre-session level (the hidden-drill answer key, #7). */
-export interface TrueLevel {
-  id: string;
-  label: string;
-  kind: string;
-  price: number;
-}
-
 /**
  * Scoring knobs — decided in shape, numbers still to tune (ADR-0003 open params).
- * Per-symbol: a "few points" is not the same distance on NQ as on ES, so this is
- * keyed by contract. Bias thresholds are scored over the 2h traded window.
+ * Bias thresholds are scored over the 2h traded window. (Level-marking is no longer
+ * scored, so the per-symbol level tolerances were removed.)
  */
 export interface GradeConfig {
-  /** Full precision credit for a mark within this many points of the true level. */
-  levelTolerancePts: number;
-  /** Credit decays linearly from full at `levelTolerancePts` to zero here. */
-  levelDecayPts: number;
   /** |net| / range at or above this over the 2h window reads as directional (else chop). */
   biasDirectionalFraction: number;
 }
 
-/** Per-symbol tolerances (open params, ADR-0003). NQ tuned first; others mirror it
- *  until hand-calibrated. */
+/** Per-symbol bias thresholds (open params, ADR-0003). NQ tuned first; others mirror
+ *  it until hand-calibrated. */
 export const GRADE_CONFIGS: Record<string, GradeConfig> = {
-  NQ: { levelTolerancePts: 10, levelDecayPts: 40, biasDirectionalFraction: 0.34 },
-  MNQ: { levelTolerancePts: 10, levelDecayPts: 40, biasDirectionalFraction: 0.34 },
-  ES: { levelTolerancePts: 3, levelDecayPts: 12, biasDirectionalFraction: 0.34 },
-  MES: { levelTolerancePts: 3, levelDecayPts: 12, biasDirectionalFraction: 0.34 },
+  NQ: { biasDirectionalFraction: 0.34 },
+  MNQ: { biasDirectionalFraction: 0.34 },
+  ES: { biasDirectionalFraction: 0.34 },
+  MES: { biasDirectionalFraction: 0.34 },
 };
 
 export function gradeConfig(symbol: string): GradeConfig {
   return GRADE_CONFIGS[symbol] ?? GRADE_CONFIGS.NQ;
-}
-
-/** One true level scored against the trader's blind marks. */
-export interface LevelScore {
-  id: string;
-  label: string;
-  truePrice: number;
-  /** True once a mark lands inside the decay band (i.e. `points > 0`). */
-  marked: boolean;
-  /** Distance from the nearest mark, or null if nothing was marked at all. */
-  nearestMarkDistance: number | null;
-  /** Precision credit in [0,1]: full inside tolerance, linear decay to zero. */
-  points: number;
-}
-
-/** Level-marking accuracy: coverage (did they mark each in-scope level) folded with
- *  precision (how close each mark landed). */
-export interface LevelMarkingScore {
-  levels: LevelScore[];
-  /** Fraction of in-scope true levels that got a mark inside the decay band. */
-  coverage: number;
-  /** Mean precision credit over the covered levels only. */
-  precision: number;
-  /** Mean precision credit over ALL in-scope levels (unmarked count as zero). */
-  overall: number;
 }
 
 /** The realized shape of the 2h traded window — the answer the bias call is graded
@@ -97,10 +60,10 @@ export interface BiasScore {
   rangePoints: number;
 }
 
-/** The objective report card (bucket 1). Volume-zone accuracy is deferred to the
- *  profiles module (#14), so it is not scored here. */
+/** The objective report card (bucket 1). Just the bias classification now —
+ *  level-marking precision-scoring was removed (wasn't useful) and volume-zone
+ *  accuracy is deferred to the profiles module (#14). */
 export interface ReportCard {
-  levelMarking: LevelMarkingScore;
   bias: BiasScore;
 }
 
@@ -156,8 +119,8 @@ export interface Digest {
   reportCard: ReportCard;
   trades: TradeDigest[];
   /** Auto-computed intraday objective levels (#12): the frozen OR/IB catalog + final
-   *  NY-open VWAP over the sealed day. Context for the coach — UNSCORED (only the
-   *  blind pre-session marks are precision-scored). */
+   *  NY-open VWAP over the sealed day. Context for the coach — UNSCORED (nothing about
+   *  levels is scored anymore; the marks are a Prep ritual only). */
   intradayLevels?: {
     vwap: number | null;
     levels: { id: string; label: string; price: number }[];

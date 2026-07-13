@@ -1,67 +1,16 @@
 import type { Sec1Bar } from "../types";
 import type { BiasCall } from "../session/events";
-import type {
-  BiasScore,
-  GradeConfig,
-  LevelMarkingScore,
-  LevelScore,
-  MarketStructure,
-  ReportCard,
-  TrueLevel,
-} from "./types";
+import type { BiasScore, GradeConfig, MarketStructure, ReportCard } from "./types";
 
 /**
  * The objective report card (#8, bucket 1). Pure functions over the sealed inputs —
- * the trader's blind marks, the true-level answer key, and the realized 2h window —
- * so the same attempt always scores the same. The AI is handed these numbers; it
- * never recomputes them (ADR-0003).
+ * the realized 2h window and the committed bias call — so the same attempt always
+ * scores the same. The AI is handed these numbers; it never recomputes them (ADR-0003).
+ *
+ * Level-marking is NO LONGER scored: the trader still marks pre-session levels in Prep
+ * (a personal-discipline ritual) and the true levels are still revealed, but grading
+ * their precision wasn't useful, so the report card is now just the bias classification.
  */
-
-/** Precision credit for a mark `d` points from its true level: full inside
- *  `tolerance`, linear decay to zero at `decay`, clamped to [0,1]. */
-export function markCredit(d: number, tolerance: number, decay: number): number {
-  if (d <= tolerance) return 1;
-  if (d >= decay) return 0;
-  return (decay - d) / (decay - tolerance);
-}
-
-/**
- * Score the blind level-marking drill: for each in-scope true level, find the
- * nearest mark and award precision credit. Coverage counts the levels that drew a
- * mark inside the decay band; precision averages the credit over those; overall
- * averages over ALL in-scope levels (an unmarked level scores zero).
- */
-export function scoreLevelMarking(
-  markedPrices: readonly number[],
-  truth: readonly TrueLevel[],
-  cfg: GradeConfig,
-): LevelMarkingScore {
-  const levels: LevelScore[] = truth.map((l) => {
-    const nearest = markedPrices.length
-      ? Math.min(...markedPrices.map((m) => Math.abs(m - l.price)))
-      : null;
-    const points =
-      nearest === null ? 0 : markCredit(nearest, cfg.levelTolerancePts, cfg.levelDecayPts);
-    return {
-      id: l.id,
-      label: l.label,
-      truePrice: l.price,
-      marked: points > 0,
-      nearestMarkDistance: nearest,
-      points,
-    };
-  });
-
-  const covered = levels.filter((l) => l.marked);
-  const coverage = levels.length ? covered.length / levels.length : 0;
-  const precision = covered.length
-    ? covered.reduce((s, l) => s + l.points, 0) / covered.length
-    : 0;
-  const overall = levels.length
-    ? levels.reduce((s, l) => s + l.points, 0) / levels.length
-    : 0;
-  return { levels, coverage, precision, overall };
-}
 
 /**
  * The realized shape of the traded window, computed deterministically from the
@@ -103,16 +52,7 @@ export function scoreBias(called: BiasCall, structure: MarketStructure): BiasSco
   };
 }
 
-/** Assemble the full objective report card from the sealed inputs. */
-export function buildReportCard(
-  markedPrices: readonly number[],
-  truth: readonly TrueLevel[],
-  called: BiasCall,
-  structure: MarketStructure,
-  cfg: GradeConfig,
-): ReportCard {
-  return {
-    levelMarking: scoreLevelMarking(markedPrices, truth, cfg),
-    bias: scoreBias(called, structure),
-  };
+/** Assemble the objective report card from the sealed inputs (bias call only). */
+export function buildReportCard(called: BiasCall, structure: MarketStructure): ReportCard {
+  return { bias: scoreBias(called, structure) };
 }

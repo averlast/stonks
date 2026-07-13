@@ -5,7 +5,9 @@ open (NQ/ES), commit a plan, trade forward-only with honest fills, then get AI c
 **process, not outcome**. Status: **core loop complete (through #8) + enrichment slices #9–#12
 shipped**. The full loop runs end-to-end (Prep → attempt → Review → grade) and a Trade is now a
 full scaled position lifecycle (scale in/out via ordinary orders, #11). The chart now auto-draws
-the intraday objective levels — Opening Range, developing IB, NY-open VWAP (#12).
+the intraday objective levels — Opening Range, developing IB, NY-open VWAP (#12). **Level-marking
+is a Prep discipline ritual, NOT scored** (the precision/coverage score was removed 2026-07-13 —
+see the entry below; this supersedes ADR-0003/decision-8's "precision-scored levels").
 
 ## Where everything lives
 - **`SPEC.md`** — the 14 locked decisions + data/fill/grading architecture.
@@ -31,12 +33,34 @@ here is enrichment, not the spine. **Unblocked now**:
 - **#18 Base-rate stats, as-of the practiced day** — no-lookahead stats (ADR-0008), on #1 + #8.
 - **#19 Micro↔mini multiplier toggle** — the contract-size switch (#3; `CONTRACTS` already has
   MNQ/MES).
-**Profiles chain #13 → #14 → #15** is now unblocked by #12 *for the intraday half*, but the
-**scored expanded pre-session catalog** (PW/PM H/L, Value Areas) + **daily/weekly VWAP anchors**
-still need the deferred **paid Databento re-pull** (pre-09:30 history). Decide that data spend
-before starting the profiles chain.
+**Profiles chain #13 → #14 → #15** is unblocked by #12 *for the intraday half*. Drawing
+**prior-session/week profiles & Value Areas** and the **daily/weekly VWAP anchors** still needs
+pre-09:30 history = a **paid Databento re-pull** — but this is now only about *drawing* those
+levels for reference (they're never scored), so it's a lower-priority nicety, not a grading
+dependency. Decide the data spend if/when you want those higher-timeframe references on the chart.
 
-### #12 outcome (2026-07-13) — intraday objective-level engine (no-cost half; paid fork deferred) — commit `1a42a6a`, issue OPEN (criterion 3 partial)
+### Level-marking scoring REMOVED (2026-07-13) — marks are now a Prep ritual, not a graded drill
+User call after using it: the level-marking **precision/coverage score wasn't useful**. Removed the
+scoring; **kept** the Prep marking ritual (draw levels/zones before Play), the true-level **reveal**
+on Commit (drawn as chart lines + listed — just no "nearest X pts" readout), the **bias** score, and
+the **AI coaching**. Knock-on: this **cancels the #12 paid-data fork for scoring** — there's no
+longer any reason to buy pre-09:30 data to expand a *scored* pre-session catalog (#12 criteria 1 & 2
+stand; criterion 3's "scored expanded catalog" is retired, not deferred).
+- **Engine** (`grade/reportCard.ts`, `grade/types.ts`): deleted `scoreLevelMarking` / `markCredit` /
+  `LevelMarkingScore` / `LevelScore` / `TrueLevel` (grade's copy) and the per-symbol level tolerance
+  params (`levelTolerancePts`/`levelDecayPts`). `ReportCard` is now just `{ bias }`;
+  `buildReportCard(called, structure)`. `GradeConfig` keeps only `biasDirectionalFraction`.
+- **Prompt** (`grade/grade.ts`): the coach is told the marks are an **unscored** discipline ritual —
+  context for whether trades leaned on planned prices, not a graded drill. `entryProximityToMark`
+  (a trade's distance to the nearest mark) is retained as narrative context — it was never a *score*.
+- **UI** (`main.ts`): `renderReportCard` dropped the "Level marking / coverage·precision" section
+  (now Bias + AI only); `renderReveal` lists the revealed levels **without** the proximity readout.
+  The reveal LINES on Commit are unchanged (still drawn).
+- **Tests**: removed the 3 level-scoring tests; `npm test` → **68**. Typecheck + prod build clean.
+- **Docs debt**: SPEC §5 / ADR-0003 / decision-8 still describe precision-scored levels — **stale**;
+  this entry is the authority until they're rewritten (left to the user's call).
+
+### #12 outcome (2026-07-13) — intraday objective-level engine (no-cost half; paid fork deferred) — commit `1a42a6a`, issue OPEN (criterion 3 retired, see entry above)
 Built the **buildable half** of #12 — the intraday OR/IB/VWAP engine — and **deferred the paid
 half** (the *scored* expanded pre-session catalog + daily/weekly VWAP anchors need pre-09:30
 history = a paid Databento re-pull; the fork was flagged 2026-07-12). Acceptance criteria: (1)

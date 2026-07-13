@@ -1,32 +1,20 @@
-/* Tests for the grade slice (#8). Run: npm test. The report card must score the
- * blind marks and the bias call deterministically from the sealed inputs, and the AI
- * request/response plumbing must build and parse without a network. */
+/* Tests for the grade slice (#8). Run: npm test. The report card must classify the
+ * bias call deterministically from the sealed 2h window, and the AI request/response
+ * plumbing must build and parse without a network. (Level-marking precision-scoring
+ * was removed — marks are a Prep ritual, not a graded drill.) */
 import assert from "node:assert/strict";
 import type { Sec1Bar } from "../types";
 import type { Trade } from "../engine/fillEngine";
 import type { Prep } from "../session/events";
 import { fold, type RecordedEvent } from "../session/events";
-import {
-  buildReportCard,
-  classifyStructure,
-  markCredit,
-  scoreBias,
-  scoreLevelMarking,
-} from "./reportCard";
+import { buildReportCard, classifyStructure, scoreBias } from "./reportCard";
 import { buildDigest } from "./digest";
 import { buildGradeRequest, parseAiGrade } from "./grade";
-import { gradeConfig, type TrueLevel } from "./types";
+import { gradeConfig } from "./types";
 
-const CFG = gradeConfig("NQ"); // tol 10, decay 40, directional 0.34
+const CFG = gradeConfig("NQ"); // directional fraction 0.34
 const bar = (t: number, o: number, h: number, l: number, c: number): Sec1Bar =>
   ({ t, o, h, l, c, v: 1 });
-
-const TRUTH: TrueLevel[] = [
-  { id: "PDH", label: "Prior day high", kind: "pre_session", price: 18761 },
-  { id: "PDL", label: "Prior day low", kind: "pre_session", price: 18385.75 },
-  { id: "ONH", label: "Overnight high", kind: "pre_session", price: 18390 },
-  { id: "ONL", label: "Overnight low", kind: "pre_session", price: 17351 },
-];
 
 let passed = 0;
 function test(name: string, fn: () => void): void {
@@ -39,46 +27,6 @@ function test(name: string, fn: () => void): void {
     process.exitCode = 1;
   }
 }
-
-test("markCredit is full inside tolerance, decays linearly, zero past decay", () => {
-  assert.equal(markCredit(0, 10, 40), 1);
-  assert.equal(markCredit(10, 10, 40), 1);
-  assert.equal(markCredit(40, 10, 40), 0);
-  assert.equal(markCredit(999, 10, 40), 0);
-  // Midpoint of the decay band (25 pts) → half credit.
-  assert.equal(markCredit(25, 10, 40), 0.5);
-});
-
-test("scoreLevelMarking rewards coverage and precision, penalises misses", () => {
-  // Well-separated levels so each mark scores exactly one (the real PDL/ONH sit only
-  // ~4 pts apart, so a single mark legitimately covers both — tested via the whole key).
-  const sep: TrueLevel[] = [
-    { id: "A", label: "A", kind: "x", price: 1000 },
-    { id: "B", label: "B", kind: "x", price: 2000 },
-    { id: "C", label: "C", kind: "x", price: 3000 },
-    { id: "D", label: "D", kind: "x", price: 4000 },
-  ];
-  // A exact, B within tolerance (5), C a near-miss (25 → 0.5), D unmarked.
-  const s = scoreLevelMarking([1000, 1995, 3025], sep, CFG);
-  const byId = Object.fromEntries(s.levels.map((l) => [l.id, l]));
-  assert.equal(byId.A.points, 1);
-  assert.equal(byId.B.points, 1); // 5 pts off, inside tolerance
-  assert.equal(byId.C.points, 0.5); // 25 pts off, half credit
-  assert.equal(byId.D.marked, false); // nearest mark 975 pts away
-  assert.equal(byId.D.points, 0);
-  assert.equal(s.coverage, 3 / 4); // three levels drew a mark in-band
-  // precision = mean over covered (1 + 1 + 0.5)/3; overall folds the miss in.
-  assert.ok(Math.abs(s.precision - 2.5 / 3) < 1e-9);
-  assert.ok(Math.abs(s.overall - 2.5 / 4) < 1e-9);
-});
-
-test("scoreLevelMarking with no marks scores zero, not NaN", () => {
-  const s = scoreLevelMarking([], TRUTH, CFG);
-  assert.equal(s.coverage, 0);
-  assert.equal(s.precision, 0);
-  assert.equal(s.overall, 0);
-  assert.equal(s.levels[0].nearestMarkDistance, null);
-});
 
 test("classifyStructure reads a strong net move as directional, churn as chop", () => {
   // Trend up: open 100, range 100, close +80 (net/range = 0.8 ≥ 0.34) → bull.
@@ -147,13 +95,7 @@ function trade(o: Partial<Trade> = {}): Trade {
 test("buildDigest folds proximity, bias alignment, and session totals", () => {
   const bars = [bar(0, 17561, 17600, 17300, 17561), bar(1, 17561, 17800, 17300, 17700)];
   const structure = classifyStructure(bars, CFG);
-  const card = buildReportCard(
-    PREP.markedLevels.map((m) => m.price),
-    TRUTH,
-    PREP.biasCall,
-    structure,
-    CFG,
-  );
+  const card = buildReportCard(PREP.biasCall, structure);
   const win = trade();
   const loss = trade({ id: "t2", side: "short", rMultiple: -1, pnlUsd: -500, avgEntry: 17700 });
   const d = buildDigest({
@@ -181,7 +123,7 @@ test("buildDigest folds proximity, bias alignment, and session totals", () => {
 
 test("buildDigest carries each trade's setup tag and confirmation flags (#10)", () => {
   const structure = classifyStructure([bar(0, 100, 200, 100, 180)], CFG);
-  const card = buildReportCard([18400], TRUTH, "bull", structure, CFG);
+  const card = buildReportCard("bull", structure);
   const tagged = trade({
     setupTag: "sweep-reversal",
     confirmation: {
@@ -212,7 +154,7 @@ test("buildDigest carries each trade's setup tag and confirmation flags (#10)", 
 
 test("buildGradeRequest targets Sonnet with the three-axis schema and the digest", () => {
   const structure = classifyStructure([bar(0, 100, 200, 100, 180)], CFG);
-  const card = buildReportCard([18400], TRUTH, "bull", structure, CFG);
+  const card = buildReportCard("bull", structure);
   const d = buildDigest({
     symbol: "NQ",
     date: "2024-08-05",
@@ -260,7 +202,7 @@ test("parseAiGrade throws on a response with no text block", () => {
 
 test("fold reconstructs prep and the sealed grade from the event log", () => {
   const structure = classifyStructure([bar(0, 100, 200, 100, 180)], CFG);
-  const card = buildReportCard([18400], TRUTH, "bull", structure, CFG);
+  const card = buildReportCard("bull", structure);
   const ai = {
     planAdherence: { score: 70, notes: "" },
     execution: { score: 60, notes: "" },

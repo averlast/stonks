@@ -871,20 +871,19 @@ async function main(): Promise<void> {
   };
   clearMarksBtn.onclick = () => marker.clear();
 
-  function renderReveal(truth: TrueLevel[], marks: number[]): void {
+  // The true levels are still REVEALED for reference (drawn as chart lines + listed
+  // here), but marks are no longer scored, so there's no proximity readout.
+  function renderReveal(truth: TrueLevel[]): void {
     prepReveal.hidden = false;
     if (truth.length === 0) {
       prepReveal.innerHTML = `<h4>Levels revealed</h4><div class="muted">answer key unavailable (dev)</div>`;
       return;
     }
     const rows = truth
-      .map((l) => {
-        const nearest = marks.length
-          ? Math.min(...marks.map((m) => Math.abs(m - l.price)))
-          : null;
-        const prox = nearest === null ? "not marked" : `nearest ${nearest.toFixed(2)} pts`;
-        return `<div class="reveal-row"><span>${l.label} ${l.price.toFixed(2)}</span><span class="muted">${prox}</span></div>`;
-      })
+      .map(
+        (l) =>
+          `<div class="reveal-row"><span>${l.label}</span><span class="muted">${l.price.toFixed(2)}</span></div>`,
+      )
       .join("");
     prepReveal.innerHTML = `<h4>Levels revealed</h4>${rows}`;
   }
@@ -906,8 +905,8 @@ async function main(): Promise<void> {
     marker.disable();
 
     // Reveal the true levels (yellow) alongside the trader's own marks — levels
-    // (blue) and zone edges (purple, dashed) — as persistent reference lines, plus
-    // a proximity readout. All survive the switch to the live feed.
+    // (blue) and zone edges (purple, dashed) — as persistent reference lines (no
+    // score; marks are a discipline ritual). All survive the switch to the live feed.
     const truth = await loadTrueLevels(feed.meta.symbol, feed.meta.date);
     const trueLines = truth.map((l) => ({ label: l.label, price: l.price, color: "#eab308" }));
     const myLines = prep.markedLevels.map((m) => ({
@@ -921,7 +920,7 @@ async function main(): Promise<void> {
       { label: "my zone", price: z.low, color: "#a855f7", dashed: true },
     ]);
     chart.setLevelLines([...trueLines, ...myLines, ...myZones]);
-    renderReveal(truth, prep.markedLevels.map((m) => m.price));
+    renderReveal(truth);
 
     // Unlock the attempt: drop the prep chart, swap to the live RTH feed.
     phase = "attempt";
@@ -998,20 +997,8 @@ async function main(): Promise<void> {
   const gradeMsg = $("gradeMsg");
   const reportCardBox = $("reportCard");
 
-  const pct = (x: number) => `${Math.round(x * 100)}%`;
-
   function renderReportCard(card: ReportCard, ai: AiGrade | null): void {
     reportCardBox.hidden = false;
-    const lm = card.levelMarking;
-    const levelRows = lm.levels
-      .map((l) => {
-        const prox =
-          l.nearestMarkDistance === null
-            ? "not marked"
-            : `${l.nearestMarkDistance.toFixed(1)} pts · ${pct(l.points)}`;
-        return `<div class="reveal-row"><span>${l.label}</span><span class="muted">${prox}</span></div>`;
-      })
-      .join("");
     const b = card.bias;
     const biasCls = b.correct ? "pnl-pos" : "pnl-neg";
     const axis = (name: string, a: AiGrade["planAdherence"]) =>
@@ -1020,11 +1007,8 @@ async function main(): Promise<void> {
     const aiHtml = ai
       ? `<h4>AI coaching</h4>${axis("Plan adherence", ai.planAdherence)}${axis("Execution", ai.execution)}${axis("Outcome", ai.outcome)}` +
         `<div class="trade-mfe" style="margin-top:.4rem">${ai.summary}</div>`
-      : `<h4>AI coaching</h4><div class="muted">skipped (dev / unavailable) — report card only</div>`;
+      : `<h4>AI coaching</h4><div class="muted">skipped (dev / unavailable)</div>`;
     reportCardBox.innerHTML =
-      `<h4>Level marking</h4>` +
-      `<div class="reveal-row"><span>coverage / precision</span><span>${pct(lm.coverage)} · ${pct(lm.precision)}</span></div>` +
-      levelRows +
       `<h4>Bias call</h4>` +
       `<div class="reveal-row"><span>called ${b.called} · realized ${b.realized}</span>` +
       `<span class="${biasCls}">${b.correct ? "✓" : "✗"} ${b.netPoints >= 0 ? "+" : ""}${b.netPoints.toFixed(0)} / ${b.rangePoints.toFixed(0)} pt</span></div>` +
@@ -1041,10 +1025,8 @@ async function main(): Promise<void> {
     gradeMsg.textContent = "grading…";
     try {
       const cfg = gradeConfig(feed.meta.symbol);
-      const truth = await loadTrueLevels(feed.meta.symbol, feed.meta.date);
       const structure = classifyStructure(reviewDayBars, cfg);
-      const markedPrices = prep.markedLevels.map((m) => m.price);
-      const card = buildReportCard(markedPrices, truth, prep.biasCall, structure, cfg);
+      const card = buildReportCard(prep.biasCall, structure);
       // Refold the intraday levels over the sealed day (deterministic, no look-ahead
       // now the attempt is over) — hand the coach the frozen OR/IB catalog + final
       // VWAP as unscored context (#12).
@@ -1064,7 +1046,7 @@ async function main(): Promise<void> {
         },
       });
 
-      // The objective report card always computes; the AI synthesis needs the
+      // The objective bias card always computes; the AI synthesis needs the
       // server-side key, so it only runs under Tauri and degrades gracefully.
       let ai: AiGrade | null = null;
       if (isTauri()) {
@@ -1080,7 +1062,7 @@ async function main(): Promise<void> {
       recorder.commitGrade(card, ai, lastBar ? lastBar.t : 0);
       renderReportCard(card, ai);
       if (!gradeMsg.textContent?.startsWith("AI unavailable")) {
-        gradeMsg.textContent = ai ? "graded & sealed" : "report card sealed (AI skipped)";
+        gradeMsg.textContent = ai ? "graded & sealed" : "bias card sealed (AI skipped)";
       }
     } catch (err) {
       gradeMsg.textContent = String(err instanceof Error ? err.message : err);
