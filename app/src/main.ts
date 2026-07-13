@@ -4,6 +4,13 @@ import type { Sec1Bar, Candle, Timeframe } from "./types";
 import { DevJsonFeed, TauriFeed, isTauri, type BarFeed } from "./engine/barFeed";
 import { PlaybackEngine, TIMEFRAMES, type Speed } from "./engine/playback";
 import { bucketStart } from "./engine/aggregator";
+import {
+  IntradayLevels,
+  foldIntradayLevels,
+  foldVwapCurve,
+  type IntradayLevel,
+  type VwapPoint,
+} from "./engine/intradayLevels";
 import { ChartView, type FillMarker } from "./chart/chartView";
 import { BracketEditor, type DraftBracket } from "./trading/bracketEditor";
 import { CONTRACTS, DEFAULT_FILL_CONFIG } from "./engine/contracts";
@@ -83,6 +90,27 @@ async function main(): Promise<void> {
   // The full unlocked day, captured on entering Review — the grader classifies the
   // realized 2h structure over these sealed bars (#8).
   let reviewDayBars: Sec1Bar[] = [];
+
+  // --- Intraday objective levels (#12): OR/IB + NY-open VWAP, folded live off the
+  // same 1s clock, auto-drawn, UNSCORED. Redrawn only when the level set changes
+  // (OR frozen by 09:45, IB by 10:30 → no churn after 10:30). `lastIntradayKey`
+  // dirty-checks the price set so we don't recreate price-lines every tick.
+  const intraday = new IntradayLevels();
+  // The VWAP curve the chart is currently drawing from: the live engine's curve in
+  // attempt; in Review it's refolded over the FULL sealed day (which the concession
+  // just unlocked) so the line spans every candle even on an early concession.
+  let viewVwapCurve: readonly VwapPoint[] = intraday.vwapCurve;
+  let lastIntradayKey = "";
+  const intradayKey = (levels: readonly IntradayLevel[]): string =>
+    levels.map((l) => `${l.id}:${l.price.toFixed(2)}:${l.complete ? 1 : 0}`).join("|");
+  function drawIntraday(force = false): void {
+    const levels = intraday.levels();
+    const key = intradayKey(levels);
+    if (force || key !== lastIntradayKey) {
+      chart.setIntradayLevels(levels);
+      lastIntradayKey = key;
+    }
+  }
 
   // --- Fill engine (the integrity layer, SPEC §4) ---------------------------
   const fills = new FillEngine(CONTRACTS.NQ, DEFAULT_FILL_CONFIG);
@@ -193,6 +221,10 @@ async function main(): Promise<void> {
       const forming = engine.formingOf(tf);
       if (forming) chart.updateForming(forming);
     }
+    // Re-fold the VWAP line onto the new timeframe's bucket grid (candle price-lines
+    // for OR/IB survive setData, so they need no redraw). Empty in prep.
+    if (phase === "prep") chart.clearVwap();
+    else chart.setVwapCurve(foldVwapCurve(viewVwapCurve, tf));
     renderMarkers(); // marker bucket-times are timeframe-relative
     chart.fitContent();
     syncTfButtons();
@@ -219,6 +251,13 @@ async function main(): Promise<void> {
     reviewHistory.clear();
     for (const tf of TIMEFRAMES) reviewHistory.set(tf, foldDay(bars, tf));
     chart.setData(reviewHistory.get(activeTf)!);
+    // Refold the intraday levels over the now-revealed full day so OR/IB are frozen
+    // and the VWAP line spans every candle even if the trader conceded early (#12).
+    const snap = foldIntradayLevels(bars);
+    viewVwapCurve = snap.vwapCurve;
+    chart.setIntradayLevels(snap.levels);
+    lastIntradayKey = intradayKey(snap.levels);
+    chart.setVwapCurve(foldVwapCurve(viewVwapCurve, activeTf));
     renderMarkers();
     chart.fitContent();
     renderTrades();
@@ -240,6 +279,13 @@ async function main(): Promise<void> {
     async (tick) => {
       const c = tick.forming.get(activeTf)!;
       chart.updateForming(c);
+      // Fold this second into the intraday levels (#12) and draw: VWAP grows on the
+      // active bucket; OR/IB lines redraw only when the set changes.
+      intraday.push(tick.simSecond);
+      if (intraday.vwap !== null) {
+        chart.updateVwap(bucketStart(tick.simSecond.t, activeTf), intraday.vwap);
+      }
+      drawIntraday();
       // Adjudicate this 1s bar through the fill engine, in clock order (ADR-0002).
       await fills.onBar(tick.simSecond);
       lastBar = tick.simSecond;
@@ -999,6 +1045,10 @@ async function main(): Promise<void> {
       const structure = classifyStructure(reviewDayBars, cfg);
       const markedPrices = prep.markedLevels.map((m) => m.price);
       const card = buildReportCard(markedPrices, truth, prep.biasCall, structure, cfg);
+      // Refold the intraday levels over the sealed day (deterministic, no look-ahead
+      // now the attempt is over) — hand the coach the frozen OR/IB catalog + final
+      // VWAP as unscored context (#12).
+      const intra = foldIntradayLevels(reviewDayBars);
       const digest = buildDigest({
         symbol: feed.meta.symbol,
         date: feed.meta.date,
@@ -1008,6 +1058,10 @@ async function main(): Promise<void> {
         trades: fills.trades,
         structure,
         reportCard: card,
+        intradayLevels: {
+          vwap: intra.vwap,
+          levels: intra.levels.map((l) => ({ id: l.id, label: l.label, price: l.price })),
+        },
       });
 
       // The objective report card always computes; the AI synthesis needs the

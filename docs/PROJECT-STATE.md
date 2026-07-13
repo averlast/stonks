@@ -2,9 +2,10 @@
 
 Local, single-user **ORB/IB practice simulator**: replay the first 2h of the NY index-futures
 open (NQ/ES), commit a plan, trade forward-only with honest fills, then get AI coaching graded on
-**process, not outcome**. Status: **core loop complete (through #8) + enrichment slices #9–#11
+**process, not outcome**. Status: **core loop complete (through #8) + enrichment slices #9–#12
 shipped**. The full loop runs end-to-end (Prep → attempt → Review → grade) and a Trade is now a
-full scaled position lifecycle (scale in/out via ordinary orders, #11).
+full scaled position lifecycle (scale in/out via ordinary orders, #11). The chart now auto-draws
+the intraday objective levels — Opening Range, developing IB, NY-open VWAP (#12).
 
 ## Where everything lives
 - **`SPEC.md`** — the 14 locked decisions + data/fill/grading architecture.
@@ -21,21 +22,56 @@ full scaled position lifecycle (scale in/out via ordinary orders, #11).
    then layer on the full environment.
 
 ## Next action — pick the next enrichment slice (critical path #1–#8 COMPLETE)
-Issues **#1–#11 DONE** + on-chart trade management. The full loop runs — **Prep gate** (#7) →
-**attempt** (#5) → **Review** (#6) → **grade** (#8). Everything past here is enrichment, not the
-spine. **Unblocked now** (every "Blocked by" is in #1–#11):
+Issues **#1–#12 DONE** (#12 no-cost half; see fork note) + on-chart trade management. The full loop
+runs — **Prep gate** (#7) → **attempt** (#5) → **Review** (#6) → **grade** (#8). Everything past
+here is enrichment, not the spine. **Unblocked now**:
 - **#16 HTF context charts + trend read (30m/1h/4h)** — now unblocked by #9; folds in daily + a
   week of history (the user's real prep process, deferred from #7).
-- **#12 Objective level catalog + multi-anchor VWAP** — unblocks the whole profiles chain
-  (#13 → #14 → #15). *Note: it's a large slice with a paid-data fork — see the scoping options
-  raised 2026-07-12 (intraday OR/IB/VWAP engine is buildable now; expanded scored pre-session
-  catalog needs a paid Databento re-pull).*
 - **#17 Calendar + module/progression tracking** — sits directly on the sealed event logs (#8).
 - **#18 Base-rate stats, as-of the practiced day** — no-lookahead stats (ADR-0008), on #1 + #8.
 - **#19 Micro↔mini multiplier toggle** — the contract-size switch (#3; `CONTRACTS` already has
   MNQ/MES).
-Still blocked: **#13/#14/#15** (profiles chain after #12).
-**#12 unblocks the most downstream** — start there if unsure.
+**Profiles chain #13 → #14 → #15** is now unblocked by #12 *for the intraday half*, but the
+**scored expanded pre-session catalog** (PW/PM H/L, Value Areas) + **daily/weekly VWAP anchors**
+still need the deferred **paid Databento re-pull** (pre-09:30 history). Decide that data spend
+before starting the profiles chain.
+
+### #12 outcome (2026-07-13) — intraday objective-level engine (no-cost half; paid fork deferred)
+Built the **buildable half** of #12 — the intraday OR/IB/VWAP engine — and **deferred the paid
+half** (the *scored* expanded pre-session catalog + daily/weekly VWAP anchors need pre-09:30
+history = a paid Databento re-pull; the fork was flagged 2026-07-12). Acceptance criteria: (1)
+OR/IB/VWAP auto-computed + drawn live, unscored ✅; (2) pre-session precision-scored with per-symbol
+tolerance ✅ (unchanged — `reportCard.ts` + `GRADE_CONFIGS` already did this and generalise over
+whatever the answer key holds); (3) report card reflects the expanded catalog — **partial**: the
+intraday catalog now folds into the grade digest as *unscored* context, but the *scored* pre-session
+expansion (PW/PM H/L, VAs) awaits the paid re-pull.
+- **Pure engine** (`app/src/engine/intradayLevels.ts`, portable TS): `IntradayLevels` folds the same
+  forward 1s clock (ADR-0002, no look-ahead) into **Opening Range** (first 15m: high/low/mid, frozen
+  at 09:45), **developing Initial Balance** (first 60m: high/low live, frozen at 10:30, then exposing
+  25/50/75% retracements + fib **extensions** beyond each edge as breakout targets — `ibExtensions`
+  open param, default `[0.5,1.0]`), and a **NY-open VWAP** curve (Σ(typical·vol)/Σvol). `levels()`
+  gates the IB internals to `complete` so the developing view stays clean (OR edges/mid + IB edges),
+  filling out the full catalog at 10:30. `foldIntradayLevels(bars)` = grade-time refold;
+  `foldVwapCurve(curve, tf)` collapses the per-second VWAP to **one point per candle bucket** (LWC
+  shares one time scale across series, so a finer line would splay the candles).
+- **Chart** (`chartView.ts`): a dedicated `intradayLines` price-line layer (separate from the
+  pre-session `setLevelLines` so they never clobber) — OR sky `#38bdf8`, IB orange `#fb923c`, dotted
+  while developing → solid when frozen; a cyan VWAP **line series** (`setVwapCurve`/`updateVwap`).
+- **Wiring** (`main.ts`): the attempt tick folds each second, grows VWAP on the active bucket, and
+  redraws OR/IB only when the price set changes (`lastIntradayKey` dirty-check → no churn after
+  10:30). `switchTimeframe` refolds the VWAP onto the new bucket grid (price-lines survive `setData`).
+  **Review refolds over the now-unlocked full day** (`viewVwapCurve`) so OR/IB freeze and the VWAP
+  line spans every candle even on an early concession.
+- **Digest/coach** (`grade/{types,digest,grade}.ts`): `Digest.intradayLevels` (frozen catalog +
+  final VWAP) rides into the AI call as **explicitly unscored** context — the prompt tells the coach
+  to reference it when judging entries/exits (fade at IB edge, target at VWAP) but never to grade
+  "marking" it. `roundForPrompt` rounds the prices.
+- **Verified**: headless refold over the real whipsaw day — OR 17509.25–17872.25, IB
+  17509.25–18112.50, VWAP 17554→17934.68 across 120 one-minute buckets (sane vs the 680pt first-2h
+  range). `npm test` → **71** (+6 intraday: OR window open/freeze, IB develop→freeze +
+  retracements/extensions gated to complete, VWAP volume-weighting, refold==live, bucket-fold
+  alignment, empty-safe). Typecheck + prod build clean. *Interactive chart draw is a hand-check
+  (repo convention for UX slices).*
 
 ### #11 UI pivot (2026-07-13) — order-centric scaling, TradingView-style (Option 2) — commit `9298e50`, issue closed
 **Follow-ups deferred to a later slice** (open, noted here so they aren't lost): (a) resting *add*

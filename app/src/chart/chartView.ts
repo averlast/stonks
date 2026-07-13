@@ -1,18 +1,30 @@
 import {
   createChart,
   CandlestickSeries,
+  LineSeries,
   createSeriesMarkers,
   LineStyle,
   type IChartApi,
   type ISeriesApi,
   type ISeriesMarkersPluginApi,
   type IPriceLine,
+  type LineData,
   type SeriesMarker,
   type Time,
   type UTCTimestamp,
   type CandlestickData,
 } from "lightweight-charts";
 import type { Candle } from "../types";
+
+/** One auto-computed intraday reference level to draw (#12). Colored by group;
+ *  dotted while its window is still developing, solid once frozen. */
+export interface IntradayLine {
+  id: string;
+  label: string;
+  price: number;
+  group: "OR" | "IB";
+  complete: boolean;
+}
 
 /** A working bracket to draw as horizontal lines (null = not shown). */
 export interface BracketLines {
@@ -38,6 +50,8 @@ export class ChartView {
   private markers: ISeriesMarkersPluginApi<Time>;
   private priceLines: IPriceLine[] = [];
   private levelLines: IPriceLine[] = [];
+  private intradayLines: IPriceLine[] = [];
+  private vwap: ISeriesApi<"Line">;
   readonly element: HTMLElement;
 
   constructor(container: HTMLElement) {
@@ -76,6 +90,16 @@ export class ChartView {
       borderVisible: false,
     });
     this.markers = createSeriesMarkers(this.series, []);
+    // The NY-open VWAP as a developing line on the same time grid as the candles
+    // (#12). Cyan, thin, no per-point crosshair marker so it reads as context.
+    this.vwap = this.chart.addSeries(LineSeries, {
+      color: "#22d3ee",
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: true,
+      crosshairMarkerVisible: false,
+      title: "VWAP",
+    });
   }
 
   /** Draw/replace the working bracket as dashed horizontal lines. */
@@ -115,6 +139,44 @@ export class ChartView {
         title: lv.label,
       }),
     );
+  }
+
+  /** Draw/replace the auto-computed intraday levels (OR/IB, #12) as their own
+   *  price-line layer so they never clobber the pre-session `setLevelLines`. OR is
+   *  sky, IB is orange; a still-developing window is dotted, a frozen one solid. */
+  setIntradayLevels(levels: readonly IntradayLine[]): void {
+    for (const l of this.intradayLines) this.series.removePriceLine(l);
+    this.intradayLines = levels.map((lv) =>
+      this.series.createPriceLine({
+        price: lv.price,
+        color: lv.group === "OR" ? "#38bdf8" : "#fb923c",
+        lineWidth: 1,
+        lineStyle: lv.complete ? LineStyle.Solid : LineStyle.Dotted,
+        axisLabelVisible: true,
+        title: lv.label,
+      }),
+    );
+  }
+
+  /** Replace the whole VWAP curve (load / timeframe switch / review), pre-folded to
+   *  the active timeframe's bucket grid by the caller. */
+  setVwapCurve(points: readonly { time: number; value: number }[]): void {
+    this.vwap.setData(points.map((p) => ({ time: p.time as UTCTimestamp, value: p.value })) as LineData[]);
+  }
+
+  /** Grow/append the current VWAP bucket (live tick). `time` must be the active
+   *  timeframe's bucket-start, matching the forming candle. */
+  updateVwap(time: number, value: number): void {
+    this.vwap.update({ time: time as UTCTimestamp, value });
+  }
+
+  clearVwap(): void {
+    this.vwap.setData([]);
+  }
+
+  clearIntradayLevels(): void {
+    for (const l of this.intradayLines) this.series.removePriceLine(l);
+    this.intradayLines = [];
   }
 
   setFillMarkers(marks: readonly FillMarker[]): void {

@@ -57,10 +57,13 @@ export interface DigestInput {
   trades: readonly Trade[];
   structure: MarketStructure;
   reportCard: ReportCard;
+  /** Auto-computed intraday levels (#12), unscored context for the coach. */
+  intradayLevels?: Digest["intradayLevels"];
 }
 
 export function buildDigest(input: DigestInput): Digest {
-  const { symbol, date, attempt, prep, journal, trades, structure, reportCard } = input;
+  const { symbol, date, attempt, prep, journal, trades, structure, reportCard, intradayLevels } =
+    input;
   const markedPrices = prep.markedLevels.map((m) => m.price);
 
   const netR = trades.reduce((s, t) => s + t.rMultiple, 0);
@@ -82,6 +85,7 @@ export function buildDigest(input: DigestInput): Digest {
     session: { tradeCount: trades.length, winCount, netR, netUsd },
     reportCard,
     trades: trades.map((t) => distillTrade(t, markedPrices, prep.biasCall)),
+    intradayLevels,
   };
 }
 
@@ -118,5 +122,9 @@ export function roundForPrompt(digest: Digest, _contract?: Contract): Digest {
       entryProximityToMark:
         t.entryProximityToMark === null ? null : r2(t.entryProximityToMark),
     })),
+    intradayLevels: digest.intradayLevels && {
+      vwap: digest.intradayLevels.vwap === null ? null : r2(digest.intradayLevels.vwap),
+      levels: digest.intradayLevels.levels.map((l) => ({ ...l, price: r2(l.price) })),
+    },
   };
 }

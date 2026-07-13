@@ -155,6 +155,13 @@ export interface Digest {
   };
   reportCard: ReportCard;
   trades: TradeDigest[];
+  /** Auto-computed intraday objective levels (#12): the frozen OR/IB catalog + final
+   *  NY-open VWAP over the sealed day. Context for the coach — UNSCORED (only the
+   *  blind pre-session marks are precision-scored). */
+  intradayLevels?: {
+    vwap: number | null;
+    levels: { id: string; label: string; price: number }[];
+  };
 }
 
 /** One graded axis: a 0–100 score plus a short coaching note. */
