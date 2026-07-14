@@ -3,7 +3,9 @@
 Local, single-user **ORB/IB practice simulator**: replay the first 2h of the NY index-futures
 open (NQ/ES), commit a plan, trade forward-only with honest fills, then get AI coaching graded on
 **process, not outcome**. Status: **core loop complete (through #8) + enrichment slices #9–#12
-shipped**. The full loop runs end-to-end (Prep → attempt → Review → grade) and a Trade is now a
+shipped; #13 code-done pending a data pull** (see its entry — run
+`.venv/Scripts/python.exe ingestion/fetch_day.py --no-ticks --force-levels` to populate the real
+numbers). The full loop runs end-to-end (Prep → attempt → Review → grade) and a Trade is now a
 full scaled position lifecycle (scale in/out via ordinary orders, #11). The chart now auto-draws
 the intraday objective levels — Opening Range, developing IB, NY-open VWAP (#12). **Level-marking
 is a Prep discipline ritual, NOT scored** (the precision/coverage score was removed 2026-07-13 —
@@ -33,11 +35,40 @@ here is enrichment, not the spine. **Unblocked now**:
 - **#18 Base-rate stats, as-of the practiced day** — no-lookahead stats (ADR-0008), on #1 + #8.
 - **#19 Micro↔mini multiplier toggle** — the contract-size switch (#3; `CONTRACTS` already has
   MNQ/MES).
-**Profiles chain #13 → #14 → #15** is unblocked by #12 *for the intraday half*. Drawing
-**prior-session/week profiles & Value Areas** and the **daily/weekly VWAP anchors** still needs
-pre-09:30 history = a **paid Databento re-pull** — but this is now only about *drawing* those
-levels for reference (they're never scored), so it's a lower-priority nicety, not a grading
-dependency. Decide the data spend if/when you want those higher-timeframe references on the chart.
+**Profiles chain: #13 code-done** (pending the pull above) → **#14** (live volume-profile histogram
++ auto HVN/value-area — the intraday counterpart of #13's static prior-period VAs) → **#15**
+(discretionary S/D zone + HVN drawing tools). #14/#15 are unblocked once #13's data lands. The
+`ingestion/levels.py` `value_area`/`volume_profile` helpers are reusable for #14's live profile.
+
+### #13 (2026-07-14) — prior-period levels & value areas: CODE DONE, awaiting a data pull
+The expanded pre-session catalog. **All code is written + offline-verified; the one
+remaining step is a Databento pull the USER runs** (needs the key + spends ~pennies of 1m data —
+cannot run from chat). Because levels are no longer scored (see entry below), these are pure
+**reference lines**; the Rust `Level` struct is generic (`id/label/kind/price`, ignores extra
+keys), so **new levels draw with zero Rust/TS structural change**.
+- **Pure math** (`ingestion/levels.py`, stdlib-only): `volume_profile` (distribute each 1m bar's
+  volume across the bins its [low,high] spans) + `value_area` (POC/VAH/VAL, expand from POC taking
+  the heavier neighbour to 70%, bin **centers**), `high_low`, `SESSION_WINDOWS` (ON/Asia/London ET
+  minute spans — **open params**, CONTEXT marked TBD), per-symbol `VA_BIN`. Tests
+  `ingestion/test_levels.py` (`python ingestion/test_levels.py`, 10 cases).
+- **Ingestion** (`ingestion/fetch_day.py`): widened the levels window from a 5-day lookback to
+  **first-of-prior-month → 09:30** (guarantees PD/PW/PM + prior-session/week VAs in range; still
+  cheap 1m). New pure `compute_catalog(frame, day, symbol)` (network-free → offline-testable)
+  computes **PD/PW/PM H/L**, **ON/Asia/London H/L**, and **prior-session + prior-week VAH/VAL/POC**.
+  Answer key bumped to **schema_version 2** with kinds `period_hl` / `session_hl` / `value_area`.
+  Offline windowing test `ingestion/test_catalog.py` (run with the venv:
+  `.venv/Scripts/python.exe ingestion/test_catalog.py`, 16 cases — week/month/session boundaries,
+  RTH-only filter, VA present). New **`--force-levels`** flag recomputes only the catalog (pair
+  with `--no-ticks`) so you don't re-pull the 1s bars/ticks.
+- **App** (`main.ts`): revealed levels are now **colored by kind** (`levelColor`: period amber /
+  session emerald / value-area rose) and the reveal panel **groups** them (Period H/L · Session H/L
+  · Value areas · Other). Back-compat: the legacy v1 `pre_session` file still renders (maps to amber
+  / Period H/L). App `npm test` → **68**, typecheck + prod build clean.
+- **⚠ TO FINISH #13 — user runs one command** (regenerates the real NQ 2024-08-05 numbers; the
+  committed answer key is still the legacy 4-level v1 until then):
+  `.venv/Scripts/python.exe ingestion/fetch_day.py --no-ticks --force-levels`
+  Then commit the regenerated `data/levels/NQ-2024-08-05.json`. Acceptance criteria 2 & 3 are
+  code-complete + offline-verified; criterion 1 (Tier-2 1m incl. overnight ingested) is the pull.
 
 ### Level-marking scoring REMOVED (2026-07-13) — marks are now a Prep ritual, not a graded drill
 User call after using it: the level-marking **precision/coverage score wasn't useful**. Removed the
@@ -533,7 +564,9 @@ level, reason, MAE, MFE, R (R anchored to the initial stop).
 ## Open parameters — decided in shape, numbers still to tune (not forks)
 - Bias bull/bear/chop thresholds, scored over the **2h window** (ADR-0003).
 - Per-symbol level tolerance for the hidden-drill precision score (a "few points" ≠ same on NQ vs ES).
-- Asia/Tokyo & London session **ET windows** (CONTEXT marks TBD).
+- Asia/Tokyo & London session **ET windows** — now defaulted in `ingestion/levels.py`
+  `SESSION_WINDOWS` (Asia [18:00,03:00), London [03:00,09:30) ET); still tunable open params.
+- **Value-area bin width** per symbol (`ingestion/levels.py` `VA_BIN`; NQ 2.0pt) + the 70% fraction.
 - Commission per contract (+ default slippage already set: 1 tick on stops).
 - The Journal prompt list (structured prompts, ADR-0003 / CONTEXT).
 - Volume-zone overlap threshold (~20% of top 3–4 ranges — profiles module).

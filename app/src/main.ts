@@ -44,6 +44,22 @@ interface TrueLevel {
   price: number;
 }
 
+/** Color a revealed pre-session level by its `kind` (#13). Period H/L stay amber
+ *  (back-compat with the old `pre_session` answer key); session H/L are emerald,
+ *  value-area lines rose. Unknown kinds fall back to amber. */
+function levelColor(kind: string): string {
+  if (kind === "session_hl") return "#34d399";
+  if (kind === "value_area") return "#fb7185";
+  return "#eab308"; // period_hl, pre_session (legacy), or unknown
+}
+
+/** Reveal-panel grouping for the expanded catalog (#13), in display order. */
+const LEVEL_GROUPS: { kinds: string[]; title: string }[] = [
+  { kinds: ["period_hl", "pre_session"], title: "Period H/L" },
+  { kinds: ["session_hl"], title: "Session H/L" },
+  { kinds: ["value_area"], title: "Value areas" },
+];
+
 const TF_LABEL: Record<Timeframe, string> = { 60: "1m", 300: "5m", 900: "15m" };
 const SPEEDS: Speed[] = [1, 5, 30];
 const DATA_URL = "/data/NQ-2024-08-05.json";
@@ -879,13 +895,22 @@ async function main(): Promise<void> {
       prepReveal.innerHTML = `<h4>Levels revealed</h4><div class="muted">answer key unavailable (dev)</div>`;
       return;
     }
-    const rows = truth
-      .map(
-        (l) =>
-          `<div class="reveal-row"><span>${l.label}</span><span class="muted">${l.price.toFixed(2)}</span></div>`,
-      )
-      .join("");
-    prepReveal.innerHTML = `<h4>Levels revealed</h4>${rows}`;
+    const row = (l: TrueLevel) =>
+      `<div class="reveal-row"><span style="color:${levelColor(l.kind)}">${l.label}</span>` +
+      `<span class="muted">${l.price.toFixed(2)}</span></div>`;
+    // Group the catalog by kind; anything with an unlisted kind lands in a trailing
+    // "Other" bucket so nothing is silently dropped.
+    const shown = new Set<TrueLevel>();
+    let html = "";
+    for (const g of LEVEL_GROUPS) {
+      const items = truth.filter((l) => g.kinds.includes(l.kind));
+      if (!items.length) continue;
+      items.forEach((l) => shown.add(l));
+      html += `<h4>${g.title}</h4>${items.map(row).join("")}`;
+    }
+    const rest = truth.filter((l) => !shown.has(l));
+    if (rest.length) html += `<h4>Other</h4>${rest.map(row).join("")}`;
+    prepReveal.innerHTML = html;
   }
 
   async function commitPrep(): Promise<void> {
@@ -904,11 +929,11 @@ async function main(): Promise<void> {
     recorder.commitPrep(prep, lastBar ? lastBar.t : 0);
     marker.disable();
 
-    // Reveal the true levels (yellow) alongside the trader's own marks — levels
-    // (blue) and zone edges (purple, dashed) — as persistent reference lines (no
-    // score; marks are a discipline ritual). All survive the switch to the live feed.
+    // Reveal the true levels (colored by kind, #13) alongside the trader's own marks
+    // — levels (blue) and zone edges (purple, dashed) — as persistent reference lines
+    // (no score; marks are a discipline ritual). All survive the switch to the live feed.
     const truth = await loadTrueLevels(feed.meta.symbol, feed.meta.date);
-    const trueLines = truth.map((l) => ({ label: l.label, price: l.price, color: "#eab308" }));
+    const trueLines = truth.map((l) => ({ label: l.label, price: l.price, color: levelColor(l.kind) }));
     const myLines = prep.markedLevels.map((m) => ({
       label: "my level",
       price: m.price,
