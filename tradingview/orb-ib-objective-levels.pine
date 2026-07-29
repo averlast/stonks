@@ -1,0 +1,523 @@
+//@version=6
+// ORB/IB Practice — Objective Levels + VRVP
+//
+// Companion to the local sim (see ../CONTEXT.md, ../docs/adr/0009-*). Draws the same
+// objective-level catalog the sim computes for prep (OR, IB, VWAP, period H/L, session
+// H/L), plus a visible-range volume histogram left for the user to mark HVNs by hand —
+// see ADR-0009 for why period H/L scope deliberately differs from the sim's RTH-only
+// answer key (this script follows market convention: full ETH day, calendar week/month).
+//
+// Every high/low line is individually colored; Period H/L is drawn with `line` objects
+// (not `plot()`) so its Low lines can be dashed — Pine's plot() has no dash style. Every
+// level line uses extend.both (full chart width, up to the price axis); each period's
+// OLD line/label is explicitly deleted before drawing the new one, so old days don't
+// leave a stack of full-width lines behind — only the current/latest level per group
+// stays on the chart.
+indicator("ORB/IB Objective Levels + VRVP", overlay = true, max_lines_count = 480,
+     max_labels_count = 480, max_polylines_count = 4)
+
+// ── Display ─────────────────────────────────────────────────────────────────────────
+showLabels   = input.bool(true, "Show price labels", group = "Display")
+labelSizeIn  = input.string("Small", "Label size (all labels)", options = ["Tiny", "Small", "Normal", "Large", "Huge"], group = "Display")
+htfThreshold = input.timeframe("30", "Hide intraday groups above this timeframe",
+     group = "Display", tooltip = "OR, IB, NY-open VWAP and Session H/L auto-hide above this chart timeframe. Period H/L, Daily/Weekly VWAP, and VRVP always show.")
+isIntraday   = timeframe.in_seconds() <= timeframe.in_seconds(htfThreshold)
+highStyle    = input.string("Solid", "High-line style", options = ["Solid", "Dashed", "Dotted"], group = "Display")
+lowStyle     = input.string("Dashed", "Low-line style", options = ["Solid", "Dashed", "Dotted"], group = "Display")
+devDotted    = input.bool(true, "OR/IB: dotted while developing", group = "Display",
+     tooltip = "While the OR/IB window is still forming, show dotted regardless of the High/Low style above; once frozen, switch to that line's own style.")
+
+// ── VRVP (visible-range volume histogram) ──────────────────────────────────────────
+showVrvp     = input.bool(true, "Show VRVP", group = "VRVP")
+vrvpColor    = input.color(color.new(#787b86, 60), "Histogram color", group = "VRVP")
+vrvpRows     = input.int(200, "Rows", minval = 10, maxval = 2000, group = "VRVP")
+vrvpWidthPct = input.float(20, "Width % of visible range", minval = 1, maxval = 100, group = "VRVP")
+
+// ── Opening Range ────────────────────────────────────────────────────────────────────
+showOR        = input.bool(true, "Show Opening Range", group = "Opening Range")
+orHighColor   = input.color(#38bdf8, "OR High color", group = "Opening Range")
+orLowColor    = input.color(#38bdf8, "OR Low color", group = "Opening Range")
+orWindow      = input.session("0930-0945", "OR window (start-end, ET)", group = "Opening Range")
+orLabelOffset = input.int(0, "OR label offset (bars back)", group = "Opening Range",
+     tooltip = "How far back along the line the price tag sits, so it doesn't stack on other groups' tags. 0 = right at the live edge.")
+
+// ── Initial Balance ──────────────────────────────────────────────────────────────────
+showIbRange   = input.bool(true, "Show IB high/low", group = "Initial Balance")
+showIbRetrace = input.bool(true, "Show IB retracements (25/50/75%)", group = "Initial Balance")
+showIbExt     = input.bool(false, "Show IB extensions", group = "Initial Balance")
+ibHighColor   = input.color(#fb923c, "IB High color", group = "Initial Balance")
+ibLowColor    = input.color(#fb923c, "IB Low color", group = "Initial Balance")
+ibColor       = input.color(#fb923c, "IB retracement/extension color", group = "Initial Balance")
+ibWindow      = input.session("0930-1030", "IB window (start-end, ET)", group = "Initial Balance")
+ibExt1        = input.float(0.5, "Extension 1 (x IB range)", group = "Initial Balance")
+ibExt2        = input.float(1.0, "Extension 2 (x IB range)", group = "Initial Balance")
+ibLabelOffset = input.int(-2, "IB label offset (bars back)", group = "Initial Balance",
+     tooltip = "How far back along the line the H/L tags sit; retracements and extensions stagger further back automatically.")
+
+// ── VWAP ─────────────────────────────────────────────────────────────────────────────
+showVwapNy      = input.bool(true, "Show NY-open VWAP", group = "VWAP")
+vwapNyColor     = input.color(#22d3ee, "NY-open color", group = "VWAP")
+showVwapDaily   = input.bool(true, "Show daily VWAP (Globex 18:00 ET open)", group = "VWAP")
+vwapDailyColor  = input.color(#2dd4bf, "Daily color", group = "VWAP")
+showVwapWeekly  = input.bool(false, "Show weekly VWAP (Sun 18:00 ET open)", group = "VWAP")
+vwapWeeklyColor = input.color(#a78bfa, "Weekly color", group = "VWAP")
+
+// ── Period H/L (full ETH day, calendar week/month — market convention, ADR-0009) ────
+showPdhl = input.bool(true, "Show prior-day H/L (PDH/PDL)", group = "Period H/L")
+pdhColor = input.color(#f59e0b, "PDH color", group = "Period H/L")
+pdlColor = input.color(#f59e0b, "PDL color", group = "Period H/L")
+showPwhl = input.bool(true, "Show prior-week H/L", group = "Period H/L")
+pwhColor = input.color(#f59e0b, "Prior-week H color", group = "Period H/L")
+pwlColor = input.color(#f59e0b, "Prior-week L color", group = "Period H/L")
+showPmhl = input.bool(false, "Show prior-month H/L", group = "Period H/L")
+pmhColor = input.color(#f59e0b, "Prior-month H color", group = "Period H/L")
+pmlColor = input.color(#f59e0b, "Prior-month L color", group = "Period H/L")
+periodLabelOffset = input.int(-5, "Period label offset (bars back)", group = "Period H/L",
+     tooltip = "How far back along the line the PD tag sits; PW and PM stagger further back automatically.")
+
+// ── Session H/L (Asia/London/Overnight — windows shared with the sim) ──────────────
+showOn          = input.bool(true, "Show Overnight H/L", group = "Session H/L")
+onWindow        = input.session("1800-0930", "Overnight window (ET)", group = "Session H/L")
+onHighColor     = input.color(#10b981, "Overnight High color", group = "Session H/L")
+onLowColor      = input.color(#10b981, "Overnight Low color", group = "Session H/L")
+showAsia        = input.bool(true, "Show Asia H/L", group = "Session H/L")
+asiaWindow      = input.session("1800-0300", "Asia window (ET)", group = "Session H/L")
+asiaHighColor   = input.color(#10b981, "Asia High color", group = "Session H/L")
+asiaLowColor    = input.color(#10b981, "Asia Low color", group = "Session H/L")
+showLondon      = input.bool(true, "Show London H/L", group = "Session H/L")
+londonWindow    = input.session("0300-0930", "London window (ET)", group = "Session H/L")
+londonHighColor = input.color(#10b981, "London High color", group = "Session H/L")
+londonLowColor  = input.color(#10b981, "London Low color", group = "Session H/L")
+sessionLabelOffset = input.int(-8, "Session label offset (bars back)", group = "Session H/L",
+     tooltip = "How far back along the line the Overnight tag sits; Asia and London stagger further back automatically.")
+
+// ── Helpers ──────────────────────────────────────────────────────────────────────────
+styleFromStr(s) =>
+    switch s
+        "Solid"  => line.style_solid
+        "Dashed" => line.style_dashed
+        "Dotted" => line.style_dotted
+        => line.style_solid
+
+resolveStyle(isHigh, developing) =>
+    baseStr = isHigh ? highStyle : lowStyle
+    developing and devDotted ? line.style_dotted : styleFromStr(baseStr)
+
+sizeFromStr(s) =>
+    switch s
+        "Tiny"   => size.tiny
+        "Small"  => size.small
+        "Normal" => size.normal
+        "Large"  => size.large
+        "Huge"   => size.huge
+        => size.small
+
+labelSize = sizeFromStr(labelSizeIn)
+
+etTz = "America/New_York"
+dayKey = year(time, etTz) * 10000 + month(time, etTz) * 100 + dayofmonth(time, etTz)
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// Opening Range
+// ═══════════════════════════════════════════════════════════════════════════════════
+if showOR
+    inOR = not na(time(timeframe.period, orWindow + ":23456", etTz))
+    newOR = inOR and not inOR[1]
+
+    var float orHigh = na
+    var float orLow = na
+    var int orDayKey = na
+    var line orHiLine = na
+    var line orLoLine = na
+    var label orHiLabel = na
+    var label orLoLabel = na
+
+    if newOR
+        orHigh := high
+        orLow := low
+        orDayKey := dayKey
+        line.delete(orHiLine)
+        line.delete(orLoLine)
+        label.delete(orHiLabel)
+        label.delete(orLoLabel)
+        orHiLine := line.new(bar_index - 1, high, bar_index, high, color = orHighColor, width = 1, extend = extend.both)
+        orLoLine := line.new(bar_index - 1, low, bar_index, low, color = orLowColor, width = 1, extend = extend.both)
+        if showLabels
+            orHiLabel := label.new(bar_index + orLabelOffset, high, "OR H", style = label.style_label_left,
+                 textcolor = orHighColor, color = color.new(color.black, 100), size = labelSize)
+            orLoLabel := label.new(bar_index + orLabelOffset, low, "OR L", style = label.style_label_left,
+                 textcolor = orLowColor, color = color.new(color.black, 100), size = labelSize)
+    else if inOR
+        orHigh := math.max(orHigh, high)
+        orLow := math.min(orLow, low)
+
+    if not na(orHiLine)
+        line.set_y1(orHiLine, orHigh)
+        line.set_y2(orHiLine, orHigh)
+        line.set_style(orHiLine, resolveStyle(true, inOR))
+        line.set_y1(orLoLine, orLow)
+        line.set_y2(orLoLine, orLow)
+        line.set_style(orLoLine, resolveStyle(false, inOR))
+        if showLabels
+            label.set_xy(orHiLabel, bar_index + orLabelOffset, orHigh)
+            label.set_text(orHiLabel, "OR H " + str.tostring(orHigh, format.mintick))
+            label.set_xy(orLoLabel, bar_index + orLabelOffset, orLow)
+            label.set_text(orLoLabel, "OR L " + str.tostring(orLow, format.mintick))
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// Initial Balance
+// ═══════════════════════════════════════════════════════════════════════════════════
+if showIbRange or showIbRetrace or showIbExt
+    inIB = not na(time(timeframe.period, ibWindow + ":23456", etTz))
+    newIB = inIB and not inIB[1]
+
+    var float ibHigh = na
+    var float ibLow = na
+    var int ibDayKey = na
+    var line ibHiLine = na
+    var line ibLoLine = na
+    var label ibHiLabel = na
+    var label ibLoLabel = na
+    var line ib25Line = na
+    var line ib50Line = na
+    var line ib75Line = na
+    var label ib25Label = na
+    var label ib50Label = na
+    var label ib75Label = na
+    var line ibExt1UpLine = na
+    var line ibExt1DnLine = na
+    var line ibExt2UpLine = na
+    var line ibExt2DnLine = na
+    var label ibExt1UpLabel = na
+    var label ibExt1DnLabel = na
+    var label ibExt2UpLabel = na
+    var label ibExt2DnLabel = na
+
+    if newIB
+        ibHigh := high
+        ibLow := low
+        ibDayKey := dayKey
+        line.delete(ibHiLine)
+        line.delete(ibLoLine)
+        line.delete(ib25Line)
+        line.delete(ib50Line)
+        line.delete(ib75Line)
+        line.delete(ibExt1UpLine)
+        line.delete(ibExt1DnLine)
+        line.delete(ibExt2UpLine)
+        line.delete(ibExt2DnLine)
+        label.delete(ibHiLabel)
+        label.delete(ibLoLabel)
+        label.delete(ib25Label)
+        label.delete(ib50Label)
+        label.delete(ib75Label)
+        label.delete(ibExt1UpLabel)
+        label.delete(ibExt1DnLabel)
+        label.delete(ibExt2UpLabel)
+        label.delete(ibExt2DnLabel)
+        ibHiLine := line.new(bar_index - 1, high, bar_index, high, color = ibHighColor, width = 1, extend = extend.both)
+        ibLoLine := line.new(bar_index - 1, low, bar_index, low, color = ibLowColor, width = 1, extend = extend.both)
+        if showLabels
+            ibHiLabel := label.new(bar_index + ibLabelOffset, high, "IB H", style = label.style_label_left,
+                 textcolor = ibHighColor, color = color.new(color.black, 100), size = labelSize)
+            ibLoLabel := label.new(bar_index + ibLabelOffset, low, "IB L", style = label.style_label_left,
+                 textcolor = ibLowColor, color = color.new(color.black, 100), size = labelSize)
+    else if inIB
+        ibHigh := math.max(ibHigh, high)
+        ibLow := math.min(ibLow, low)
+
+    ibComplete = dayKey == ibDayKey and not inIB and not na(ibHiLine)
+    newIbComplete = ibComplete and not ibComplete[1]
+    ibRange = ibHigh - ibLow
+    y25 = ibLow + 0.25 * ibRange
+    y50 = ibLow + 0.50 * ibRange
+    y75 = ibLow + 0.75 * ibRange
+    yExt1Up = ibHigh + ibExt1 * ibRange
+    yExt1Dn = ibLow - ibExt1 * ibRange
+    yExt2Up = ibHigh + ibExt2 * ibRange
+    yExt2Dn = ibLow - ibExt2 * ibRange
+
+    if not na(ibHiLine) and showIbRange
+        line.set_y1(ibHiLine, ibHigh)
+        line.set_y2(ibHiLine, ibHigh)
+        line.set_style(ibHiLine, resolveStyle(true, inIB))
+        line.set_y1(ibLoLine, ibLow)
+        line.set_y2(ibLoLine, ibLow)
+        line.set_style(ibLoLine, resolveStyle(false, inIB))
+        if showLabels
+            label.set_xy(ibHiLabel, bar_index + ibLabelOffset, ibHigh)
+            label.set_text(ibHiLabel, "IB H " + str.tostring(ibHigh, format.mintick))
+            label.set_xy(ibLoLabel, bar_index + ibLabelOffset, ibLow)
+            label.set_text(ibLoLabel, "IB L " + str.tostring(ibLow, format.mintick))
+
+    // Retracements/extensions are only known once the IB freezes at 10:30 — create them
+    // right then (not at 09:30 with placeholder na values), so they never sit stale at
+    // a stray position before they mean anything.
+    if newIbComplete and showIbRetrace
+        ib25Line := line.new(bar_index - 1, y25, bar_index, y25, color = ibColor, width = 2, style = line.style_dotted, extend = extend.both)
+        ib50Line := line.new(bar_index - 1, y50, bar_index, y50, color = ibColor, width = 2, style = line.style_dotted, extend = extend.both)
+        ib75Line := line.new(bar_index - 1, y75, bar_index, y75, color = ibColor, width = 2, style = line.style_dotted, extend = extend.both)
+        if showLabels
+            ib25Label := label.new(bar_index + ibLabelOffset - 1, y25, "IB 25% " + str.tostring(y25, format.mintick), style = label.style_label_left,
+                 textcolor = ibColor, color = color.new(color.black, 100), size = labelSize)
+            ib50Label := label.new(bar_index + ibLabelOffset - 1, y50, "IB 50% " + str.tostring(y50, format.mintick), style = label.style_label_left,
+                 textcolor = ibColor, color = color.new(color.black, 100), size = labelSize)
+            ib75Label := label.new(bar_index + ibLabelOffset - 1, y75, "IB 75% " + str.tostring(y75, format.mintick), style = label.style_label_left,
+                 textcolor = ibColor, color = color.new(color.black, 100), size = labelSize)
+
+    if not na(ib25Line) and showIbRetrace
+        line.set_y1(ib25Line, y25)
+        line.set_y2(ib25Line, y25)
+        line.set_y1(ib50Line, y50)
+        line.set_y2(ib50Line, y50)
+        line.set_y1(ib75Line, y75)
+        line.set_y2(ib75Line, y75)
+        if showLabels
+            label.set_xy(ib25Label, bar_index + ibLabelOffset - 1, y25)
+            label.set_text(ib25Label, "IB 25% " + str.tostring(y25, format.mintick))
+            label.set_xy(ib50Label, bar_index + ibLabelOffset - 1, y50)
+            label.set_text(ib50Label, "IB 50% " + str.tostring(y50, format.mintick))
+            label.set_xy(ib75Label, bar_index + ibLabelOffset - 1, y75)
+            label.set_text(ib75Label, "IB 75% " + str.tostring(y75, format.mintick))
+
+    if newIbComplete and showIbExt
+        ibExt1UpLine := line.new(bar_index - 1, yExt1Up, bar_index, yExt1Up, color = ibColor, width = 1, style = line.style_dashed, extend = extend.both)
+        ibExt1DnLine := line.new(bar_index - 1, yExt1Dn, bar_index, yExt1Dn, color = ibColor, width = 1, style = line.style_dashed, extend = extend.both)
+        ibExt2UpLine := line.new(bar_index - 1, yExt2Up, bar_index, yExt2Up, color = ibColor, width = 1, style = line.style_dashed, extend = extend.both)
+        ibExt2DnLine := line.new(bar_index - 1, yExt2Dn, bar_index, yExt2Dn, color = ibColor, width = 1, style = line.style_dashed, extend = extend.both)
+        if showLabels
+            ibExt1UpLabel := label.new(bar_index + ibLabelOffset - 2, yExt1Up, "IB +" + str.tostring(ibExt1) + " " + str.tostring(yExt1Up, format.mintick),
+                 style = label.style_label_left, textcolor = ibColor, color = color.new(color.black, 100), size = labelSize)
+            ibExt1DnLabel := label.new(bar_index + ibLabelOffset - 2, yExt1Dn, "IB -" + str.tostring(ibExt1) + " " + str.tostring(yExt1Dn, format.mintick),
+                 style = label.style_label_left, textcolor = ibColor, color = color.new(color.black, 100), size = labelSize)
+            ibExt2UpLabel := label.new(bar_index + ibLabelOffset - 2, yExt2Up, "IB +" + str.tostring(ibExt2) + " " + str.tostring(yExt2Up, format.mintick),
+                 style = label.style_label_left, textcolor = ibColor, color = color.new(color.black, 100), size = labelSize)
+            ibExt2DnLabel := label.new(bar_index + ibLabelOffset - 2, yExt2Dn, "IB -" + str.tostring(ibExt2) + " " + str.tostring(yExt2Dn, format.mintick),
+                 style = label.style_label_left, textcolor = ibColor, color = color.new(color.black, 100), size = labelSize)
+
+    if not na(ibExt1UpLine) and showIbExt
+        line.set_y1(ibExt1UpLine, yExt1Up)
+        line.set_y2(ibExt1UpLine, yExt1Up)
+        line.set_y1(ibExt1DnLine, yExt1Dn)
+        line.set_y2(ibExt1DnLine, yExt1Dn)
+        line.set_y1(ibExt2UpLine, yExt2Up)
+        line.set_y2(ibExt2UpLine, yExt2Up)
+        line.set_y1(ibExt2DnLine, yExt2Dn)
+        line.set_y2(ibExt2DnLine, yExt2Dn)
+        if showLabels
+            label.set_xy(ibExt1UpLabel, bar_index + ibLabelOffset - 2, yExt1Up)
+            label.set_text(ibExt1UpLabel, "IB +" + str.tostring(ibExt1) + " " + str.tostring(yExt1Up, format.mintick))
+            label.set_xy(ibExt1DnLabel, bar_index + ibLabelOffset - 2, yExt1Dn)
+            label.set_text(ibExt1DnLabel, "IB -" + str.tostring(ibExt1) + " " + str.tostring(yExt1Dn, format.mintick))
+            label.set_xy(ibExt2UpLabel, bar_index + ibLabelOffset - 2, yExt2Up)
+            label.set_text(ibExt2UpLabel, "IB +" + str.tostring(ibExt2) + " " + str.tostring(yExt2Up, format.mintick))
+            label.set_xy(ibExt2DnLabel, bar_index + ibLabelOffset - 2, yExt2Dn)
+            label.set_text(ibExt2DnLabel, "IB -" + str.tostring(ibExt2) + " " + str.tostring(yExt2Dn, format.mintick))
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// VWAP — three independently toggleable anchors, no bands
+// ═══════════════════════════════════════════════════════════════════════════════════
+inRth = not na(time(timeframe.period, "0930-1600:23456", etTz))
+newRthDay = inRth and not inRth[1]
+
+// Globex day rolls at 18:00 ET. Detecting that via a "true except one minute" window
+// (as above) breaks here: CME has a ~17:00-18:00 ET maintenance halt with zero prints,
+// so the single false bar the old detector needed to see never exists in the data, and
+// the reset silently never fires. Instead, compute which Globex day each bar belongs to
+// directly (shift the timestamp 6h so 18:00+ rolls onto the next calendar date) and
+// reset whenever that key changes between consecutive bars — robust to any gap size,
+// maintenance halt or weekend alike.
+globexShiftedTime = time + 6 * 60 * 60 * 1000
+globexDayKey = year(globexShiftedTime, etTz) * 10000 + month(globexShiftedTime, etTz) * 100 + dayofmonth(globexShiftedTime, etTz)
+newGlobexDay = globexDayKey != globexDayKey[1]
+newWeek = newGlobexDay and dayofweek(globexShiftedTime, etTz) == dayofweek.monday
+
+var float nyPV = 0.0
+var float nyV = 0.0
+if newRthDay
+    nyPV := 0.0
+    nyV := 0.0
+if inRth
+    nyPV += hlc3 * volume
+    nyV += volume
+nyVwap = nyV > 0 ? nyPV / nyV : na
+
+var float dayPV = 0.0
+var float dayV = 0.0
+if newGlobexDay
+    dayPV := 0.0
+    dayV := 0.0
+dayPV += hlc3 * volume
+dayV += volume
+dailyVwap = dayV > 0 ? dayPV / dayV : na
+
+var float wkPV = 0.0
+var float wkV = 0.0
+if newWeek
+    wkPV := 0.0
+    wkV := 0.0
+wkPV += hlc3 * volume
+wkV += volume
+weeklyVwap = wkV > 0 ? wkPV / wkV : na
+
+plot(showVwapNy and isIntraday ? nyVwap : na, "NY-open VWAP", color = vwapNyColor, linewidth = 1)
+plot(showVwapDaily ? dailyVwap : na, "Daily VWAP", color = vwapDailyColor, linewidth = 1)
+plot(showVwapWeekly ? weeklyVwap : na, "Weekly VWAP", color = vwapWeeklyColor, linewidth = 1)
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// Period H/L — full ETH day, calendar week/month (ADR-0009). Line objects (not plot())
+// so Low can be dashed; redraws (old deleted, new created) only when the underlying
+// value actually changes, and extends full chart width.
+// ═══════════════════════════════════════════════════════════════════════════════════
+extTicker = ticker.new(syminfo.prefix, syminfo.ticker, session.extended)
+
+[pdHigh, pdLow] = request.security(extTicker, "1D", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+[pwHigh, pwLow] = request.security(extTicker, "1W", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+[pmHigh, pmLow] = request.security(extTicker, "1M", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+
+drawPeriodLevel(active, val, lbl, col, isHigh, xOffset) =>
+    var float lastVal = na
+    var line ln = na
+    var label lb = na
+    if active and not na(val)
+        if val != lastVal
+            lastVal := val
+            line.delete(ln)
+            label.delete(lb)
+            ln := line.new(bar_index - 1, val, bar_index, val, color = col, width = 1, style = resolveStyle(isHigh, false), extend = extend.both)
+            if showLabels
+                lb := label.new(bar_index + xOffset, val, lbl + " " + str.tostring(val, format.mintick), style = label.style_label_left,
+                     textcolor = col, color = color.new(color.black, 100), size = labelSize)
+        line.set_y1(ln, val)
+        line.set_y2(ln, val)
+        line.set_style(ln, resolveStyle(isHigh, false))
+        if showLabels
+            label.set_xy(lb, bar_index + xOffset, val)
+            label.set_text(lb, lbl + " " + str.tostring(val, format.mintick))
+
+drawPeriodLevel(showPdhl, pdHigh, "PDH", pdhColor, true, periodLabelOffset)
+drawPeriodLevel(showPdhl, pdLow, "PDL", pdlColor, false, periodLabelOffset)
+drawPeriodLevel(showPwhl, pwHigh, "PWH", pwhColor, true, periodLabelOffset - 1)
+drawPeriodLevel(showPwhl, pwLow, "PWL", pwlColor, false, periodLabelOffset - 1)
+drawPeriodLevel(showPmhl, pmHigh, "PMH", pmhColor, true, periodLabelOffset - 2)
+drawPeriodLevel(showPmhl, pmLow, "PML", pmlColor, false, periodLabelOffset - 2)
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// Session H/L — Overnight / Asia / London (windows shared with the sim)
+// ═══════════════════════════════════════════════════════════════════════════════════
+drawSessionHL(active, windowStr, lbl, hiColor, loColor, xOffset) =>
+    var float hi = na
+    var float lo = na
+    var int attachedDayKey = na
+    var line hiLine = na
+    var line loLine = na
+    var label hiLabel = na
+    var label loLabel = na
+
+    if active
+        inWin = not na(time(timeframe.period, windowStr + ":1234567", etTz))
+        newWin = inWin and not inWin[1]
+        endedWin = inWin[1] and not inWin
+
+        if newWin
+            hi := high
+            lo := low
+        else if inWin
+            hi := math.max(hi, high)
+            lo := math.min(lo, low)
+
+        if endedWin
+            attachedDayKey := dayKey
+            line.delete(hiLine)
+            line.delete(loLine)
+            label.delete(hiLabel)
+            label.delete(loLabel)
+            hiLine := line.new(bar_index - 1, hi, bar_index, hi, color = hiColor, width = 1, style = resolveStyle(true, false), extend = extend.both)
+            loLine := line.new(bar_index - 1, lo, bar_index, lo, color = loColor, width = 1, style = resolveStyle(false, false), extend = extend.both)
+            if showLabels
+                hiLabel := label.new(bar_index + xOffset, hi, lbl + " H", style = label.style_label_left,
+                     textcolor = hiColor, color = color.new(color.black, 100), size = labelSize)
+                loLabel := label.new(bar_index + xOffset, lo, lbl + " L", style = label.style_label_left,
+                     textcolor = loColor, color = color.new(color.black, 100), size = labelSize)
+
+        if not na(hiLine)
+            line.set_y1(hiLine, hi)
+            line.set_y2(hiLine, hi)
+            line.set_y1(loLine, lo)
+            line.set_y2(loLine, lo)
+            if showLabels
+                label.set_xy(hiLabel, bar_index + xOffset, hi)
+                label.set_text(hiLabel, lbl + " H " + str.tostring(hi, format.mintick))
+                label.set_xy(loLabel, bar_index + xOffset, lo)
+                label.set_text(loLabel, lbl + " L " + str.tostring(lo, format.mintick))
+
+drawSessionHL(showOn and isIntraday, onWindow, "ON", onHighColor, onLowColor, sessionLabelOffset)
+drawSessionHL(showAsia and isIntraday, asiaWindow, "Asia", asiaHighColor, asiaLowColor, sessionLabelOffset - 1)
+drawSessionHL(showLondon and isIntraday, londonWindow, "London", londonHighColor, londonLowColor, sessionLabelOffset - 2)
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// VRVP — visible-range volume histogram, right-anchored, no auto-derived lines.
+// Volume of each bar is split evenly across the price bins its [low, high] spans,
+// mirroring the sim's ingestion/levels.py volume_profile() for consistent method
+// (uniform split, not overlap-weighted) even though the two never compare numbers.
+// ═══════════════════════════════════════════════════════════════════════════════════
+var array<float> vHigh = array.new_float(0)
+var array<float> vLow = array.new_float(0)
+var array<float> vVol = array.new_float(0)
+var array<int> vTime = array.new_int(0)
+var polyline vrvpPoly = na
+
+if showVrvp
+    array.push(vHigh, high)
+    array.push(vLow, low)
+    array.push(vVol, volume)
+    array.push(vTime, time)
+
+    if barstate.islast
+        leftT = chart.left_visible_bar_time
+        rightT = chart.right_visible_bar_time
+        n = array.size(vTime)
+
+        float rangeHigh = na
+        float rangeLow = na
+        for i = 0 to n - 1
+            t = array.get(vTime, i)
+            if t >= leftT and t <= rightT
+                h = array.get(vHigh, i)
+                l = array.get(vLow, i)
+                rangeHigh := na(rangeHigh) ? h : math.max(rangeHigh, h)
+                rangeLow := na(rangeLow) ? l : math.min(rangeLow, l)
+
+        polyline.delete(vrvpPoly)
+
+        if not na(rangeHigh) and rangeHigh > rangeLow
+            binWidth = (rangeHigh - rangeLow) / vrvpRows
+            binVols = array.new_float(vrvpRows, 0.0)
+            for i = 0 to n - 1
+                t = array.get(vTime, i)
+                if t >= leftT and t <= rightT
+                    bh = array.get(vHigh, i)
+                    bl = array.get(vLow, i)
+                    bv = array.get(vVol, i)
+                    loBin = math.max(0, math.min(vrvpRows - 1, int(math.floor((bl - rangeLow) / binWidth))))
+                    hiBin = math.max(0, math.min(vrvpRows - 1, int(math.floor((bh - rangeLow) / binWidth))))
+                    cnt = hiBin - loBin + 1
+                    share = cnt > 0 ? bv / cnt : 0.0
+                    for k = loBin to hiBin
+                        array.set(binVols, k, array.get(binVols, k) + share)
+
+            maxVol = array.max(binVols)
+            if maxVol > 0
+                histWidthTime = int((rightT - leftT) * (vrvpWidthPct / 100.0))
+                pts = array.new<chart.point>(0)
+                array.push(pts, chart.point.from_time(rightT, rangeLow))
+                for k = 0 to vrvpRows - 1
+                    yBot = rangeLow + k * binWidth
+                    yTop = rangeLow + (k + 1) * binWidth
+                    barLen = int((array.get(binVols, k) / maxVol) * histWidthTime)
+                    xLeft = rightT - barLen
+                    array.push(pts, chart.point.from_time(xLeft, yBot))
+                    array.push(pts, chart.point.from_time(xLeft, yTop))
+                    array.push(pts, chart.point.from_time(rightT, yTop))
+                vrvpPoly := polyline.new(pts, curved = false, closed = true, xloc = xloc.bar_time,
+                     line_color = vrvpColor, fill_color = vrvpColor, line_width = 1)

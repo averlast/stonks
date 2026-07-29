@@ -20,14 +20,16 @@ The high–low range of the first **60 minutes** of RTH (09:30–10:30 ET); "IB 
 reversals at its edges. **Developing IB** = that range as it forms live, frozen at 10:30.
 
 **Overnight sessions** (Asia / London / ON):
-Globex sub-sessions preceding the RTH open, each with its own high/low: **Asia/Tokyo** and
-**London** (exact ET windows TBD), plus the whole **Overnight** span (18:00 ET prior day →
-09:30 ET) giving ONH/ONL. Asia and London H/L are watched as liquidity levels; "pre-market low"
-≈ **London low**.
+Globex sub-sessions preceding the RTH open, each with its own high/low: **Asia/Tokyo**
+[18:00–03:00 ET) and **London** [03:00–09:30 ET) — tunable windows, resolved 2026-07-20 from
+the prior TBD — plus the whole **Overnight** span (18:00 ET prior day → 09:30 ET) giving
+ONH/ONL. Asia and London H/L are watched as liquidity levels; "pre-market low" ≈ **London low**.
 
 **Prior-session levels**:
-PDH/PDL and prior-week/-month H/L and profiles derive from **full prior RTH session(s)**
-(09:30–16:00), via the Tier-2 1-minute bars — not from the 2-hour replay window.
+PDH/PDL and prior-week/-month H/L. Scope differs by surface, deliberately: on the **live chart**
+(TradingView) they follow market convention — the full **ETH day** (18:00→17:00 ET) and prior
+**calendar** week/month — because those are the prices other traders watch; in the **sim's answer
+key** they derive from **full prior RTH session(s)** (09:30–16:00). On gap days the two disagree.
 
 **VWAP**:
 Volume-weighted average price — a developing line drawn live, tracked at multiple **anchors**
@@ -89,6 +91,11 @@ _Avoid_: line, zone (a **Zone** is a user-drawn band, distinct from a single-pri
 
 **RTH / ETH**:
 Regular Trading Hours (the 09:30–11:30 ET replay window) vs Extended/overnight Globex hours.
+
+**Trading window**:
+The hours the user actually trades live: 09:30 to ~12:00 ET at the latest. Levels are still
+marked per **full-day market convention** — the user exits early but trades against participants
+who hold all day, so the levels that matter are the ones *they* watch.
 
 ### Session & the five phases (the day spine)
 
@@ -200,3 +207,6 @@ R stays anchored to the initial stop (see **R-multiple**).
   (**Supply/Demand zones**, judgment-placed **HVN**s) which are drawn and AI-graded, not scored.
 - "overnight" — resolved: the single ONH/ONL splits into distinct **Asia** and **London**
   session H/L; "pre-market low" ≈ **London low**.
+- "prior day/week/month H/L" RTH vs ETH — resolved 2026-07-20: the **live chart** uses full ETH
+  days + calendar weeks/months (market convention); the **sim** answer key stays RTH-only. A
+  deliberate, known divergence — not a bug to reconcile.
