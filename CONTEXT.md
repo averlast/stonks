@@ -66,6 +66,20 @@ breakout targets. The **Opening Range** has an analogous 50% midpoint.
 
 **HTF trend** (higher-timeframe trend):
 The 1h/4h directional context; setups taken *with* the HTF trend are higher-probability.
+On the live chart it is read via the **HTF SMA regime**.
+
+**HTF SMA regime**:
+The per-timeframe bull/bear verdict from the 50 vs 200 SMA on the 4h and the 1h: 50 above
+200 = bull, 200 above 50 = bear. Read from **developing** values (the forming HTF bar counts).
+The two timeframes may disagree — that split state is itself decision-relevant. A live-chart
+operationalization of **HTF trend** (borrowed from Peachy Investor).
+
+**EMA cloud**:
+The shaded band between the 4- and 9-period EMAs on the **5-minute** timeframe — a momentum
+read that keeps its 5m meaning on lower-timeframe charts (never recomputed per chart TF).
+Three states: bull (4 over 9), bear (9 over 4), and **neutral** when the spread is within a
+fraction of one bar's typical range (ATR-relative) — i.e. a cross is "one candle away." The
+fraction is an open param.
 
 **Base rate**:
 A historical prior computed from the corpus (e.g. opening-candle continuation %, single-vs-double

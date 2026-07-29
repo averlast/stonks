@@ -1,0 +1,161 @@
+//@version=6
+// Just Peachy — trend/momentum context overlay (borrowed from Peachy Investor)
+//
+// Two independent context reads from ../CONTEXT.md, each its own toggleable group:
+//
+//   • HTF SMA regime — the 50 vs 200 SMA verdict on the 4h and the 1h. 50 above 200 =
+//     bull, 200 above 50 = bear; the two timeframes may disagree and that split is itself
+//     decision-relevant (shown in the regime table). A live-chart read of HTF trend.
+//   • EMA cloud — the shaded band between the 4- and 9-period EMAs, computed ALWAYS on
+//     the 5-minute timeframe: a momentum read that keeps its 5m meaning on lower-TF charts
+//     rather than shape-shifting per chart TF (the cloud IS the 5m momentum read, not a
+//     per-chart shape). Neutral state (yellow) means |ema4 - ema9| is within a fraction
+//     of one typical 5m bar's range (ATR-relative) — i.e. "a cross is one candle away."
+//
+// Non-obvious Pine decisions:
+//   • ta.sma / ta.ema / ta.atr are passed as the EXPRESSION ARGUMENT of request.security
+//     so they evaluate inside the HTF context — never call the MA on the returned series.
+//   • DEVELOPING values (default realtime behavior: no [1] offset, no lookahead). The lines
+//     then match what the 4h/1h/5m chart shows at its live edge. Trade-off: on historical
+//     bars the higher-TF series shows the CLOSED value of the enclosing HTF bar, so the
+//     forming edge repaints as it fills in — an accepted cosmetic repaint, matching how a
+//     trader actually reads the HTF regime live.
+//   • The 5m EMA/ATR come back in ONE request.security tuple call to stay in sync and cheap.
+//   • plot() and fill() must live at global scope; visibility is gated by passing na.
+indicator("Just Peachy", overlay = true, max_lines_count = 10, max_labels_count = 10)
+
+// ── Display ─────────────────────────────────────────────────────────────────────────
+labelSizeIn = input.string("Small", "Label size (horizontal-mode tags)", options = ["Tiny", "Small", "Normal", "Large", "Huge"], group = "Display")
+
+// ── HTF SMAs (4h + 1h, 50 & 200) ─────────────────────────────────────────────────────
+show4h        = input.bool(true, "Show 4H pair (50 + 200)", group = "HTF SMAs", tooltip = "The 4h SMA-50 and SMA-200 as a pair.")
+show1h        = input.bool(true, "Show 1H pair (50 + 200)", group = "HTF SMAs", tooltip = "The 1h SMA-50 and SMA-200 as a pair.")
+sma50_4hCol   = input.color(#a78bfa, "4H 50 color",  group = "HTF SMAs")
+sma200_4hCol  = input.color(#7c3aed, "4H 200 color", group = "HTF SMAs")
+sma50_1hCol   = input.color(#38bdf8, "1H 50 color",  group = "HTF SMAs")
+sma200_1hCol  = input.color(#0284c7, "1H 200 color", group = "HTF SMAs")
+smaThreshold  = input.timeframe("30", "Curve/horizontal threshold", group = "HTF SMAs",
+     tooltip = "ABOVE this chart timeframe the four series draw as MA curves via plot() (a 4h series on a lower TF steps — that's fine). AT OR BELOW it, each draws instead as a full-width horizontal line at its current value with a price tag. Set to your own boundary between 'zoomed-out context' and 'intraday execution'.")
+smaLabelOffset = input.int(0, "Horizontal label offset (bars back)", group = "HTF SMAs",
+     tooltip = "In horizontal mode, how far back along the line the price tag sits so the four tags don't stack. 4H sits at this offset, 4H 200 / 1H 50 / 1H 200 stagger one bar further back each.")
+
+// ── Regime Table ─────────────────────────────────────────────────────────────────────
+showTable   = input.bool(true, "Show regime table", group = "Regime Table")
+tablePosIn  = input.string("Top Right", "Table position", options = ["Top Right", "Top Left", "Top Center", "Middle Right", "Middle Left", "Bottom Right", "Bottom Left", "Bottom Center"], group = "Regime Table")
+tableSizeIn = input.string("Normal", "Table text size", options = ["Tiny", "Small", "Normal", "Large", "Huge"], group = "Regime Table")
+bullBg      = input.color(#10b981, "Bull background", group = "Regime Table")
+bearBg      = input.color(#ef4444, "Bear background", group = "Regime Table")
+
+// ── EMA Cloud (5m, locked) ───────────────────────────────────────────────────────────
+showCloud    = input.bool(true, "Show EMA cloud", group = "EMA Cloud")
+cloudTf      = input.timeframe("5", "Cloud timeframe (locked)", group = "EMA Cloud",
+     tooltip = "The 4/9 EMAs and ATR are always computed on THIS timeframe regardless of chart TF (default 5m = the cloud's canonical read). The cloud renders only when the chart TF is at or below this — it shows on 5m and 1m (stepping on 1m is expected) and auto-hides on 15m+.")
+cloudK       = input.float(0.25, "Neutral band (k × ATR)", minval = 0.0, step = 0.05, group = "EMA Cloud",
+     tooltip = "Neutral (yellow) when |ema4 - ema9| < k × ATR — the spread is within this fraction of one typical bar's range, so a cross is one candle away.")
+atrLen       = input.int(14, "ATR length", minval = 1, group = "EMA Cloud")
+cloudBull    = input.color(#10b981, "Bull fill (4 over 9)", group = "EMA Cloud")
+cloudBear    = input.color(#ef4444, "Bear fill (9 over 4)", group = "EMA Cloud")
+cloudNeutral = input.color(#eab308, "Neutral fill (cross near)", group = "EMA Cloud")
+cloudTransp  = input.int(70, "Fill transparency", minval = 0, maxval = 100, group = "EMA Cloud")
+showEmaLines = input.bool(false, "Show EMA lines (debug)", group = "EMA Cloud",
+     tooltip = "The two EMA plot lines are fully transparent by default (only the fill between them shows). Enable to see the raw 4/9 EMA lines.")
+
+// ── Helpers ──────────────────────────────────────────────────────────────────────────
+sizeFromStr(s) =>
+    switch s
+        "Tiny"   => size.tiny
+        "Small"  => size.small
+        "Normal" => size.normal
+        "Large"  => size.large
+        "Huge"   => size.huge
+        => size.small
+
+posFromStr(s) =>
+    switch s
+        "Top Right"     => position.top_right
+        "Top Left"      => position.top_left
+        "Top Center"    => position.top_center
+        "Middle Right"  => position.middle_right
+        "Middle Left"   => position.middle_left
+        "Bottom Right"  => position.bottom_right
+        "Bottom Left"   => position.bottom_left
+        "Bottom Center" => position.bottom_center
+        => position.top_right
+
+labelSize = sizeFromStr(labelSizeIn)
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// HTF SMAs — 50 & 200 on the 4h ("240") and 1h ("60").
+// ta.sma runs inside the request.security context (expression argument), developing values.
+// ═══════════════════════════════════════════════════════════════════════════════════
+sma50_4h  = request.security(syminfo.tickerid, "240", ta.sma(close, 50),  lookahead = barmerge.lookahead_off)
+sma200_4h = request.security(syminfo.tickerid, "240", ta.sma(close, 200), lookahead = barmerge.lookahead_off)
+sma50_1h  = request.security(syminfo.tickerid, "60",  ta.sma(close, 50),  lookahead = barmerge.lookahead_off)
+sma200_1h = request.security(syminfo.tickerid, "60",  ta.sma(close, 200), lookahead = barmerge.lookahead_off)
+
+// Chart TF strictly ABOVE the threshold → curve mode; at/below → horizontal mode.
+smaCurveMode = timeframe.in_seconds() > timeframe.in_seconds(smaThreshold)
+
+// Curve mode: plot() at global scope, na when disabled or in horizontal mode. Widths 1/2.
+plot(show4h and smaCurveMode ? sma50_4h  : na, "4H 50",  color = sma50_4hCol,  linewidth = 1)
+plot(show4h and smaCurveMode ? sma200_4h : na, "4H 200", color = sma200_4hCol, linewidth = 2)
+plot(show1h and smaCurveMode ? sma50_1h  : na, "1H 50",  color = sma50_1hCol,  linewidth = 1)
+plot(show1h and smaCurveMode ? sma200_1h : na, "1H 200", color = sma200_1hCol, linewidth = 2)
+
+// Horizontal mode: create-once, update-every-bar full-width line + price tag (same widths).
+// extend.both makes the base segment's x irrelevant, so we only track y and the tag's x.
+drawHLevel(active, val, lbl, col, wdth, xOffset) =>
+    var line ln = na
+    var label lb = na
+    if active and not na(val)
+        if na(ln)
+            ln := line.new(bar_index - 1, val, bar_index, val, color = col, width = wdth, extend = extend.both)
+            lb := label.new(bar_index + xOffset, val, "", style = label.style_label_left,
+                 textcolor = col, color = color.new(color.black, 100), size = labelSize)
+        line.set_y1(ln, val)
+        line.set_y2(ln, val)
+        line.set_color(ln, col)
+        label.set_xy(lb, bar_index + xOffset, val)
+        label.set_text(lb, lbl + " " + str.tostring(val, format.mintick))
+        label.set_textcolor(lb, col)
+
+smaHMode = not smaCurveMode
+drawHLevel(show4h and smaHMode, sma50_4h,  "4H 50",  sma50_4hCol,  1, smaLabelOffset)
+drawHLevel(show4h and smaHMode, sma200_4h, "4H 200", sma200_4hCol, 2, smaLabelOffset - 1)
+drawHLevel(show1h and smaHMode, sma50_1h,  "1H 50",  sma50_1hCol,  1, smaLabelOffset - 2)
+drawHLevel(show1h and smaHMode, sma200_1h, "1H 200", sma200_1hCol, 2, smaLabelOffset - 3)
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// Regime table — 4H / 1H bull-bear verdict from 50 vs 200. Standard var-table + islast idiom.
+// ═══════════════════════════════════════════════════════════════════════════════════
+var table regimeTable = na
+if showTable and barstate.islast
+    if na(regimeTable)
+        regimeTable := table.new(posFromStr(tablePosIn), 2, 2, border_width = 1)
+    tblSize = sizeFromStr(tableSizeIn)
+    bull4h = sma50_4h > sma200_4h
+    bull1h = sma50_1h > sma200_1h
+    table.cell(regimeTable, 0, 0, "4H", text_color = color.white, bgcolor = color.new(color.gray, 20), text_size = tblSize)
+    table.cell(regimeTable, 1, 0, bull4h ? "BULL" : "BEAR", text_color = color.white, bgcolor = bull4h ? bullBg : bearBg, text_size = tblSize)
+    table.cell(regimeTable, 0, 1, "1H", text_color = color.white, bgcolor = color.new(color.gray, 20), text_size = tblSize)
+    table.cell(regimeTable, 1, 1, bull1h ? "BULL" : "BEAR", text_color = color.white, bgcolor = bull1h ? bullBg : bearBg, text_size = tblSize)
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// EMA cloud — 4/9 EMA + ATR always on the cloud timeframe (one security tuple call).
+// Renders only when chart TF is at or below the cloud TF; auto-hides above.
+// ═══════════════════════════════════════════════════════════════════════════════════
+[ema4, ema9, atr5m] = request.security(syminfo.tickerid, cloudTf,
+     [ta.ema(close, 4), ta.ema(close, 9), ta.atr(atrLen)], lookahead = barmerge.lookahead_off)
+
+cloudActive = showCloud and timeframe.in_seconds() <= timeframe.in_seconds(cloudTf)
+
+// EMA lines are debug-only: fully transparent unless "Show EMA lines" is on.
+ema4LineCol = showEmaLines ? #14b8a6 : color.new(color.black, 100)
+ema9LineCol = showEmaLines ? #f97316 : color.new(color.black, 100)
+p4 = plot(cloudActive ? ema4 : na, "EMA 4", color = ema4LineCol, linewidth = 1)
+p9 = plot(cloudActive ? ema9 : na, "EMA 9", color = ema9LineCol, linewidth = 1)
+
+// State-driven fill: neutral (spread inside k×ATR) → yellow; else bull/bear by 4-vs-9.
+cloudNeutralState = math.abs(ema4 - ema9) < cloudK * atr5m
+cloudState = cloudNeutralState ? cloudNeutral : (ema4 > ema9 ? cloudBull : cloudBear)
+fill(p4, p9, color = cloudActive ? color.new(cloudState, cloudTransp) : na, title = "EMA cloud")
