@@ -51,6 +51,28 @@ opposite-colored engulfing candle — demand (support) or supply (resistance). N
 Price wicking through a key level to trip stops, then sharply reversing; a **double liquidity
 sweep** is two coincident levels (e.g. IB low + London low) swept at once — an A+ signal.
 
+**Cumulative delta** (CVD):
+A running per-session total of aggressive buying minus aggressive selling (trades lifting the
+offer minus trades hitting the bid), anchored at a session open — RTH 09:30 ET by default, ETH
+18:00 selectable. Read as **shape against price at a Level**, never as an absolute number:
+**absorption** = price makes a new extreme but CVD doesn't (aggressors pressing and getting
+filled passively — reversal context); **initiative** = CVD expanding with price through a
+retest (continuation context). On the live chart CVD is an approximation from lower-timeframe
+bar direction, not true tick delta. **Superseded as the every-day read by the Footprint**
+(2026-08-06): the bar-direction approximation is candle color restated, so the line cannot
+meaningfully disagree with the chart; delta is now read per price via the **Footprint**.
+
+**Footprint** (volume footprint):
+A candle split into per-price rows, each showing aggressive sell × aggressive buy volume
+traded at that price, plus the bar's **delta** (net buy − sell). Read only at **Level**s,
+never in open space: **absorption** = heavy one-sided volume at an extreme with no price
+progress (the pressing side is being filled passively — reversal context, the early
+**failed auction** tell); **initiative** = stacked one-sided imbalances advancing through a
+retest (continuation context). The successor to the **CVD** line as the every-day
+exhaustion read — the same shape-reads, resolved to price and side from real ticks. It
+shows walls *being hit* (including icebergs, as absorption), never walls *waiting* — resting
+passive liquidity is a different signal (a heatmap read, not adopted).
+
 **Failed auction**:
 A failed IB breakout — price pokes outside the range then closes back inside (by definition a
 30-minute candle close; read earlier on 1m/5m).

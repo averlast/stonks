@@ -40,6 +40,48 @@ here is enrichment, not the spine. **Unblocked now**:
 (discretionary S/D zone + HVN drawing tools). #14/#15 are unblocked once #13's data lands. The
 `ingestion/levels.py` `value_area`/`volume_profile` helpers are reusable for #14's live profile.
 
+### Bookmap evaluation → TV Premium footprint adoption (2026-08-06) — live-chart tooling, no sim change
+Grill session outcome (evaluated Bookmap's liquidity heatmap): **(1) Upgrade TradingView
+Essential → Premium (~$59/mo) for native Volume Footprint charts** — the footprint replaces
+the CVD pane as the every-day absorption/initiative read at levels (per-price sell×buy rows
++ per-bar delta, real ticks; reads the failed-auction-vs-breakout question directly).
+**(2) CVD pane verdict after live use: redundant by construction** on Essential — the 1m
+close-vs-open classification is candle color restated, so the line couldn't disagree with
+the chart. A rendering failure, not a delta-concept failure; `tradingview/cvd.pine` is
+**retired** (kept in repo, off the chart). The old "Premium if the read changes decisions"
+gate is moot — footprint supersedes the pane entirely. **(3) Skip the Lucid/Tradovate CME
+L2 "Market Depth Full Bundle" ($48/mo)** — it only lights up TV's snapshot DOM ladder (no
+history trail, no Pine/footprint access): depth-data money without the tool that makes
+depth legible. **(4) Bookmap deferred** (Global $49 + CME depth $34 = ~$83/mo, second app
+outside the Lucid-in-TV execution loop). Its unique value over the footprint is the
+**passive-wall trail** (walls persisting / pulling / reloading *before* price arrives —
+spoofable, its own read to learn); stops are invisible to any book, so it can't find the
+magnets — the levels already do that. Reconsider only if a future **sim heatmap slice**
+(Databento MBP-10 depth for the practiced day + a canvas heatmap layer in replay — a real
+slice, LWC has no heatmap primitive) proves that read changes decisions. Docs:
+`docs/study/cvd-and-rsi.md` rewritten footprint-first (absorption/initiative language
+carried over; chop-day RSI playbook unchanged); CONTEXT.md gained a **Footprint** entry and
+the CVD entry is marked superseded.
+
+### TradingView CVD pane + RSI demotion (2026-07-30) — live-chart companion, no sim change
+Grill session outcome: **CVD (cumulative volume delta) replaces RSI as the every-day
+exhaustion/absorption read at levels; RSI is demoted to a chop-day-only fade gauge** (it pins
+overbought on trend days — miscalibrated for the best ORB days — and is price-derived, so
+redundant with the EMA cloud). New **`tradingview/cvd.pine`** (Pine v6, standalone pane):
+signed intrabar volume via `request.security_lower_tf` (close-vs-open classification, carry
+direction on doji), session-anchored reset (**input**: RTH 09:30 default / Globex 18:00, via
+the `time(tf, session, tz)` na-transition idiom), **style input** line (default) / delta
+candles (o/h/l/c folded from the intrabar walk), zero line, reset-bar shade, degenerate-TF
+warning table. Visual-only by design — no divergence detection/alerts in v1 (learn the raw
+read first). **Fidelity caveat**: user is on TV Essential → 1-minute intrabar floor; read on
+5m, distrust wicks; Premium (seconds bars) is the later unlock *if the read changes decisions*
+(user executes through Lucid inside TradingView, so TV Premium beats Sierra for workflow if
+that day comes). TradingView-only for now — a sim CVD would need a Databento re-pull with
+aggressor side (trades parquet has no side column); possible future slice. Plain-words usage
+guide: **`docs/study/cvd-and-rsi.md`** (absorption/initiative reads + the 6-step chop-day RSI
+playbook). CONTEXT.md gained a **Cumulative delta (CVD)** entry. *Pine can't run locally —
+paste into TradingView's editor and report errors back (known loop).*
+
 ### #13 (2026-07-14) — prior-period levels & value areas: CODE DONE, awaiting a data pull
 The expanded pre-session catalog. **All code is written + offline-verified; the one
 remaining step is a Databento pull the USER runs** (needs the key + spends ~pennies of 1m data —

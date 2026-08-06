@@ -1,0 +1,100 @@
+//@version=6
+// CVD — Cumulative Volume Delta (pane companion to the two overlay scripts; see ../CONTEXT.md
+// "Cumulative delta" and docs/study/cvd-and-rsi.md for the plain-words read).
+//
+// A running per-session total of signed volume: intrabar volume counts positive when the
+// intrabar closed up, negative when it closed down (close-vs-open, tiebreak close-vs-prior-
+// close, else carry the last direction — mirrors TradingView's own up/down classification).
+// This is an APPROXIMATION of true aggressor-side delta — Pine has no bid/ask data — and its
+// fidelity is capped by the intrabar timeframe your plan allows (Essential floor: "1" minute).
+// The read that survives the approximation is SHAPE against price at a Level (absorption /
+// initiative divergence), never the absolute number.
+//
+// Non-obvious Pine decisions:
+//   • request.security_lower_tf returns the current chart bar's intrabar values as an array;
+//     we walk it accumulating on top of the session total, tracking max/min, so each chart
+//     bar yields a CVD open/high/low/close — one data path feeds both render styles.
+//   • signedVol() keeps its carry-direction state in a `var` INSIDE the function so the
+//     lower-tf request context owns its own instance.
+//   • `var cum` mutations are rolled back on every realtime tick and re-applied from the
+//     committed value, so the fold never double-counts a forming bar.
+//   • Session reset uses the time(tf, session, tz) na→value transition (first bar inside the
+//     window) rather than hand-rolled minute math — DST-proof, day-wrap-proof. With the RTH
+//     anchor the total keeps running after 16:00 and only re-zeros at the next 09:30.
+//   • security_lower_tf only covers a limited intrabar history (~100k intrabars). Older chart
+//     bars get empty arrays → the line goes flat there and the first covered session may start
+//     from a partial total. Read the recent days / live edge; deep history is decoration.
+//   • plotcandle()/plot() live at global scope; the style choice is gated by passing na.
+indicator("CVD — Cumulative Volume Delta", overlay = false, format = format.volume)
+
+// ── Inputs ──────────────────────────────────────────────────────────────────────────
+anchorIn   = input.string("RTH open 09:30 ET", "Session anchor (reset)", options = ["RTH open 09:30 ET", "Globex open 18:00 ET"], group = "CVD",
+     tooltip = "Where the running total re-zeros each day. RTH = the morning session's balance only (reads directly against ORB/IB levels). Globex = the full ETH day's balance, market-convention style (includes overnight flow).")
+styleIn    = input.string("Line", "Render style", options = ["Line", "Candles"], group = "CVD",
+     tooltip = "Line = the cumulative total at each close — the clean slope/divergence read (learn on this). Candles = adds where delta ranged WITHIN each bar; a long wick against the body is an intrabar absorption story. On a 1-minute intrabar floor the wicks are coarse.")
+lowerTf    = input.timeframe("1", "Intrabar timeframe", group = "CVD",
+     tooltip = "The lower timeframe volume is classified on. Finer = truer delta. Essential plan floor is \"1\" (minute); Premium unlocks seconds (\"1S\"–\"10S\"). Must be at or below the chart timeframe — a warning shows when it isn't meaningfully below.")
+lineColor  = input.color(#22d3ee, "Line color", group = "Style")
+bullColor  = input.color(#10b981, "Candle up color", group = "Style")
+bearColor  = input.color(#ef4444, "Candle down color", group = "Style")
+zeroColor  = input.color(#787b86, "Zero line color", group = "Style")
+resetShade = input.bool(true, "Shade the session-reset bar", group = "Style",
+     tooltip = "A faint background tint on the bar where the total re-zeros, so the anchor is visible at a glance.")
+
+// ── Signed intrabar volume ──────────────────────────────────────────────────────────
+// Up if the intrabar closed above its open; tiebreak vs the prior intrabar close; a pure
+// doji carries the last known direction (TradingView's own up/down volume semantics).
+signedVol() =>
+    var float dir = 0.0
+    if close > open
+        dir := 1.0
+    else if close < open
+        dir := -1.0
+    else if close > close[1]
+        dir := 1.0
+    else if close < close[1]
+        dir := -1.0
+    volume * dir
+
+array<float> deltas = request.security_lower_tf(syminfo.tickerid, lowerTf, signedVol())
+
+// ── Session reset (anchor) ──────────────────────────────────────────────────────────
+rthAnchor = anchorIn == "RTH open 09:30 ET"
+sessT     = rthAnchor ? time(timeframe.period, "0930-1600:1234567", "America/New_York")
+                      : time(timeframe.period, "1800-1700:1234567", "America/New_York")
+newSession = na(sessT[1]) and not na(sessT)
+
+// ── Fold: session total + this bar's CVD o/h/l/c ────────────────────────────────────
+var float cum = 0.0
+float cvdOpen = newSession ? 0.0 : cum
+float cvdClose = cvdOpen
+float cvdHigh = cvdOpen
+float cvdLow  = cvdOpen
+if not na(deltas) and array.size(deltas) > 0
+    for d in deltas
+        cvdClose += d
+        cvdHigh := math.max(cvdHigh, cvdClose)
+        cvdLow  := math.min(cvdLow, cvdClose)
+cum := cvdClose
+
+// ── Render ──────────────────────────────────────────────────────────────────────────
+candleMode = styleIn == "Candles"
+candleCol  = cvdClose >= cvdOpen ? bullColor : bearColor
+plotcandle(candleMode ? cvdOpen : na, candleMode ? cvdHigh : na, candleMode ? cvdLow : na,
+     candleMode ? cvdClose : na, "CVD candles", color = candleCol, wickcolor = candleCol,
+     bordercolor = candleCol)
+plot(candleMode ? na : cvdClose, "CVD", color = lineColor, linewidth = 2)
+hline(0, "Zero", color = zeroColor, linestyle = hline.style_dashed)
+bgcolor(resetShade and newSession ? color.new(#94a3b8, 88) : na, title = "Session reset")
+
+// ── Degenerate-candle warning ───────────────────────────────────────────────────────
+// The LINE is chart-TF-independent: classification always happens on the intrabar TF, so
+// the running total is the same on 1m or 5m — only the bar bucketing changes. Candles,
+// though, need multiple intrabars per chart bar to have wicks; at/below the intrabar TF
+// each bar holds one step, so candle mode adds nothing over the line. Warn only then.
+var table warn = na
+if candleMode and timeframe.in_seconds() <= timeframe.in_seconds(lowerTf) and barstate.islast
+    if na(warn)
+        warn := table.new(position.top_right, 1, 1)
+    table.cell(warn, 0, 0, "⚠ candle wicks empty at this TF — use Line, or a chart TF above " + lowerTf,
+         text_color = color.white, bgcolor = color.new(#ef4444, 20), text_size = size.small)
