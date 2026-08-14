@@ -1,0 +1,251 @@
+//@version=6
+// Liquidity Map — equal extremes + gap boxes + sweep markers
+//
+// Companion to docs/study/patterns-as-liquidity.md and CONTEXT.md ("Equal extremes",
+// "Gap", "Liquidity sweep"). Instrument-agnostic: use on both the index and gold charts
+// alongside orb-index.pine / orb-gold.pine. Draws the liquidity PRIMITIVES that classical
+// chart patterns reduce to — deliberately no named-pattern (H&S, cup) detection: shapes
+// are subjective and fire late; the pools are the signal, not the shapes.
+//
+// 1. EQUAL EXTREMES: confirmed pivots (pivotLen bars each side) are grouped when within
+//    an ATR-fraction tolerance. Two-plus touches = a level line from the first touch,
+//    extending right, labeled with its touch count ("EQH ×3" — the count feeds the
+//    third-test/Erosion read directly). A poke BEYOND tolerance ends the level: wick
+//    through that closes back inside = SWEPT (optional marker — the spring/upthrust);
+//    close beyond = broken (line freezes silently). Pivots confirm pivotLen bars late,
+//    and the swept-vs-broken verdict is a bar-close call (may flicker intrabar on the
+//    live bar) — this is a map, not an entry signal.
+// 2. GAP BOXES: prior RTH close → today's RTH open, drawn until filled (price returns
+//    to the prior close). Unfilled gaps persist as standing magnets (capped, oldest
+//    dropped). Set the RTH session input per instrument (index 0930-1600, gold e.g.
+//    0820-1330).
+indicator("Liquidity Map", overlay = true, max_lines_count = 500, max_labels_count = 500,
+     max_boxes_count = 100)
+
+// ── Display ─────────────────────────────────────────────────────────────────────────
+showLabels  = input.bool(true, "Show labels", group = "Display")
+labelSizeIn = input.string("Small", "Label size", options = ["Tiny", "Small", "Normal", "Large", "Huge"], group = "Display")
+
+// ── Equal extremes ──────────────────────────────────────────────────────────────────
+showEq      = input.bool(true, "Show equal highs/lows", group = "Equal extremes")
+pivotLen    = input.int(5, "Pivot length (bars each side)", minval = 2, group = "Equal extremes")
+tolAtrFrac  = input.float(0.25, "Equal tolerance (x ATR14)", minval = 0.01, step = 0.05, group = "Equal extremes",
+     tooltip = "Two pivots count as 'equal' when their prices are within this fraction of ATR(14). A poke beyond a level by MORE than this ends the level (sweep or break); pokes within it are touches.")
+maxLevels   = input.int(8, "Max active levels per side", minval = 1, maxval = 20, group = "Equal extremes")
+candExpiry  = input.int(500, "Unpaired pivot expiry (bars)", minval = 50, group = "Equal extremes",
+     tooltip = "A lone pivot waits this many bars for a second 'equal' touch before it stops being a candidate.")
+eqhColor    = input.color(#f87171, "Equal highs color", group = "Equal extremes")
+eqlColor    = input.color(#4ade80, "Equal lows color", group = "Equal extremes")
+showSweeps  = input.bool(true, "Mark sweeps (wick-through + close back)", group = "Equal extremes")
+
+// ── Gap boxes ───────────────────────────────────────────────────────────────────────
+showGaps   = input.bool(true, "Show RTH gap boxes", group = "Gaps")
+rthSession = input.session("0930-1600", "RTH session (ET)", group = "Gaps",
+     tooltip = "Prior close is taken from the last bar of this session; the gap is measured to the next session's open. Index: 0930-1600. Gold: e.g. 0820-1330.")
+minGapPts  = input.float(0.0, "Min gap size (points, 0 = any)", minval = 0.0, group = "Gaps")
+maxGaps    = input.int(5, "Max unfilled gaps kept", minval = 1, maxval = 20, group = "Gaps")
+gapColor   = input.color(color.new(#94a3b8, 85), "Gap box color", group = "Gaps")
+
+// ── Helpers ─────────────────────────────────────────────────────────────────────────
+sizeFromStr(s) =>
+    switch s
+        "Tiny"   => size.tiny
+        "Small"  => size.small
+        "Normal" => size.normal
+        "Large"  => size.large
+        "Huge"   => size.huge
+        => size.small
+
+labelSize = sizeFromStr(labelSizeIn)
+etTz = "America/New_York"
+
+atr = ta.atr(14)
+tol = atr * tolAtrFrac
+
+// ═════════════════════════════════════════════════════════════════════════════════════
+// Equal extremes — parallel arrays hold the state; candidates are lone pivots waiting
+// for an "equal" partner, actives are drawn levels with 2+ touches.
+// ═════════════════════════════════════════════════════════════════════════════════════
+// candidates (unpaired pivots)
+var array<float> chPrice = array.new_float(0)
+var array<int>   chBar   = array.new_int(0)
+var array<float> clPrice = array.new_float(0)
+var array<int>   clBar   = array.new_int(0)
+// active levels
+var array<float> ahPrice = array.new_float(0)
+var array<int>   ahTouch = array.new_int(0)
+var array<line>  ahLine  = array.new<line>(0)
+var array<label> ahLabel = array.new<label>(0)
+var array<float> alPrice = array.new_float(0)
+var array<int>   alTouch = array.new_int(0)
+var array<line>  alLine  = array.new<line>(0)
+var array<label> alLabel = array.new<label>(0)
+
+ph = ta.pivothigh(high, pivotLen, pivotLen)
+pl = ta.pivotlow(low, pivotLen, pivotLen)
+
+// Freeze a level in place: fade + dot the line, drop the count label, remove from state.
+retireLevel(array<float> prices, array<int> touches, array<line> lines, array<label> labels, int i, color col) =>
+    ln = array.get(lines, i)
+    line.set_style(ln, line.style_dotted)
+    line.set_color(ln, color.new(col, 70))
+    label.delete(array.get(labels, i))
+    array.remove(prices, i)
+    array.remove(touches, i)
+    array.remove(lines, i)
+    array.remove(labels, i)
+
+if showEq
+    // ── new confirmed pivot high ──
+    if not na(ph)
+        pBar = bar_index - pivotLen
+        matched = false
+        // touch of an existing active level?
+        for i = 0 to array.size(ahPrice) == 0 ? na : array.size(ahPrice) - 1
+            if not matched and math.abs(array.get(ahPrice, i) - ph) <= tol
+                matched := true
+                newP = math.max(array.get(ahPrice, i), ph)
+                array.set(ahPrice, i, newP)
+                array.set(ahTouch, i, array.get(ahTouch, i) + 1)
+                ln = array.get(ahLine, i)
+                line.set_y1(ln, newP)
+                line.set_y2(ln, newP)
+                if showLabels
+                    label.set_text(array.get(ahLabel, i), "EQH ×" + str.tostring(array.get(ahTouch, i)))
+        // pairs with a waiting candidate → promote to an active level
+        if not matched
+            for j = 0 to array.size(chPrice) == 0 ? na : array.size(chPrice) - 1
+                if not matched and math.abs(array.get(chPrice, j) - ph) <= tol
+                    matched := true
+                    lvl = math.max(array.get(chPrice, j), ph)
+                    ln = line.new(array.get(chBar, j), lvl, bar_index, lvl, color = eqhColor, width = 1)
+                    lb = showLabels ? label.new(bar_index, lvl, "EQH ×2", style = label.style_label_left,
+                         textcolor = eqhColor, color = color.new(color.black, 100), size = labelSize) : label(na)
+                    array.push(ahPrice, lvl)
+                    array.push(ahTouch, 2)
+                    array.push(ahLine, ln)
+                    array.push(ahLabel, lb)
+                    array.remove(chPrice, j)
+                    array.remove(chBar, j)
+                    if array.size(ahPrice) > maxLevels
+                        retireLevel(ahPrice, ahTouch, ahLine, ahLabel, 0, eqhColor)
+        if not matched
+            array.push(chPrice, ph)
+            array.push(chBar, bar_index - pivotLen)
+            if array.size(chPrice) > 20
+                array.remove(chPrice, 0)
+                array.remove(chBar, 0)
+
+    // ── new confirmed pivot low ──
+    if not na(pl)
+        matched = false
+        for i = 0 to array.size(alPrice) == 0 ? na : array.size(alPrice) - 1
+            if not matched and math.abs(array.get(alPrice, i) - pl) <= tol
+                matched := true
+                newP = math.min(array.get(alPrice, i), pl)
+                array.set(alPrice, i, newP)
+                array.set(alTouch, i, array.get(alTouch, i) + 1)
+                ln = array.get(alLine, i)
+                line.set_y1(ln, newP)
+                line.set_y2(ln, newP)
+                if showLabels
+                    label.set_text(array.get(alLabel, i), "EQL ×" + str.tostring(array.get(alTouch, i)))
+        if not matched
+            for j = 0 to array.size(clPrice) == 0 ? na : array.size(clPrice) - 1
+                if not matched and math.abs(array.get(clPrice, j) - pl) <= tol
+                    matched := true
+                    lvl = math.min(array.get(clPrice, j), pl)
+                    ln = line.new(array.get(clBar, j), lvl, bar_index, lvl, color = eqlColor, width = 1)
+                    lb = showLabels ? label.new(bar_index, lvl, "EQL ×2", style = label.style_label_left,
+                         textcolor = eqlColor, color = color.new(color.black, 100), size = labelSize) : label(na)
+                    array.push(alPrice, lvl)
+                    array.push(alTouch, 2)
+                    array.push(alLine, ln)
+                    array.push(alLabel, lb)
+                    array.remove(clPrice, j)
+                    array.remove(clBar, j)
+                    if array.size(alPrice) > maxLevels
+                        retireLevel(alPrice, alTouch, alLine, alLabel, 0, eqlColor)
+        if not matched
+            array.push(clPrice, pl)
+            array.push(clBar, bar_index - pivotLen)
+            if array.size(clPrice) > 20
+                array.remove(clPrice, 0)
+                array.remove(clBar, 0)
+
+    // ── expire stale candidates ──
+    if array.size(chBar) > 0
+        while array.size(chBar) > 0 and bar_index - array.get(chBar, 0) > candExpiry
+            array.remove(chPrice, 0)
+            array.remove(chBar, 0)
+    if array.size(clBar) > 0
+        while array.size(clBar) > 0 and bar_index - array.get(clBar, 0) > candExpiry
+            array.remove(clPrice, 0)
+            array.remove(clBar, 0)
+
+    // ── maintain active levels: extend right; poke beyond tolerance ends the level ──
+    if array.size(ahPrice) > 0
+        for i = array.size(ahPrice) - 1 to 0
+            p = array.get(ahPrice, i)
+            ln = array.get(ahLine, i)
+            line.set_x2(ln, bar_index)
+            if showLabels
+                label.set_x(array.get(ahLabel, i), bar_index)
+            if high > p + tol
+                swept = close <= p
+                if swept and showSweeps
+                    label.new(bar_index, high, "EQH sweep", style = label.style_label_down,
+                         textcolor = eqhColor, color = color.new(color.black, 100), size = labelSize)
+                retireLevel(ahPrice, ahTouch, ahLine, ahLabel, i, eqhColor)
+    if array.size(alPrice) > 0
+        for i = array.size(alPrice) - 1 to 0
+            p = array.get(alPrice, i)
+            ln = array.get(alLine, i)
+            line.set_x2(ln, bar_index)
+            if showLabels
+                label.set_x(array.get(alLabel, i), bar_index)
+            if low < p - tol
+                swept = close >= p
+                if swept and showSweeps
+                    label.new(bar_index, low, "EQL sweep", style = label.style_label_up,
+                         textcolor = eqlColor, color = color.new(color.black, 100), size = labelSize)
+                retireLevel(alPrice, alTouch, alLine, alLabel, i, eqlColor)
+
+// ═════════════════════════════════════════════════════════════════════════════════════
+// Gap boxes — prior RTH close → RTH open, drawn until filled.
+// ═════════════════════════════════════════════════════════════════════════════════════
+var array<box>   gBox  = array.new<box>(0)
+var array<float> gFill = array.new_float(0)   // the prior-close price the gap fills to
+var array<bool>  gUp   = array.new<bool>(0)   // true = gap up (fills downward)
+
+inRth = not na(time(timeframe.period, rthSession + ":23456", etTz))
+newRth = inRth and not inRth[1]
+var float rthClose = na
+
+if showGaps
+    if newRth and not na(rthClose)
+        gapSize = math.abs(open - rthClose)
+        if gapSize >= minGapPts and gapSize > 0
+            bx = box.new(bar_index, math.max(open, rthClose), bar_index + 1, math.min(open, rthClose),
+                 border_color = color.new(gapColor, 100), bgcolor = gapColor)
+            array.push(gBox, bx)
+            array.push(gFill, rthClose)
+            array.push(gUp, open > rthClose)
+            if array.size(gBox) > maxGaps
+                box.delete(array.get(gBox, 0))
+                array.remove(gBox, 0)
+                array.remove(gFill, 0)
+                array.remove(gUp, 0)
+
+    if array.size(gBox) > 0
+        for i = array.size(gBox) - 1 to 0
+            box.set_right(array.get(gBox, i), bar_index)
+            filled = array.get(gUp, i) ? low <= array.get(gFill, i) : high >= array.get(gFill, i)
+            if filled
+                // freeze the box at the fill bar and forget it (it stays drawn, stops growing)
+                array.remove(gBox, i)
+                array.remove(gFill, i)
+                array.remove(gUp, i)
+
+if inRth
+    rthClose := close

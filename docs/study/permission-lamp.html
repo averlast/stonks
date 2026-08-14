@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to read the Permission lamp</title>
+<style>
+  :root{
+    --bg:#fbfaf7; --panel:#ffffff; --panel2:#f1efea; --edge:#d9d4cb;
+    --ink:#1a1e23; --muted:#5b6572; --rule:#e4e0d8;
+    --ok:#0c6b41; --ok-bg:rgba(12,107,65,.10); --ok-edge:rgba(12,107,65,.35);
+    --no:#a51f18; --no-bg:rgba(165,31,24,.09); --no-edge:rgba(165,31,24,.32);
+    --hold:#4c5561; --hold-bg:rgba(76,85,97,.10); --hold-edge:rgba(76,85,97,.30);
+    --hand:#8a5300; --hand-bg:rgba(138,83,0,.10); --hand-edge:rgba(138,83,0,.32);
+    --link:#1a5aa6;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#111417; --panel:#181c21; --panel2:#1f242b; --edge:#333b45;
+      --ink:#e7ecf1; --muted:#9aa6b3; --rule:#2a313a;
+      --ok:#5fd39a; --ok-bg:rgba(95,211,154,.10); --ok-edge:rgba(95,211,154,.32);
+      --no:#f5877e; --no-bg:rgba(245,135,126,.10); --no-edge:rgba(245,135,126,.30);
+      --hold:#a3aeba; --hold-bg:rgba(163,174,186,.09); --hold-edge:rgba(163,174,186,.26);
+      --hand:#e0b25c; --hand-bg:rgba(224,178,92,.10); --hand-edge:rgba(224,178,92,.30);
+      --link:#7fb3f0;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  .wrap{max-width:46rem;margin:0 auto;padding:0 1.25rem}
+  a{color:var(--link)}
+  header{padding:2.6rem 0 1.6rem;border-bottom:1px solid var(--rule)}
+  .kicker{font-size:.75rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0 0 .5rem}
+  h1{font-size:1.75rem;line-height:1.25;margin:0 0 .5rem;letter-spacing:-.01em}
+  .standfirst{color:var(--muted);margin:0;font-size:1.02rem}
+  section{padding:1.9rem 0;border-bottom:1px solid var(--rule)}
+  h2{font-size:1.18rem;margin:0 0 .7rem;line-height:1.3}
+  h2 .n{color:var(--muted);font-variant-numeric:tabular-nums;font-weight:600;margin-right:.45rem}
+  h3{font-size:1rem;margin:1.4rem 0 .4rem}
+  p{margin:.7rem 0}
+  ul,ol{margin:.7rem 0;padding-left:1.25rem}
+  li{margin:.3rem 0}
+  .muted{color:var(--muted)}
+  strong{font-weight:650}
+  code{background:var(--panel2);border:1px solid var(--edge);border-radius:4px;padding:.05em .35em;
+    font:.87em/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .note{background:var(--panel);border:1px solid var(--edge);border-left:3px solid var(--muted);
+    border-radius:6px;padding:.8rem 1rem;margin:1rem 0}
+  .note.bad{border-left-color:var(--no);background:var(--no-bg)}
+  .note.good{border-left-color:var(--ok);background:var(--ok-bg)}
+  .note.hand{border-left-color:var(--hand);background:var(--hand-bg)}
+  .note p:first-child{margin-top:0}
+  .note p:last-child{margin-bottom:0}
+  .tablewrap{overflow-x:auto;margin:1rem 0}
+  table{width:100%;border-collapse:collapse;font-size:.88rem}
+  caption{text-align:left;color:var(--muted);font-size:.85rem;padding-bottom:.45rem}
+  th,td{border:1px solid var(--edge);padding:.45rem .55rem;text-align:left;vertical-align:top}
+  thead th{background:var(--panel2);font-weight:650}
+  tbody th{background:var(--panel);font-weight:600;white-space:nowrap}
+  td.ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-edge);font-weight:600}
+  td.no{background:var(--no-bg);color:var(--no);border-color:var(--no-edge);font-weight:600}
+  td.hold{background:var(--hold-bg);color:var(--hold);border-color:var(--hold-edge);font-weight:600}
+  td.hand{background:var(--hand-bg);color:var(--hand);border-color:var(--hand-edge);font-weight:600}
+  td small,th small{display:block;font-weight:400;color:var(--muted);font-size:.8em;line-height:1.35}
+  .legend{display:flex;flex-wrap:wrap;gap:.5rem;margin:.6rem 0 0;padding:0;list-style:none;font-size:.8rem}
+  .legend li{border:1px solid var(--edge);border-radius:999px;padding:.1rem .6rem;color:var(--muted)}
+  .legend .s-ok{color:var(--ok);border-color:var(--ok-edge)}
+  .legend .s-no{color:var(--no);border-color:var(--no-edge)}
+  .legend .s-hold{color:var(--hold);border-color:var(--hold-edge)}
+  .legend .s-hand{color:var(--hand);border-color:var(--hand-edge)}
+  .states{display:grid;gap:.9rem;grid-template-columns:1fr;margin:1.1rem 0}
+  @media (min-width:34rem){.states{grid-template-columns:1fr 1fr}}
+  figure{margin:0;background:var(--panel);border:1px solid var(--edge);border-radius:8px;padding:.75rem}
+  figure svg{display:block;width:100%;height:auto}
+  figcaption{font-size:.85rem;color:var(--muted);margin-top:.4rem}
+  figcaption b{color:var(--ink)}
+  .vwapline{stroke:var(--muted);stroke-width:2;stroke-dasharray:5 4;fill:none}
+  .pricepath{stroke:var(--ink);stroke-width:2;fill:none;stroke-linejoin:round;stroke-linecap:round}
+  .axis{stroke:var(--edge);stroke-width:1}
+  .svgtext{fill:var(--muted);font:11px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .kv{margin:.8rem 0;border-top:1px solid var(--rule)}
+  .kv div{display:grid;grid-template-columns:1fr;gap:0 1rem;padding:.5rem 0;border-bottom:1px solid var(--rule)}
+  @media (min-width:34rem){.kv div{grid-template-columns:12rem 1fr}}
+  .kv dt{color:var(--muted);font-size:.9rem;margin:0}
+  .kv dd{margin:0}
+  footer{padding:1.6rem 0 3rem;color:var(--muted);font-size:.88rem}
+  @media print{
+    :root{--bg:#fff;--panel:#fff;--panel2:#f3f3f3;--ink:#000;--muted:#444;--edge:#bbb;--rule:#ccc}
+    body{font-size:11pt}
+    table,figure,.note{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <p class="kicker">Study library · personal</p>
+    <h1>How to read the Permission lamp</h1>
+    <p class="standfirst">It is a discipline instrument, not an advisor. It tells you what you may
+    not do, and why. Everything it stays quiet about is still your job.</p>
+  </div>
+</header>
+
+<main class="wrap">
+
+<section id="what">
+  <h2><span class="n">01</span> What it is — and what it refuses to do</h2>
+
+  <p>The <strong>Permission lamp</strong> is a passive table sitting on the chart. It shows two
+  things: the current regime state, and which of the six setup archetypes are legal right now,
+  each with a reason. That's the whole surface.</p>
+
+  <p>It will never say "enter". It will never say "conditions met". That silence is the design,
+  not a missing feature.</p>
+
+  <div class="note bad">
+    <p><strong>The asymmetry that decides everything:</strong> a wrong veto costs you a trade you
+    would have taken — cheap, and another one is coming. A wrong trigger puts you in a trade you
+    shouldn't be in — expensive, and it is the <em>documented</em> failure mode. Your logged
+    mistakes are trades the rules banned, not trades the rules allowed and you skipped.</p>
+  </div>
+
+  <p>There's a second reason, and it matters more. The playbook's rules — the Auction bias gate,
+  the Entry gates, the Coil rule, the two-strike switch — exist as pre-commitments. They were
+  written on the assumption that in-session you will want to do the wrong thing, and that wanting
+  is the thing being defended against. So the tool built on top of them cannot depend on your
+  self-control to be safe. A lamp that only vetoes fails safe: the worst it can do to you on a bad
+  day is stand you down when you didn't need standing down.</p>
+
+  <p class="muted">Full reasoning, including what was rejected and why:
+  <code>docs/adr/0011-permission-lamp-vetoes-only.md</code>.</p>
+</section>
+
+<section id="side">
+  <h2><span class="n">02</span> The side state — four values, plain words</h2>
+
+  <p>Everything starts with one question from the <strong>Auction bias gate</strong>: which side of
+  the session VWAP is price on, and which way is VWAP sloping? Two facts, four possible answers.</p>
+
+  <div class="states">
+    <figure>
+      <svg viewBox="0 0 200 96" role="img" aria-label="Price trading above a rising VWAP line">
+        <line class="axis" x1="8" y1="88" x2="192" y2="88"></line>
+        <path class="vwapline" d="M12 76 L188 30"></path>
+        <path class="pricepath" d="M14 66 L38 52 L58 60 L80 44 L102 50 L126 34 L150 40 L186 20"></path>
+        <text class="svgtext" x="146" y="52">VWAP</text>
+      </svg>
+      <figcaption><b>long-only</b> — price above a <em>rising</em> VWAP. Only long-side setups
+      exist: buy failed pushes back into VWAP, buy sweeps of the pools below, buy the Erosion
+      break upward.</figcaption>
+    </figure>
+
+    <figure>
+      <svg viewBox="0 0 200 96" role="img" aria-label="Price trading below a falling VWAP line">
+        <line class="axis" x1="8" y1="88" x2="192" y2="88"></line>
+        <path class="vwapline" d="M12 24 L188 68"></path>
+        <path class="pricepath" d="M14 36 L38 50 L58 42 L80 58 L102 52 L126 68 L150 62 L186 80"></path>
+        <text class="svgtext" x="142" y="44">VWAP</text>
+      </svg>
+      <figcaption><b>short-only</b> — price below a <em>falling</em> VWAP. The mirror: sell failed
+      pushes back up, short the pools overhead, short the break through an eroding floor.</figcaption>
+    </figure>
+
+    <figure>
+      <svg viewBox="0 0 200 96" role="img" aria-label="Price oscillating around a flat VWAP line">
+        <line class="axis" x1="8" y1="88" x2="192" y2="88"></line>
+        <path class="vwapline" d="M12 50 L188 48"></path>
+        <path class="pricepath" d="M14 50 L32 28 L52 66 L74 30 L96 68 L118 32 L140 66 L162 34 L186 56"></path>
+        <text class="svgtext" x="140" y="18">VWAP flat</text>
+      </svg>
+      <figcaption><b>chop</b> — VWAP flat, price oscillating across it. Range rules: fades both
+      ways, no continuation trades.</figcaption>
+    </figure>
+
+    <figure>
+      <svg viewBox="0 0 200 96" role="img" aria-label="Price above a falling VWAP line — the two disagree">
+        <line class="axis" x1="8" y1="88" x2="192" y2="88"></line>
+        <path class="vwapline" d="M12 26 L188 70"></path>
+        <path class="pricepath" d="M14 58 L36 62 L58 44 L82 40 L106 34 L130 38 L156 30 L186 34"></path>
+        <text class="svgtext" x="116" y="66">VWAP falling</text>
+        <text class="svgtext" x="16" y="24">price above</text>
+      </svg>
+      <figcaption><b>stand-by</b> — price and slope disagree. Nothing is legal.</figcaption>
+    </figure>
+  </div>
+
+  <h3>Stand-by, said properly</h3>
+  <p>Price above a falling VWAP, or below a rising one, means the auction is mid-argument. It is
+  either a reclaim attempt that's about to turn the day, or a pullback stretching before the trend
+  resumes — and which one it is gets decided by what happens next, not by anything visible now.
+  So: no directional setups <em>and</em> no chop fades. Chop fades here are knife-catches, which is
+  exactly why disagreement was never folded into chop.</p>
+
+  <div class="note">
+    <p>You will notice the lamp goes dark during every VWAP reclaim — including the ones that become
+    the day's best trend-change entry. That is deliberate. Trading the reclaim itself is a judgment
+    read at structure, and the lamp was never licensed to authorize judgment. If you take it, you
+    take it on your own authority, knowingly, with the lamp saying nothing. That is allowed.
+    Telling yourself the lamp agreed with you is not.</p>
+  </div>
+
+  <p class="muted">Stand-by is short-lived by construction: price returns to its side, or the slope
+  gives in. Wait it out.</p>
+</section>
+
+<section id="ambition">
+  <h2><span class="n">03</span> Ambition — press or harvest, and the unanimity rule</h2>
+
+  <p>The side state says what you may trade. The higher timeframes say how greedily you may manage
+  it. They never override the side state — a bull 4h does not make longs legal below a falling
+  VWAP. They set <strong>ambition</strong> only.</p>
+
+  <ul>
+    <li><strong>Press</strong> — scale out at the first magnets, keep a runner, trail it toward the
+    far targets.</li>
+    <li><strong>Harvest</strong> — nearest magnet stack, take the money, no runner, reduced size.</li>
+  </ul>
+
+  <p><strong>Press requires all three arrows to agree:</strong> the day's direction (the session
+  VWAP side state), the <strong>HTF SMA regime</strong> on the 1h (50 vs 200), and the same on the
+  4h. Any disagreement anywhere — HTF against the session, or a 1h/4h split — is harvest. That is
+  the unanimity rule, and it has no exceptions.</p>
+
+  <div class="tablewrap">
+    <table>
+      <caption>Worked example: a short day (price below a falling session VWAP).</caption>
+      <thead>
+        <tr><th scope="col">Session side</th><th scope="col">1h regime</th><th scope="col">4h regime</th><th scope="col">Ambition</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>short-only ↓</td><td>bear ↓</td><td>bear ↓</td><td class="ok">press — runner allowed</td></tr>
+        <tr><td>short-only ↓</td><td>bear ↓</td><td>bull ↑</td><td class="hold">harvest — the 4h disagrees</td></tr>
+        <tr><td>short-only ↓</td><td>bull ↑</td><td>bear ↓</td><td class="hold">harvest — 1h/4h split</td></tr>
+        <tr><td>short-only ↓</td><td>bull ↑</td><td>bull ↑</td><td class="hold">harvest — HTF against the day</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>One row in four is press. That's the point: press stays rare enough to carry information.
+  Timeframe disagreement is exactly where <strong>Two-sided run</strong>s live, and no tactical stop
+  distance survives one — so disagreement buys you smaller size and a nearer target,
+  automatically.</p>
+
+  <div class="note">
+    <p><strong>The accepted cost, so it doesn't surprise you.</strong> The 4h lags genuine regime
+    turns. The first monster day of a new trend will therefore read <em>harvest</em> — the exact day
+    a runner would have paid best. You forfeit the runner's tail on that one day. You never forfeit
+    the trade. Press-in-error (holding a runner into a disagreeing 4h) costs far more than
+    harvest-in-error, which is why the trade-off is priced this way.</p>
+  </div>
+
+  <p class="muted">When the side state is chop, ambition is undefined and the lamp says so — chop
+  rules already fix the behavior (fades, near targets, no runner).</p>
+</section>
+
+<section id="legality">
+  <h2><span class="n">04</span> Setup legality — two locks, one table</h2>
+
+  <p>Legality is not a hand-written list. It composes from two independent locks:</p>
+
+  <ol>
+    <li><strong>Direction lock</strong> — from the side state. long-only permits long setups;
+    short-only permits short setups; chop permits both directions; stand-by permits neither.</li>
+    <li><strong>Family lock</strong> — from the same state, applied to the
+    <strong>Setup families</strong>. Chop bans the <em>continuation family</em> (Breakout &amp;
+    retest, Retracement continuation — trades that need a trend to keep going) and permits the
+    <em>fade family</em> (Range trade, Failed auction, Liquidity-sweep reversal, Supply/demand
+    rejection) both ways. Trending states permit both families, direction-locked. Stand-by permits
+    nothing.</li>
+  </ol>
+
+  <div class="tablewrap">
+    <table>
+      <caption>Every state × every setup. Nothing in this table is discretionary.</caption>
+      <thead>
+        <tr>
+          <th scope="col">Setup <small>family</small></th>
+          <th scope="col">long-only <small>above rising VWAP</small></th>
+          <th scope="col">short-only <small>below falling VWAP</small></th>
+          <th scope="col">chop <small>flat VWAP</small></th>
+          <th scope="col">stand-by <small>price/slope disagree</small></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">Breakout &amp; retest <small>continuation</small></th>
+          <td class="ok">long only</td>
+          <td class="ok">short only</td>
+          <td class="no">banned — chop bans continuation</td>
+          <td class="hold">none — stand-by</td>
+        </tr>
+        <tr>
+          <th scope="row">Retracement continuation <small>continuation</small></th>
+          <td class="ok">long only</td>
+          <td class="ok">short only</td>
+          <td class="no">banned — chop bans continuation</td>
+          <td class="hold">none — stand-by</td>
+        </tr>
+        <tr>
+          <th scope="row">Range trade <small>fade</small></th>
+          <td class="ok">long only</td>
+          <td class="ok">short only</td>
+          <td class="ok">both directions</td>
+          <td class="hold">none — stand-by</td>
+        </tr>
+        <tr>
+          <th scope="row">Failed auction (+ sweep) <small>fade</small></th>
+          <td class="ok">long only</td>
+          <td class="ok">short only</td>
+          <td class="ok">both directions</td>
+          <td class="hold">none — stand-by</td>
+        </tr>
+        <tr>
+          <th scope="row">Liquidity-sweep reversal <small>fade</small></th>
+          <td class="ok">long only</td>
+          <td class="ok">short only</td>
+          <td class="ok">both directions</td>
+          <td class="hold">none — stand-by</td>
+        </tr>
+        <tr>
+          <th scope="row">Supply/demand rejection <small>fade</small></th>
+          <td class="ok">long only</td>
+          <td class="ok">short only</td>
+          <td class="ok">both directions</td>
+          <td class="hold">none — stand-by</td>
+        </tr>
+      </tbody>
+    </table>
+    <ul class="legend">
+      <li class="s-ok">legal — direction shown</li>
+      <li class="s-no">banned by the family lock</li>
+      <li class="s-hold">stand-by — nothing legal</li>
+      <li class="s-hand">hand-set input (see 05)</li>
+    </ul>
+  </div>
+
+  <p>Two readings worth holding on to. First: in a trending state a fade is still legal — but only
+  <em>with</em> the day. Below a falling VWAP you may fade a push back up into supply; you may not
+  fade the lows. Second: "Range trade fades only" in the two-strike rule means the fade
+  <em>family</em> — all four archetypes — not the single Range trade archetype.</p>
+
+  <div class="note good">
+    <p><strong>Ambition never changes legality.</strong> Press and harvest are management. A harvest
+    day and a press day permit exactly the same trades; they differ only in how much you ask of
+    them. If you catch yourself reasoning "the 4h is bullish, so this long is okay" below a falling
+    VWAP, you have just crossed the two wires the lamp exists to keep apart.</p>
+  </div>
+</section>
+
+<section id="strikes">
+  <h2><span class="n">05</span> The one hand-set input: strikes</h2>
+
+  <p>The indicator cannot see your fills. A live chart doesn't know you got stopped out. So the
+  <strong>two-strike regime switch</strong> — two stop-outs on the same directional idea
+  reclassifies the day as chop — has to be fed by hand.</p>
+
+  <p>The strikes input is <code>0</code>, <code>1</code>, or <code>2</code>. You set it yourself,
+  right after each stop-out, before you do anything else. At <code>2</code> the lamp forces the chop
+  state and labels it <strong>"two-strike (hand-set)"</strong> — so you can always see that this
+  chop came from your keyboard and not from the VWAP. Everything downstream then follows normally:
+  continuation family banned, fades only, or done for the day.</p>
+
+  <div class="note hand">
+    <p><strong>The overnight trap.</strong> Hand-set values persist. A <code>2</code> you typed
+    yesterday afternoon is still a <code>2</code> at tomorrow's open, and it will silently ban half
+    your playbook on a clean trend day. The lamp defends against this by <em>challenging</em> a
+    carried-over nonzero count at the session open — <em>"strikes carried over — reset?"</em> —
+    instead of obeying it. It challenges; it does not clear it for you.</p>
+    <p><strong>Reset it every morning. Make it part of Prep.</strong></p>
+  </div>
+
+  <p class="muted">Note what the quarantine buys: exactly one input on the whole lamp is not a
+  judgment-free computation, and it is visibly marked as such everywhere it has an effect. Every
+  other veto you can trust without asking where it came from.</p>
+</section>
+
+<section id="yours">
+  <h2><span class="n">06</span> What stays yours</h2>
+
+  <p>The lamp is deliberately small. These remain judgment, and no version of the lamp takes them
+  over:</p>
+
+  <ul>
+    <li><strong>Footprint reads</strong> — absorption vs initiative at a Level. The lamp has no
+    aggressor-side data and never will.</li>
+    <li><strong>Whether the auction has finished arguing</strong> — the A+ quality call. Sweeps come
+    in sequences until the argument ends, so a first sweep in an unresolved auction is never A+.
+    Nothing computes this.</li>
+    <li><strong>The failed-auction target-map flip</strong> — a failed first initiative move turns
+    the pools in the failed direction into supply and the other side's level stack into your target
+    sequence. That is a <em>target</em> change, not a <em>permission</em> change, so it sits outside
+    the lamp on purpose.</li>
+    <li><strong>Level-scoped vetoes</strong> — the third-test/<strong>Erosion</strong> ban at a
+    specific edge, the <strong>Coil rule</strong> at a specific structure. These are per-Level
+    evidence and they live on the Liquidity Map, not here.</li>
+    <li><strong>Supply/Demand zones</strong> — drawn by hand on the higher timeframe,
+    judgment-placed.</li>
+    <li><strong>Sizing</strong>, and the choice of <strong>Stop anchor</strong> policy (tight /
+    structural / conditional — never mixed by halves).</li>
+  </ul>
+
+  <div class="note good">
+    <p><strong>The screen composes.</strong> The lamp gives you regime permission. The Liquidity Map
+    gives you per-Level evidence — where the pools are, which edge has been tested three times, what
+    just got swept. You are the join. Neither instrument does the other's job, and neither does
+    yours.</p>
+    <p class="muted">The map's half of this is written up in
+    <a href="liquidity-map.html">liquidity-map.html</a>, with the underlying idea in
+    <code>docs/study/patterns-as-liquidity.md</code>.</p>
+  </div>
+</section>
+
+<section id="reference">
+  <h2><span class="n">07</span> Indicator quick reference</h2>
+
+  <p class="muted">One instrument-agnostic script: <code>tradingview/permission-lamp.pine</code>.
+  Set the anchor session to whatever you're trading.</p>
+
+  <dl class="kv">
+    <div>
+      <dt>Session VWAP anchor (ET)</dt>
+      <dd>The window the session VWAP anchors to. Index (NQ/ES): <code>0930-1600</code>.
+      Gold NY metals: <code>0820-1330</code>. Gold Asia: <code>1800-0300</code>. Everything else on
+      the lamp keys off this.</dd>
+    </div>
+    <div>
+      <dt>VWAP slope lookback</dt>
+      <dd>Bars used to measure the slope. Default <strong>10</strong>. Open tuning param.</dd>
+    </div>
+    <div>
+      <dt>Flat-slope threshold</dt>
+      <dd>How flat counts as flat, as a fraction of ATR14. Default <strong>~0.15</strong>. Open
+      tuning param — it decides how often you see chop versus a trending state, so change it slowly,
+      and only between sessions.</dd>
+    </div>
+    <div>
+      <dt>Chart timeframe</dt>
+      <dd>Run it on <strong>1m–5m</strong>. Slope is measured in <em>bars</em>, so the same lookback
+      means something different on a 1h chart. Off-timeframe readings are meaningless, not merely
+      noisy.</dd>
+    </div>
+    <div>
+      <dt>SMA lengths</dt>
+      <dd><strong>50 / 200</strong>, evaluated on the 1h and the 4h from developing values. 50 above
+      200 = bull, 200 above 50 = bear.</dd>
+    </div>
+    <div>
+      <dt>Strikes</dt>
+      <dd><strong>0–2</strong>, hand-set. See section 05.</dd>
+    </div>
+    <div>
+      <dt>Table position &amp; size</dt>
+      <dd>Cosmetic. Put it somewhere you can't avoid seeing it.</dd>
+    </div>
+  </dl>
+
+  <h3>Two states that aren't verdicts</h3>
+  <ul>
+    <li><strong>OFF</strong> — you are outside the anchor session. No side state is being computed,
+    and the absence of a veto here means nothing at all.</li>
+    <li><strong>WARMING UP</strong> — the first bars of the session. The slope isn't measurable yet,
+    so no state exists. Same rule: absence of a veto is not permission.</li>
+  </ul>
+
+  <div class="note bad">
+    <p>Both of these are the lamp saying "I have nothing", not "you're clear". The lamp's only
+    positive claims are its bans.</p>
+  </div>
+</section>
+
+</main>
+
+<footer class="wrap">
+  <p>Companion pages: <a href="liquidity-map.html">liquidity-map.html</a> (the per-Level evidence
+  layer) · <code>docs/study/patterns-as-liquidity.md</code> · <code>docs/study/method.html</code>.
+  Design decision: <code>docs/adr/0011-permission-lamp-vetoes-only.md</code>. Vocabulary:
+  <code>CONTEXT.md</code> — Permission lamp, Auction bias gate, Setup families, HTF SMA regime,
+  Entry gates, Stop anchor.</p>
+</footer>
+
+</body>
+</html>

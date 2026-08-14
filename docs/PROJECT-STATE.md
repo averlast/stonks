@@ -40,6 +40,62 @@ here is enrichment, not the spine. **Unblocked now**:
 (discretionary S/D zone + HVN drawing tools). #14/#15 are unblocked once #13's data lands. The
 `ingestion/levels.py` `value_area`/`volume_profile` helpers are reusable for #14's live profile.
 
+### Permission lamp (2026-08-14) — grill session; design + docs only, NO pine written yet
+Resolved: the playbook's deterministic rules become a **Permission lamp** (CONTEXT.md entry) —
+a vetoes-only on-chart display of regime state + per-setup legality; never "enter", never
+"conditions met" (**ADR-0011**). State space: side ∈ {long-only, short-only, chop, **stand-by**
+(price/VWAP-slope disagreement — nothing legal)} from session-VWAP side+slope; ambition ∈
+{press, harvest} by the **unanimity rule** (press iff session side + 1h + 4h SMA regimes all
+agree). Legality = **direction lock × family lock** (CONTEXT.md "Setup families": continuation
+family banned in chop; fade family legal both ways in chop; stand-by bans all; ambition never
+changes legality). Two-strike counter = the one hand-set input, quarantined (marked hand-set,
+labeled override, new-session carried-over tripwire). Failed-auction flip out of scope (targets
+≠ permissions); level vetoes (third-test/Coil) stay on the liquidity map. Surface: **one
+instrument-agnostic `tradingview/permission-lamp.pine`** (session-VWAP-anchor input 09:30 /
+08:20 / 18:00) — WRITTEN; compiles + renders in TV (user-confirmed 2026-08-14); state reads
+not yet hand-verified against a live session. Study pages: **`docs/study/permission-lamp.html`**
+(what the lamp refuses to do, four side states, unanimity table, full 4×6 legality matrix,
+strikes quarantine, lamp/map/trader division) + **`docs/study/liquidity-map.html`** (stops-as-
+fuel core idea, EQH/EQL touch-count "countdown" read, swept-vs-broken, bounce gradient, gap
+boxes, pattern→primitive translation table, known limitations) — both self-contained HTML/CSS,
+no JS, light+dark. Phase 2 (deferred): same machine as portable TS in the sim
+over the replay clock (strikes computed from real stop-outs), Review annotated with lamp state
+per entry; a "conditions met" channel is legal ONLY there (sim/Review), never on the live
+chart. New open params: VWAP flat-slope threshold (chop vs trending) + slope lookback.
+
+### Patterns-as-liquidity + liquidity-map indicator (2026-08-12) — grill session; live-chart + playbook, no sim change
+Resolved: classical chart patterns are **liquidity maps only, never entry signals**. CONTEXT.md
+gained **Equal extremes** (double/triple tops-bottoms = growing stop pools; sweep is the event),
+**Two-sided run** (steamroller wicks; stand down / structural stops only), **Head & shoulders**
+(the head IS the sweep; right-shoulder stop pocket = next fuel), **Gap** (trapped crowd +
+prior-close magnet; gap-and-go vs fill read), a pin-bar line under Liquidity sweep, and coil
+aliases (triangles/pennants/flags/wedges). Full plain-words catalog:
+**`docs/study/patterns-as-liquidity.md`**. New **`tradingview/liquidity-map.pine`**
+(instrument-agnostic third indicator): pivot-based equal-extremes tracer (lines persist until
+swept/broken, touch-count labels feed the third-test rule, sweep markers) + RTH gap boxes until
+filled. Named-pattern auto-detection deliberately skipped (subjective, fires late). *Pine
+untested locally — paste into TV and report back.*
+**Same-day chart autopsy** (user's 2026-08-12 MNQ screenshot — long-biased W/H&S reads on a
+short day): adopted the **Auction bias gate** (session VWAP side+slope picks the side; HTF SMA
+regime picks *ambition* — press when aligned, harvest at reduced size in conflict; a failed
+auction at the open flips the target map), the **A+ lesson** (a first sweep in an unresolved
+auction is never A+), **three stop policies** (tight sweep-extreme w/ re-entry duty, structural
+day-thesis, conditional 5m-close exit + disaster stop; the tight+no-re-entry+conviction hybrid
+is banned), and the **Equal-extremes trend fix** (pools in the auction's path get ridden
+through, not defended). SMA/EMA indicator params deliberately unchanged — precedence problem,
+not parameters.
+
+### Indicator split + smart-money entry rules (2026-08-11) — grill session; live-chart + playbook, no sim change
+**Playbook** (user kept being right but swept out early): CONTEXT.md gained **Coil** / **Coil
+rule**, **Erosion**, four **Entry gates**, and the **Stop anchor** rule; fixed-dollar-risk sizing
+proposed but not adopted (Flagged ambiguities). **Indicator** (ADR-0010): combined pine deleted,
+split into `tradingview/orb-index.pine` (NY 15m+30m ORBs, IB unchanged, 09:30 VWAP) and
+`tradingview/orb-gold.pine` (NY 08:20 15m ORB, Asia 18:00 5m ORB, 08:20 VWAP); ORBs have
+toggleable H/L/midpoint + optional shade, **windowed** extent (no more full-width lines);
+London ORB dropped (ORB only for a session traded at its open); homemade VRVP dropped (native
+TV Premium profile); AVWAP = TV's built-in drawing tool. CONTEXT.md Opening Range + Trading
+window updated (gold is live-chart-only). *Pine untested locally — paste into TV and report back.*
+
 ### Bookmap evaluation → TV Premium footprint adoption (2026-08-06) — live-chart tooling, no sim change
 Grill session outcome (evaluated Bookmap's liquidity heatmap): **(1) Upgrade TradingView
 Essential → Premium (~$59/mo) for native Volume Footprint charts** — the footprint replaces
@@ -610,6 +666,7 @@ level, reason, MAE, MFE, R (R anchored to the initial stop).
   `SESSION_WINDOWS` (Asia [18:00,03:00), London [03:00,09:30) ET); still tunable open params.
 - **Value-area bin width** per symbol (`ingestion/levels.py` `VA_BIN`; NQ 2.0pt) + the 70% fraction.
 - Commission per contract (+ default slippage already set: 1 tick on stops).
+- Permission-lamp VWAP **flat-slope threshold** (chop vs trending) + slope lookback (ADR-0011).
 - The Journal prompt list (structured prompts, ADR-0003 / CONTEXT).
 - Volume-zone overlap threshold (~20% of top 3–4 ranges — profiles module).
 - AI models: default `claude-sonnet-5`, `claude-opus-4-8` for deep end-of-module coaching (SPEC §5,

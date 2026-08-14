@@ -1,47 +1,60 @@
 //@version=6
-// ORB/IB Practice — Objective Levels + VRVP
+// Index (NQ/ES) — ORB/IB + Objective Levels
 //
-// Companion to the local sim (see ../CONTEXT.md, ../docs/adr/0009-*). Draws the same
-// objective-level catalog the sim computes for prep (OR, IB, VWAP, period H/L, session
-// H/L), plus a visible-range volume histogram left for the user to mark HVNs by hand —
-// see ADR-0009 for why period H/L scope deliberately differs from the sim's RTH-only
-// answer key (this script follows market convention: full ETH day, calendar week/month).
+// Companion to the local sim (see ../CONTEXT.md, ../docs/adr/0009-*, 0010-*). One of two
+// per-instrument indicators (the other is orb-gold.pine, ADR-0010): this file carries the
+// index-session catalog — NY 15m + 30m opening ranges, the Initial Balance, session VWAPs,
+// and period/session H/L. No VRVP (use TradingView's native visible-range Volume Profile)
+// and no ad-hoc AVWAP (use the built-in Anchored VWAP drawing tool).
 //
-// Every high/low line is individually colored; Period H/L is drawn with `line` objects
-// (not `plot()`) so its Low lines can be dashed — Pine's plot() has no dash style. Every
-// level line uses extend.both (full chart width, up to the price axis); each period's
-// OLD line/label is explicitly deleted before drawing the new one, so old days don't
-// leave a stack of full-width lines behind — only the current/latest level per group
-// stays on the chart.
-indicator("ORB/IB Objective Levels + VRVP", overlay = true, max_lines_count = 480,
-     max_labels_count = 480, max_polylines_count = 4)
+// ORB anatomy (ADR-0010): high/low/midpoint lines, each toggleable, role-styled (solid
+// high / dashed low / dotted mid by default), with an optional transparent shaded box.
+// ORB lines and shading are WINDOWED — they start at the window open and extend right
+// until the session span ends — never full-chart-width. The IB block keeps its original
+// anatomy (extend.both lines, retracements/extensions at freeze), per the user's call.
+// Period H/L scope follows market convention (full ETH day, calendar week/month) — the
+// sim's answer key deliberately differs (ADR-0009).
+indicator("Index ORB/IB + Levels", overlay = true, max_lines_count = 480,
+     max_labels_count = 480, max_boxes_count = 30)
 
 // ── Display ─────────────────────────────────────────────────────────────────────────
 showLabels   = input.bool(true, "Show price labels", group = "Display")
 labelSizeIn  = input.string("Small", "Label size (all labels)", options = ["Tiny", "Small", "Normal", "Large", "Huge"], group = "Display")
 htfThreshold = input.timeframe("30", "Hide intraday groups above this timeframe",
-     group = "Display", tooltip = "OR, IB, NY-open VWAP and Session H/L auto-hide above this chart timeframe. Period H/L, Daily/Weekly VWAP, and VRVP always show.")
+     group = "Display", tooltip = "Session H/L and the NY session VWAP auto-hide above this chart timeframe. Period H/L and Daily/Weekly VWAP always show; ORB/IB windows simply don't form on TFs above their own length.")
 isIntraday   = timeframe.in_seconds() <= timeframe.in_seconds(htfThreshold)
 highStyle    = input.string("Solid", "High-line style", options = ["Solid", "Dashed", "Dotted"], group = "Display")
 lowStyle     = input.string("Dashed", "Low-line style", options = ["Solid", "Dashed", "Dotted"], group = "Display")
+midStyle     = input.string("Dotted", "Midpoint-line style", options = ["Solid", "Dashed", "Dotted"], group = "Display")
 devDotted    = input.bool(true, "OR/IB: dotted while developing", group = "Display",
-     tooltip = "While the OR/IB window is still forming, show dotted regardless of the High/Low style above; once frozen, switch to that line's own style.")
+     tooltip = "While the OR/IB window is still forming, show dotted regardless of the role styles above; once frozen, switch to each line's own style.")
 
-// ── VRVP (visible-range volume histogram) ──────────────────────────────────────────
-showVrvp     = input.bool(true, "Show VRVP", group = "VRVP")
-vrvpColor    = input.color(color.new(#787b86, 60), "Histogram color", group = "VRVP")
-vrvpRows     = input.int(200, "Rows", minval = 10, maxval = 2000, group = "VRVP")
-vrvpWidthPct = input.float(20, "Width % of visible range", minval = 1, maxval = 100, group = "VRVP")
+// ── Opening Range 15m ───────────────────────────────────────────────────────────────
+show15        = input.bool(true, "Show 15m Opening Range", group = "Opening Range 15m")
+or15ShowHi    = input.bool(true, "High line", group = "Opening Range 15m", inline = "or15lines")
+or15ShowLo    = input.bool(true, "Low", group = "Opening Range 15m", inline = "or15lines")
+or15ShowMid   = input.bool(true, "Midpoint", group = "Opening Range 15m", inline = "or15lines")
+or15Color     = input.color(#38bdf8, "Color", group = "Opening Range 15m")
+or15Shade     = input.bool(true, "Shade area", group = "Opening Range 15m")
+or15ShadeCol  = input.color(color.new(#38bdf8, 88), "Shade color (opacity slider = transparency)", group = "Opening Range 15m")
+or15Window    = input.session("0930-0945", "OR window (start-end, ET)", group = "Opening Range 15m")
+or15Span      = input.session("0930-1600", "Draw until (span, ET)", group = "Opening Range 15m",
+     tooltip = "Lines/shade start at the OR window open and extend right while inside this span, then freeze.")
+orLabelOffset = input.int(0, "ORB label offset (bars back)", group = "Opening Range 15m",
+     tooltip = "How far back along the line the price tags sit for BOTH ORB groups; the 30m ORB staggers further back automatically. 0 = right at the live edge.")
 
-// ── Opening Range ────────────────────────────────────────────────────────────────────
-showOR        = input.bool(true, "Show Opening Range", group = "Opening Range")
-orHighColor   = input.color(#38bdf8, "OR High color", group = "Opening Range")
-orLowColor    = input.color(#38bdf8, "OR Low color", group = "Opening Range")
-orWindow      = input.session("0930-0945", "OR window (start-end, ET)", group = "Opening Range")
-orLabelOffset = input.int(0, "OR label offset (bars back)", group = "Opening Range",
-     tooltip = "How far back along the line the price tag sits, so it doesn't stack on other groups' tags. 0 = right at the live edge.")
+// ── Opening Range 30m ───────────────────────────────────────────────────────────────
+show30        = input.bool(true, "Show 30m Opening Range", group = "Opening Range 30m")
+or30ShowHi    = input.bool(true, "High line", group = "Opening Range 30m", inline = "or30lines")
+or30ShowLo    = input.bool(true, "Low", group = "Opening Range 30m", inline = "or30lines")
+or30ShowMid   = input.bool(false, "Midpoint", group = "Opening Range 30m", inline = "or30lines")
+or30Color     = input.color(#818cf8, "Color", group = "Opening Range 30m")
+or30Shade     = input.bool(false, "Shade area", group = "Opening Range 30m")
+or30ShadeCol  = input.color(color.new(#818cf8, 90), "Shade color (opacity slider = transparency)", group = "Opening Range 30m")
+or30Window    = input.session("0930-1000", "OR30 window (start-end, ET)", group = "Opening Range 30m")
+or30Span      = input.session("0930-1600", "Draw until (span, ET)", group = "Opening Range 30m")
 
-// ── Initial Balance ──────────────────────────────────────────────────────────────────
+// ── Initial Balance (anatomy unchanged — ADR-0010) ──────────────────────────────────
 showIbRange   = input.bool(true, "Show IB high/low", group = "Initial Balance")
 showIbRetrace = input.bool(true, "Show IB retracements (25/50/75%)", group = "Initial Balance")
 showIbExt     = input.bool(false, "Show IB extensions", group = "Initial Balance")
@@ -55,8 +68,9 @@ ibLabelOffset = input.int(-2, "IB label offset (bars back)", group = "Initial Ba
      tooltip = "How far back along the line the H/L tags sit; retracements and extensions stagger further back automatically.")
 
 // ── VWAP ─────────────────────────────────────────────────────────────────────────────
-showVwapNy      = input.bool(true, "Show NY-open VWAP", group = "VWAP")
-vwapNyColor     = input.color(#22d3ee, "NY-open color", group = "VWAP")
+showVwapNy      = input.bool(true, "Show NY session VWAP", group = "VWAP")
+nyVwapSession   = input.session("0930-1600", "NY VWAP window (ET)", group = "VWAP")
+vwapNyColor     = input.color(#22d3ee, "NY session color", group = "VWAP")
 showVwapDaily   = input.bool(true, "Show daily VWAP (Globex 18:00 ET open)", group = "VWAP")
 vwapDailyColor  = input.color(#2dd4bf, "Daily color", group = "VWAP")
 showVwapWeekly  = input.bool(false, "Show weekly VWAP (Sun 18:00 ET open)", group = "VWAP")
@@ -99,8 +113,7 @@ styleFromStr(s) =>
         "Dotted" => line.style_dotted
         => line.style_solid
 
-resolveStyle(isHigh, developing) =>
-    baseStr = isHigh ? highStyle : lowStyle
+resolveStyle(baseStr, developing) =>
     developing and devDotted ? line.style_dotted : styleFromStr(baseStr)
 
 sizeFromStr(s) =>
@@ -118,54 +131,97 @@ etTz = "America/New_York"
 dayKey = year(time, etTz) * 10000 + month(time, etTz) * 100 + dayofmonth(time, etTz)
 
 // ═══════════════════════════════════════════════════════════════════════════════════
-// Opening Range
+// Opening Range ORBs — one generic windowed renderer (ADR-0010). Lines and shade start
+// at the window open and extend right while inside the span, then freeze; each new
+// window deletes the previous day's objects. H/L/mid individually toggleable; styles
+// come from the global role inputs (dotted while the window is still forming).
 // ═══════════════════════════════════════════════════════════════════════════════════
-if showOR
-    inOR = not na(time(timeframe.period, orWindow + ":23456", etTz))
-    newOR = inOR and not inOR[1]
+drawOrb(active, windowStr, spanStr, lbl, showHi, showLo, showMid, col, shade, shadeCol, xOffset) =>
+    var float hi = na
+    var float lo = na
+    var line hiLine = na
+    var line loLine = na
+    var line midLine = na
+    var box band = na
+    var label hiLabel = na
+    var label loLabel = na
+    var label midLabel = na
 
-    var float orHigh = na
-    var float orLow = na
-    var int orDayKey = na
-    var line orHiLine = na
-    var line orLoLine = na
-    var label orHiLabel = na
-    var label orLoLabel = na
+    if active
+        inWin = not na(time(timeframe.period, windowStr + ":1234567", etTz))
+        inSpan = not na(time(timeframe.period, spanStr + ":1234567", etTz))
+        newWin = inWin and not inWin[1]
 
-    if newOR
-        orHigh := high
-        orLow := low
-        orDayKey := dayKey
-        line.delete(orHiLine)
-        line.delete(orLoLine)
-        label.delete(orHiLabel)
-        label.delete(orLoLabel)
-        orHiLine := line.new(bar_index - 1, high, bar_index, high, color = orHighColor, width = 1, extend = extend.both)
-        orLoLine := line.new(bar_index - 1, low, bar_index, low, color = orLowColor, width = 1, extend = extend.both)
-        if showLabels
-            orHiLabel := label.new(bar_index + orLabelOffset, high, "OR H", style = label.style_label_left,
-                 textcolor = orHighColor, color = color.new(color.black, 100), size = labelSize)
-            orLoLabel := label.new(bar_index + orLabelOffset, low, "OR L", style = label.style_label_left,
-                 textcolor = orLowColor, color = color.new(color.black, 100), size = labelSize)
-    else if inOR
-        orHigh := math.max(orHigh, high)
-        orLow := math.min(orLow, low)
+        if newWin
+            hi := high
+            lo := low
+            line.delete(hiLine)
+            line.delete(loLine)
+            line.delete(midLine)
+            box.delete(band)
+            label.delete(hiLabel)
+            label.delete(loLabel)
+            label.delete(midLabel)
+            if shade
+                band := box.new(bar_index, high, bar_index + 1, low, border_color = color.new(col, 100), bgcolor = shadeCol)
+            if showHi
+                hiLine := line.new(bar_index, high, bar_index + 1, high, color = col, width = 1)
+            if showLo
+                loLine := line.new(bar_index, low, bar_index + 1, low, color = col, width = 1)
+            if showMid
+                midLine := line.new(bar_index, high, bar_index + 1, high, color = col, width = 1)
+            if showLabels
+                if showHi
+                    hiLabel := label.new(bar_index + xOffset, high, lbl + " H", style = label.style_label_left,
+                         textcolor = col, color = color.new(color.black, 100), size = labelSize)
+                if showLo
+                    loLabel := label.new(bar_index + xOffset, low, lbl + " L", style = label.style_label_left,
+                         textcolor = col, color = color.new(color.black, 100), size = labelSize)
+                if showMid
+                    midLabel := label.new(bar_index + xOffset, high, lbl + " M", style = label.style_label_left,
+                         textcolor = col, color = color.new(color.black, 100), size = labelSize)
+        else if inWin
+            hi := math.max(hi, high)
+            lo := math.min(lo, low)
 
-    if not na(orHiLine)
-        line.set_y1(orHiLine, orHigh)
-        line.set_y2(orHiLine, orHigh)
-        line.set_style(orHiLine, resolveStyle(true, inOR))
-        line.set_y1(orLoLine, orLow)
-        line.set_y2(orLoLine, orLow)
-        line.set_style(orLoLine, resolveStyle(false, inOR))
-        if showLabels
-            label.set_xy(orHiLabel, bar_index + orLabelOffset, orHigh)
-            label.set_text(orHiLabel, "OR H " + str.tostring(orHigh, format.mintick))
-            label.set_xy(orLoLabel, bar_index + orLabelOffset, orLow)
-            label.set_text(orLoLabel, "OR L " + str.tostring(orLow, format.mintick))
+        if inSpan and not na(hi)
+            mid = (hi + lo) / 2
+            if not na(hiLine)
+                line.set_y1(hiLine, hi)
+                line.set_y2(hiLine, hi)
+                line.set_x2(hiLine, bar_index)
+                line.set_style(hiLine, resolveStyle(highStyle, inWin))
+            if not na(loLine)
+                line.set_y1(loLine, lo)
+                line.set_y2(loLine, lo)
+                line.set_x2(loLine, bar_index)
+                line.set_style(loLine, resolveStyle(lowStyle, inWin))
+            if not na(midLine)
+                line.set_y1(midLine, mid)
+                line.set_y2(midLine, mid)
+                line.set_x2(midLine, bar_index)
+                line.set_style(midLine, resolveStyle(midStyle, inWin))
+            if not na(band)
+                box.set_top(band, hi)
+                box.set_bottom(band, lo)
+                box.set_right(band, bar_index)
+            if showLabels
+                if not na(hiLabel)
+                    label.set_xy(hiLabel, bar_index + xOffset, hi)
+                    label.set_text(hiLabel, lbl + " H " + str.tostring(hi, format.mintick))
+                if not na(loLabel)
+                    label.set_xy(loLabel, bar_index + xOffset, lo)
+                    label.set_text(loLabel, lbl + " L " + str.tostring(lo, format.mintick))
+                if not na(midLabel)
+                    label.set_xy(midLabel, bar_index + xOffset, mid)
+                    label.set_text(midLabel, lbl + " M " + str.tostring(mid, format.mintick))
+
+drawOrb(show15, or15Window, or15Span, "OR", or15ShowHi, or15ShowLo, or15ShowMid, or15Color, or15Shade, or15ShadeCol, orLabelOffset)
+drawOrb(show30, or30Window, or30Span, "OR30", or30ShowHi, or30ShowLo, or30ShowMid, or30Color, or30Shade, or30ShadeCol, orLabelOffset - 2)
 
 // ═══════════════════════════════════════════════════════════════════════════════════
-// Initial Balance
+// Initial Balance — anatomy unchanged from the original combined file (extend.both
+// lines; retracements/extensions created at the 10:30 freeze, ADR-0010).
 // ═══════════════════════════════════════════════════════════════════════════════════
 if showIbRange or showIbRetrace or showIbExt
     inIB = not na(time(timeframe.period, ibWindow + ":23456", etTz))
@@ -240,10 +296,10 @@ if showIbRange or showIbRetrace or showIbExt
     if not na(ibHiLine) and showIbRange
         line.set_y1(ibHiLine, ibHigh)
         line.set_y2(ibHiLine, ibHigh)
-        line.set_style(ibHiLine, resolveStyle(true, inIB))
+        line.set_style(ibHiLine, resolveStyle(highStyle, inIB))
         line.set_y1(ibLoLine, ibLow)
         line.set_y2(ibLoLine, ibLow)
-        line.set_style(ibLoLine, resolveStyle(false, inIB))
+        line.set_style(ibLoLine, resolveStyle(lowStyle, inIB))
         if showLabels
             label.set_xy(ibHiLabel, bar_index + ibLabelOffset, ibHigh)
             label.set_text(ibHiLabel, "IB H " + str.tostring(ibHigh, format.mintick))
@@ -317,13 +373,13 @@ if showIbRange or showIbRetrace or showIbExt
 // ═══════════════════════════════════════════════════════════════════════════════════
 // VWAP — three independently toggleable anchors, no bands
 // ═══════════════════════════════════════════════════════════════════════════════════
-inRth = not na(time(timeframe.period, "0930-1600:23456", etTz))
+inRth = not na(time(timeframe.period, nyVwapSession + ":23456", etTz))
 newRthDay = inRth and not inRth[1]
 
 // Globex day rolls at 18:00 ET. Detecting that via a "true except one minute" window
-// (as above) breaks here: CME has a ~17:00-18:00 ET maintenance halt with zero prints,
-// so the single false bar the old detector needed to see never exists in the data, and
-// the reset silently never fires. Instead, compute which Globex day each bar belongs to
+// breaks here: CME has a ~17:00-18:00 ET maintenance halt with zero prints, so the
+// single false bar the old detector needed to see never exists in the data, and the
+// reset silently never fires. Instead, compute which Globex day each bar belongs to
 // directly (shift the timestamp 6h so 18:00+ rolls onto the next calendar date) and
 // reset whenever that key changes between consecutive bars — robust to any gap size,
 // maintenance halt or weekend alike.
@@ -360,7 +416,7 @@ wkPV += hlc3 * volume
 wkV += volume
 weeklyVwap = wkV > 0 ? wkPV / wkV : na
 
-plot(showVwapNy and isIntraday ? nyVwap : na, "NY-open VWAP", color = vwapNyColor, linewidth = 1)
+plot(showVwapNy and isIntraday ? nyVwap : na, "NY session VWAP", color = vwapNyColor, linewidth = 1)
 plot(showVwapDaily ? dailyVwap : na, "Daily VWAP", color = vwapDailyColor, linewidth = 1)
 plot(showVwapWeekly ? weeklyVwap : na, "Weekly VWAP", color = vwapWeeklyColor, linewidth = 1)
 
@@ -384,13 +440,13 @@ drawPeriodLevel(active, val, lbl, col, isHigh, xOffset) =>
             lastVal := val
             line.delete(ln)
             label.delete(lb)
-            ln := line.new(bar_index - 1, val, bar_index, val, color = col, width = 1, style = resolveStyle(isHigh, false), extend = extend.both)
+            ln := line.new(bar_index - 1, val, bar_index, val, color = col, width = 1, style = resolveStyle(isHigh ? highStyle : lowStyle, false), extend = extend.both)
             if showLabels
                 lb := label.new(bar_index + xOffset, val, lbl + " " + str.tostring(val, format.mintick), style = label.style_label_left,
                      textcolor = col, color = color.new(color.black, 100), size = labelSize)
         line.set_y1(ln, val)
         line.set_y2(ln, val)
-        line.set_style(ln, resolveStyle(isHigh, false))
+        line.set_style(ln, resolveStyle(isHigh ? highStyle : lowStyle, false))
         if showLabels
             label.set_xy(lb, bar_index + xOffset, val)
             label.set_text(lb, lbl + " " + str.tostring(val, format.mintick))
@@ -408,7 +464,6 @@ drawPeriodLevel(showPmhl, pmLow, "PML", pmlColor, false, periodLabelOffset - 2)
 drawSessionHL(active, windowStr, lbl, hiColor, loColor, xOffset) =>
     var float hi = na
     var float lo = na
-    var int attachedDayKey = na
     var line hiLine = na
     var line loLine = na
     var label hiLabel = na
@@ -427,13 +482,12 @@ drawSessionHL(active, windowStr, lbl, hiColor, loColor, xOffset) =>
             lo := math.min(lo, low)
 
         if endedWin
-            attachedDayKey := dayKey
             line.delete(hiLine)
             line.delete(loLine)
             label.delete(hiLabel)
             label.delete(loLabel)
-            hiLine := line.new(bar_index - 1, hi, bar_index, hi, color = hiColor, width = 1, style = resolveStyle(true, false), extend = extend.both)
-            loLine := line.new(bar_index - 1, lo, bar_index, lo, color = loColor, width = 1, style = resolveStyle(false, false), extend = extend.both)
+            hiLine := line.new(bar_index - 1, hi, bar_index, hi, color = hiColor, width = 1, style = resolveStyle(highStyle, false), extend = extend.both)
+            loLine := line.new(bar_index - 1, lo, bar_index, lo, color = loColor, width = 1, style = resolveStyle(lowStyle, false), extend = extend.both)
             if showLabels
                 hiLabel := label.new(bar_index + xOffset, hi, lbl + " H", style = label.style_label_left,
                      textcolor = hiColor, color = color.new(color.black, 100), size = labelSize)
@@ -454,70 +508,3 @@ drawSessionHL(active, windowStr, lbl, hiColor, loColor, xOffset) =>
 drawSessionHL(showOn and isIntraday, onWindow, "ON", onHighColor, onLowColor, sessionLabelOffset)
 drawSessionHL(showAsia and isIntraday, asiaWindow, "Asia", asiaHighColor, asiaLowColor, sessionLabelOffset - 1)
 drawSessionHL(showLondon and isIntraday, londonWindow, "London", londonHighColor, londonLowColor, sessionLabelOffset - 2)
-
-// ═══════════════════════════════════════════════════════════════════════════════════
-// VRVP — visible-range volume histogram, right-anchored, no auto-derived lines.
-// Volume of each bar is split evenly across the price bins its [low, high] spans,
-// mirroring the sim's ingestion/levels.py volume_profile() for consistent method
-// (uniform split, not overlap-weighted) even though the two never compare numbers.
-// ═══════════════════════════════════════════════════════════════════════════════════
-var array<float> vHigh = array.new_float(0)
-var array<float> vLow = array.new_float(0)
-var array<float> vVol = array.new_float(0)
-var array<int> vTime = array.new_int(0)
-var polyline vrvpPoly = na
-
-if showVrvp
-    array.push(vHigh, high)
-    array.push(vLow, low)
-    array.push(vVol, volume)
-    array.push(vTime, time)
-
-    if barstate.islast
-        leftT = chart.left_visible_bar_time
-        rightT = chart.right_visible_bar_time
-        n = array.size(vTime)
-
-        float rangeHigh = na
-        float rangeLow = na
-        for i = 0 to n - 1
-            t = array.get(vTime, i)
-            if t >= leftT and t <= rightT
-                h = array.get(vHigh, i)
-                l = array.get(vLow, i)
-                rangeHigh := na(rangeHigh) ? h : math.max(rangeHigh, h)
-                rangeLow := na(rangeLow) ? l : math.min(rangeLow, l)
-
-        polyline.delete(vrvpPoly)
-
-        if not na(rangeHigh) and rangeHigh > rangeLow
-            binWidth = (rangeHigh - rangeLow) / vrvpRows
-            binVols = array.new_float(vrvpRows, 0.0)
-            for i = 0 to n - 1
-                t = array.get(vTime, i)
-                if t >= leftT and t <= rightT
-                    bh = array.get(vHigh, i)
-                    bl = array.get(vLow, i)
-                    bv = array.get(vVol, i)
-                    loBin = math.max(0, math.min(vrvpRows - 1, int(math.floor((bl - rangeLow) / binWidth))))
-                    hiBin = math.max(0, math.min(vrvpRows - 1, int(math.floor((bh - rangeLow) / binWidth))))
-                    cnt = hiBin - loBin + 1
-                    share = cnt > 0 ? bv / cnt : 0.0
-                    for k = loBin to hiBin
-                        array.set(binVols, k, array.get(binVols, k) + share)
-
-            maxVol = array.max(binVols)
-            if maxVol > 0
-                histWidthTime = int((rightT - leftT) * (vrvpWidthPct / 100.0))
-                pts = array.new<chart.point>(0)
-                array.push(pts, chart.point.from_time(rightT, rangeLow))
-                for k = 0 to vrvpRows - 1
-                    yBot = rangeLow + k * binWidth
-                    yTop = rangeLow + (k + 1) * binWidth
-                    barLen = int((array.get(binVols, k) / maxVol) * histWidthTime)
-                    xLeft = rightT - barLen
-                    array.push(pts, chart.point.from_time(xLeft, yBot))
-                    array.push(pts, chart.point.from_time(xLeft, yTop))
-                    array.push(pts, chart.point.from_time(rightT, yTop))
-                vrvpPoly := polyline.new(pts, curved = false, closed = true, xloc = xloc.bar_time,
-                     line_color = vrvpColor, fill_color = vrvpColor, line_width = 1)

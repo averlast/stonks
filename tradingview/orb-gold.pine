@@ -1,0 +1,348 @@
+//@version=6
+// Gold (GC) — ORB + Objective Levels
+//
+// Companion to the local sim (see ../CONTEXT.md, ../docs/adr/0009-*, 0010-*). One of two
+// per-instrument indicators (the other is orb-index.pine, ADR-0010): this file carries the
+// gold-session catalog — the NY 08:20 ET (COMEX metals open) 15m opening range, the Asia
+// 18:00 ET 5m opening range (the Sunday/Wednesday evening sessions), a 08:20-anchored NY
+// session VWAP, daily/weekly VWAPs, and period/session H/L. No IB (an index-session
+// concept in this playbook), no VRVP (use TradingView's native visible-range Volume
+// Profile), no ad-hoc AVWAP (use the built-in Anchored VWAP drawing tool).
+//
+// ORB anatomy (ADR-0010): high/low/midpoint lines, each toggleable, role-styled (solid
+// high / dashed low / dotted mid by default), with an optional transparent shaded box.
+// ORB lines and shading are WINDOWED — they start at the window open and extend right
+// until the session span ends — never full-chart-width. Period H/L scope follows market
+// convention (full ETH day, calendar week/month) — ADR-0009.
+indicator("Gold ORB + Levels", overlay = true, max_lines_count = 480,
+     max_labels_count = 480, max_boxes_count = 30)
+
+// ── Display ─────────────────────────────────────────────────────────────────────────
+showLabels   = input.bool(true, "Show price labels", group = "Display")
+labelSizeIn  = input.string("Small", "Label size (all labels)", options = ["Tiny", "Small", "Normal", "Large", "Huge"], group = "Display")
+htfThreshold = input.timeframe("30", "Hide intraday groups above this timeframe",
+     group = "Display", tooltip = "Session H/L and the NY session VWAP auto-hide above this chart timeframe. Period H/L and Daily/Weekly VWAP always show; ORB windows simply don't form on TFs above their own length.")
+isIntraday   = timeframe.in_seconds() <= timeframe.in_seconds(htfThreshold)
+highStyle    = input.string("Solid", "High-line style", options = ["Solid", "Dashed", "Dotted"], group = "Display")
+lowStyle     = input.string("Dashed", "Low-line style", options = ["Solid", "Dashed", "Dotted"], group = "Display")
+midStyle     = input.string("Dotted", "Midpoint-line style", options = ["Solid", "Dashed", "Dotted"], group = "Display")
+devDotted    = input.bool(true, "ORB: dotted while developing", group = "Display",
+     tooltip = "While an ORB window is still forming, show dotted regardless of the role styles above; once frozen, switch to each line's own style.")
+
+// ── NY ORB (COMEX metals open, 08:20 ET) ────────────────────────────────────────────
+showNy       = input.bool(true, "Show NY ORB (15m from 08:20)", group = "NY ORB")
+nyShowHi     = input.bool(true, "High line", group = "NY ORB", inline = "nylines")
+nyShowLo     = input.bool(true, "Low", group = "NY ORB", inline = "nylines")
+nyShowMid    = input.bool(true, "Midpoint", group = "NY ORB", inline = "nylines")
+nyColor      = input.color(#38bdf8, "Color", group = "NY ORB")
+nyShade      = input.bool(true, "Shade area", group = "NY ORB")
+nyShadeCol   = input.color(color.new(#38bdf8, 88), "Shade color (opacity slider = transparency)", group = "NY ORB")
+nyWindow     = input.session("0820-0835", "ORB window (start-end, ET)", group = "NY ORB")
+nySpan       = input.session("0820-1600", "Draw until (span, ET)", group = "NY ORB",
+     tooltip = "Lines/shade start at the ORB window open and extend right while inside this span, then freeze.")
+orbLabelOffset = input.int(0, "ORB label offset (bars back)", group = "NY ORB",
+     tooltip = "How far back along the line the price tags sit for BOTH ORB groups; the Asia ORB staggers further back automatically. 0 = right at the live edge.")
+
+// ── Asia ORB (Globex open, 18:00 ET — the Sunday/Wednesday evening sessions) ────────
+showAsiaOrb  = input.bool(true, "Show Asia ORB (5m from 18:00)", group = "Asia ORB",
+     tooltip = "Fires every Globex open including Sunday's. Toggle off on charts where you only trade the NY morning.")
+asiaShowHi   = input.bool(true, "High line", group = "Asia ORB", inline = "asialines")
+asiaShowLo   = input.bool(true, "Low", group = "Asia ORB", inline = "asialines")
+asiaShowMid  = input.bool(true, "Midpoint", group = "Asia ORB", inline = "asialines")
+asiaColor    = input.color(#facc15, "Color", group = "Asia ORB")
+asiaShade    = input.bool(true, "Shade area", group = "Asia ORB")
+asiaShadeCol = input.color(color.new(#facc15, 85), "Shade color (opacity slider = transparency)", group = "Asia ORB")
+asiaOrbWindow = input.session("1800-1805", "ORB window (start-end, ET)", group = "Asia ORB")
+asiaOrbSpan  = input.session("1800-0300", "Draw until (span, ET)", group = "Asia ORB")
+
+// ── VWAP ─────────────────────────────────────────────────────────────────────────────
+showVwapNy      = input.bool(true, "Show NY session VWAP", group = "VWAP")
+nyVwapSession   = input.session("0820-1600", "NY VWAP window (ET)", group = "VWAP",
+     tooltip = "Anchored at the 08:20 COMEX metals open by default, consistent with the NY ORB.")
+vwapNyColor     = input.color(#22d3ee, "NY session color", group = "VWAP")
+showVwapDaily   = input.bool(true, "Show daily VWAP (Globex 18:00 ET open)", group = "VWAP")
+vwapDailyColor  = input.color(#2dd4bf, "Daily color", group = "VWAP")
+showVwapWeekly  = input.bool(false, "Show weekly VWAP (Sun 18:00 ET open)", group = "VWAP")
+vwapWeeklyColor = input.color(#a78bfa, "Weekly color", group = "VWAP")
+
+// ── Period H/L (full ETH day, calendar week/month — market convention, ADR-0009) ────
+showPdhl = input.bool(true, "Show prior-day H/L (PDH/PDL)", group = "Period H/L")
+pdhColor = input.color(#f59e0b, "PDH color", group = "Period H/L")
+pdlColor = input.color(#f59e0b, "PDL color", group = "Period H/L")
+showPwhl = input.bool(true, "Show prior-week H/L", group = "Period H/L")
+pwhColor = input.color(#f59e0b, "Prior-week H color", group = "Period H/L")
+pwlColor = input.color(#f59e0b, "Prior-week L color", group = "Period H/L")
+showPmhl = input.bool(false, "Show prior-month H/L", group = "Period H/L")
+pmhColor = input.color(#f59e0b, "Prior-month H color", group = "Period H/L")
+pmlColor = input.color(#f59e0b, "Prior-month L color", group = "Period H/L")
+periodLabelOffset = input.int(-5, "Period label offset (bars back)", group = "Period H/L",
+     tooltip = "How far back along the line the PD tag sits; PW and PM stagger further back automatically.")
+
+// ── Session H/L (Asia/London/Overnight — windows shared with the sim) ──────────────
+showOn          = input.bool(true, "Show Overnight H/L", group = "Session H/L")
+onWindow        = input.session("1800-0930", "Overnight window (ET)", group = "Session H/L")
+onHighColor     = input.color(#10b981, "Overnight High color", group = "Session H/L")
+onLowColor      = input.color(#10b981, "Overnight Low color", group = "Session H/L")
+showAsia        = input.bool(true, "Show Asia H/L", group = "Session H/L")
+asiaWindow      = input.session("1800-0300", "Asia window (ET)", group = "Session H/L")
+asiaHighColor   = input.color(#10b981, "Asia High color", group = "Session H/L")
+asiaLowColor    = input.color(#10b981, "Asia Low color", group = "Session H/L")
+showLondon      = input.bool(true, "Show London H/L", group = "Session H/L")
+londonWindow    = input.session("0300-0930", "London window (ET)", group = "Session H/L")
+londonHighColor = input.color(#10b981, "London High color", group = "Session H/L")
+londonLowColor  = input.color(#10b981, "London Low color", group = "Session H/L")
+sessionLabelOffset = input.int(-8, "Session label offset (bars back)", group = "Session H/L",
+     tooltip = "How far back along the line the Overnight tag sits; Asia and London stagger further back automatically.")
+
+// ── Helpers ──────────────────────────────────────────────────────────────────────────
+styleFromStr(s) =>
+    switch s
+        "Solid"  => line.style_solid
+        "Dashed" => line.style_dashed
+        "Dotted" => line.style_dotted
+        => line.style_solid
+
+resolveStyle(baseStr, developing) =>
+    developing and devDotted ? line.style_dotted : styleFromStr(baseStr)
+
+sizeFromStr(s) =>
+    switch s
+        "Tiny"   => size.tiny
+        "Small"  => size.small
+        "Normal" => size.normal
+        "Large"  => size.large
+        "Huge"   => size.huge
+        => size.small
+
+labelSize = sizeFromStr(labelSizeIn)
+
+etTz = "America/New_York"
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// Opening Range ORBs — one generic windowed renderer (ADR-0010). Lines and shade start
+// at the window open and extend right while inside the span, then freeze; each new
+// window deletes the previous session's objects. H/L/mid individually toggleable;
+// styles come from the global role inputs (dotted while the window is still forming).
+// Day filter includes Sunday so the Asia ORB fires on the Sunday 18:00 ET Globex open.
+// ═══════════════════════════════════════════════════════════════════════════════════
+drawOrb(active, windowStr, spanStr, lbl, showHi, showLo, showMid, col, shade, shadeCol, xOffset) =>
+    var float hi = na
+    var float lo = na
+    var line hiLine = na
+    var line loLine = na
+    var line midLine = na
+    var box band = na
+    var label hiLabel = na
+    var label loLabel = na
+    var label midLabel = na
+
+    if active
+        inWin = not na(time(timeframe.period, windowStr + ":1234567", etTz))
+        inSpan = not na(time(timeframe.period, spanStr + ":1234567", etTz))
+        newWin = inWin and not inWin[1]
+
+        if newWin
+            hi := high
+            lo := low
+            line.delete(hiLine)
+            line.delete(loLine)
+            line.delete(midLine)
+            box.delete(band)
+            label.delete(hiLabel)
+            label.delete(loLabel)
+            label.delete(midLabel)
+            if shade
+                band := box.new(bar_index, high, bar_index + 1, low, border_color = color.new(col, 100), bgcolor = shadeCol)
+            if showHi
+                hiLine := line.new(bar_index, high, bar_index + 1, high, color = col, width = 1)
+            if showLo
+                loLine := line.new(bar_index, low, bar_index + 1, low, color = col, width = 1)
+            if showMid
+                midLine := line.new(bar_index, high, bar_index + 1, high, color = col, width = 1)
+            if showLabels
+                if showHi
+                    hiLabel := label.new(bar_index + xOffset, high, lbl + " H", style = label.style_label_left,
+                         textcolor = col, color = color.new(color.black, 100), size = labelSize)
+                if showLo
+                    loLabel := label.new(bar_index + xOffset, low, lbl + " L", style = label.style_label_left,
+                         textcolor = col, color = color.new(color.black, 100), size = labelSize)
+                if showMid
+                    midLabel := label.new(bar_index + xOffset, high, lbl + " M", style = label.style_label_left,
+                         textcolor = col, color = color.new(color.black, 100), size = labelSize)
+        else if inWin
+            hi := math.max(hi, high)
+            lo := math.min(lo, low)
+
+        if inSpan and not na(hi)
+            mid = (hi + lo) / 2
+            if not na(hiLine)
+                line.set_y1(hiLine, hi)
+                line.set_y2(hiLine, hi)
+                line.set_x2(hiLine, bar_index)
+                line.set_style(hiLine, resolveStyle(highStyle, inWin))
+            if not na(loLine)
+                line.set_y1(loLine, lo)
+                line.set_y2(loLine, lo)
+                line.set_x2(loLine, bar_index)
+                line.set_style(loLine, resolveStyle(lowStyle, inWin))
+            if not na(midLine)
+                line.set_y1(midLine, mid)
+                line.set_y2(midLine, mid)
+                line.set_x2(midLine, bar_index)
+                line.set_style(midLine, resolveStyle(midStyle, inWin))
+            if not na(band)
+                box.set_top(band, hi)
+                box.set_bottom(band, lo)
+                box.set_right(band, bar_index)
+            if showLabels
+                if not na(hiLabel)
+                    label.set_xy(hiLabel, bar_index + xOffset, hi)
+                    label.set_text(hiLabel, lbl + " H " + str.tostring(hi, format.mintick))
+                if not na(loLabel)
+                    label.set_xy(loLabel, bar_index + xOffset, lo)
+                    label.set_text(loLabel, lbl + " L " + str.tostring(lo, format.mintick))
+                if not na(midLabel)
+                    label.set_xy(midLabel, bar_index + xOffset, mid)
+                    label.set_text(midLabel, lbl + " M " + str.tostring(mid, format.mintick))
+
+drawOrb(showNy, nyWindow, nySpan, "NY OR", nyShowHi, nyShowLo, nyShowMid, nyColor, nyShade, nyShadeCol, orbLabelOffset)
+drawOrb(showAsiaOrb, asiaOrbWindow, asiaOrbSpan, "Asia OR", asiaShowHi, asiaShowLo, asiaShowMid, asiaColor, asiaShade, asiaShadeCol, orbLabelOffset - 2)
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// VWAP — three independently toggleable anchors, no bands
+// ═══════════════════════════════════════════════════════════════════════════════════
+inNySession = not na(time(timeframe.period, nyVwapSession + ":23456", etTz))
+newNyDay = inNySession and not inNySession[1]
+
+// Globex day rolls at 18:00 ET. Detecting that via a "true except one minute" window
+// breaks here: CME has a ~17:00-18:00 ET maintenance halt with zero prints, so the
+// single false bar the old detector needed to see never exists in the data, and the
+// reset silently never fires. Instead, compute which Globex day each bar belongs to
+// directly (shift the timestamp 6h so 18:00+ rolls onto the next calendar date) and
+// reset whenever that key changes between consecutive bars — robust to any gap size,
+// maintenance halt or weekend alike.
+globexShiftedTime = time + 6 * 60 * 60 * 1000
+globexDayKey = year(globexShiftedTime, etTz) * 10000 + month(globexShiftedTime, etTz) * 100 + dayofmonth(globexShiftedTime, etTz)
+newGlobexDay = globexDayKey != globexDayKey[1]
+newWeek = newGlobexDay and dayofweek(globexShiftedTime, etTz) == dayofweek.monday
+
+var float nyPV = 0.0
+var float nyV = 0.0
+if newNyDay
+    nyPV := 0.0
+    nyV := 0.0
+if inNySession
+    nyPV += hlc3 * volume
+    nyV += volume
+nyVwap = nyV > 0 ? nyPV / nyV : na
+
+var float dayPV = 0.0
+var float dayV = 0.0
+if newGlobexDay
+    dayPV := 0.0
+    dayV := 0.0
+dayPV += hlc3 * volume
+dayV += volume
+dailyVwap = dayV > 0 ? dayPV / dayV : na
+
+var float wkPV = 0.0
+var float wkV = 0.0
+if newWeek
+    wkPV := 0.0
+    wkV := 0.0
+wkPV += hlc3 * volume
+wkV += volume
+weeklyVwap = wkV > 0 ? wkPV / wkV : na
+
+plot(showVwapNy and isIntraday ? nyVwap : na, "NY session VWAP", color = vwapNyColor, linewidth = 1)
+plot(showVwapDaily ? dailyVwap : na, "Daily VWAP", color = vwapDailyColor, linewidth = 1)
+plot(showVwapWeekly ? weeklyVwap : na, "Weekly VWAP", color = vwapWeeklyColor, linewidth = 1)
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// Period H/L — full ETH day, calendar week/month (ADR-0009). Line objects (not plot())
+// so Low can be dashed; redraws (old deleted, new created) only when the underlying
+// value actually changes, and extends full chart width.
+// ═══════════════════════════════════════════════════════════════════════════════════
+extTicker = ticker.new(syminfo.prefix, syminfo.ticker, session.extended)
+
+[pdHigh, pdLow] = request.security(extTicker, "1D", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+[pwHigh, pwLow] = request.security(extTicker, "1W", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+[pmHigh, pmLow] = request.security(extTicker, "1M", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+
+drawPeriodLevel(active, val, lbl, col, isHigh, xOffset) =>
+    var float lastVal = na
+    var line ln = na
+    var label lb = na
+    if active and not na(val)
+        if val != lastVal
+            lastVal := val
+            line.delete(ln)
+            label.delete(lb)
+            ln := line.new(bar_index - 1, val, bar_index, val, color = col, width = 1, style = resolveStyle(isHigh ? highStyle : lowStyle, false), extend = extend.both)
+            if showLabels
+                lb := label.new(bar_index + xOffset, val, lbl + " " + str.tostring(val, format.mintick), style = label.style_label_left,
+                     textcolor = col, color = color.new(color.black, 100), size = labelSize)
+        line.set_y1(ln, val)
+        line.set_y2(ln, val)
+        line.set_style(ln, resolveStyle(isHigh ? highStyle : lowStyle, false))
+        if showLabels
+            label.set_xy(lb, bar_index + xOffset, val)
+            label.set_text(lb, lbl + " " + str.tostring(val, format.mintick))
+
+drawPeriodLevel(showPdhl, pdHigh, "PDH", pdhColor, true, periodLabelOffset)
+drawPeriodLevel(showPdhl, pdLow, "PDL", pdlColor, false, periodLabelOffset)
+drawPeriodLevel(showPwhl, pwHigh, "PWH", pwhColor, true, periodLabelOffset - 1)
+drawPeriodLevel(showPwhl, pwLow, "PWL", pwlColor, false, periodLabelOffset - 1)
+drawPeriodLevel(showPmhl, pmHigh, "PMH", pmhColor, true, periodLabelOffset - 2)
+drawPeriodLevel(showPmhl, pmLow, "PML", pmlColor, false, periodLabelOffset - 2)
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// Session H/L — Overnight / Asia / London (windows shared with the sim)
+// ═══════════════════════════════════════════════════════════════════════════════════
+drawSessionHL(active, windowStr, lbl, hiColor, loColor, xOffset) =>
+    var float hi = na
+    var float lo = na
+    var line hiLine = na
+    var line loLine = na
+    var label hiLabel = na
+    var label loLabel = na
+
+    if active
+        inWin = not na(time(timeframe.period, windowStr + ":1234567", etTz))
+        newWin = inWin and not inWin[1]
+        endedWin = inWin[1] and not inWin
+
+        if newWin
+            hi := high
+            lo := low
+        else if inWin
+            hi := math.max(hi, high)
+            lo := math.min(lo, low)
+
+        if endedWin
+            line.delete(hiLine)
+            line.delete(loLine)
+            label.delete(hiLabel)
+            label.delete(loLabel)
+            hiLine := line.new(bar_index - 1, hi, bar_index, hi, color = hiColor, width = 1, style = resolveStyle(highStyle, false), extend = extend.both)
+            loLine := line.new(bar_index - 1, lo, bar_index, lo, color = loColor, width = 1, style = resolveStyle(lowStyle, false), extend = extend.both)
+            if showLabels
+                hiLabel := label.new(bar_index + xOffset, hi, lbl + " H", style = label.style_label_left,
+                     textcolor = hiColor, color = color.new(color.black, 100), size = labelSize)
+                loLabel := label.new(bar_index + xOffset, lo, lbl + " L", style = label.style_label_left,
+                     textcolor = loColor, color = color.new(color.black, 100), size = labelSize)
+
+        if not na(hiLine)
+            line.set_y1(hiLine, hi)
+            line.set_y2(hiLine, hi)
+            line.set_y1(loLine, lo)
+            line.set_y2(loLine, lo)
+            if showLabels
+                label.set_xy(hiLabel, bar_index + xOffset, hi)
+                label.set_text(hiLabel, lbl + " H " + str.tostring(hi, format.mintick))
+                label.set_xy(loLabel, bar_index + xOffset, lo)
+                label.set_text(loLabel, lbl + " L " + str.tostring(lo, format.mintick))
+
+drawSessionHL(showOn and isIntraday, onWindow, "ON", onHighColor, onLowColor, sessionLabelOffset)
+drawSessionHL(showAsia and isIntraday, asiaWindow, "Asia", asiaHighColor, asiaLowColor, sessionLabelOffset - 1)
+drawSessionHL(showLondon and isIntraday, londonWindow, "London", londonHighColor, londonLowColor, sessionLabelOffset - 2)

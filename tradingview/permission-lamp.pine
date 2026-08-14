@@ -1,0 +1,216 @@
+//@version=6
+// Permission Lamp — regime state + setup legality, VETOES ONLY (ADR-0011)
+//
+// Companion to CONTEXT.md ("Permission lamp", "Auction bias gate", "Setup families") and
+// docs/study/permission-lamp.html. Instrument-agnostic — the fourth indicator, alongside
+// orb-index / orb-gold / liquidity-map. Set the session-VWAP anchor per chart:
+// index 0930-1600, gold NY 0820-1330, gold Asia 1800-0300.
+//
+// The lamp DISPLAYS PERMISSION STATE; it never signals entries — no "enter", no
+// "conditions met" (a wrong veto is a missed trade; a wrong trigger is a prompted bad
+// entry — the documented failure mode). What it computes, all judgment-free:
+//   SIDE      price vs session VWAP × VWAP slope → LONG-ONLY / SHORT-ONLY / CHOP (flat
+//             slope) / STAND-BY (price and slope disagree — a reclaim attempt or a
+//             stretching pullback, mid-argument: NOTHING is legal, and trading the
+//             reclaim itself is a judgment read the lamp never authorizes).
+//   AMBITION  unanimity rule — PRESS only when session side + 1h regime + 4h regime
+//             (50 vs 200 SMA, developing values) all agree; ANY disagreement = HARVEST.
+//             Ambition is management, never permission: it colors no verdict.
+//   LEGALITY  direction lock × family lock (CONTEXT.md "Setup families"): trending
+//             states permit all six setups direction-locked; CHOP bans the continuation
+//             family (Breakout & retest, Retracement cont.) and permits the fade family
+//             both ways; STAND-BY bans everything.
+//   STRIKES   the ONE hand-set input (Pine cannot see fills). Two strikes force CHOP,
+//             labeled with the cause. Hand-set state persists overnight, so a carried-
+//             over nonzero count is CHALLENGED in the first minutes of each session
+//             ("carried over? reset") instead of silently obeyed. Stand-by still beats
+//             the two-strike chop — legality composes by the most restrictive state.
+// Out of scope by decision: the failed-auction target-map flip (targets ≠ permissions);
+// level-scoped vetoes (third-test/Erosion at an edge, the Coil rule) — those live on the
+// liquidity map. The trader is the join between lamp and map.
+//
+// Chart TF: 1m–5m (the slope lookback is bar-based; a warning row shows above 5m).
+// Open params (PROJECT-STATE): flat-slope threshold + slope lookback.
+indicator("Permission Lamp", overlay = true)
+
+// ── Display ─────────────────────────────────────────────────────────────────────────
+posIn  = input.string("Top right", "Table position", options = ["Top left", "Top right", "Bottom left", "Bottom right"], group = "Display")
+sizeIn = input.string("Small", "Text size", options = ["Tiny", "Small", "Normal", "Large"], group = "Display")
+
+// ── Session ─────────────────────────────────────────────────────────────────────────
+vwapSession = input.session("0930-1600", "Session VWAP anchor (ET)", group = "Session",
+     tooltip = "The traded session the VWAP anchors to. Index: 0930-1600. Gold NY: 0820-1330. Gold Asia: 1800-0300. Outside this window the lamp shows OFF.")
+
+// ── Regime (open params — tune, don't trust the defaults) ───────────────────────────
+slopeLookback = input.int(10, "VWAP slope lookback (bars)", minval = 2, group = "Regime",
+     tooltip = "Slope = VWAP now minus VWAP this many bars ago. Bar-based, so keep the chart on 1m-5m. Open param.")
+flatAtrFrac   = input.float(0.15, "Flat-slope threshold (x ATR14)", minval = 0.0, step = 0.05, group = "Regime",
+     tooltip = "|slope| at or below this fraction of ATR(14) reads as FLAT = chop. Open param.")
+smaFastLen = input.int(50, "Regime fast SMA", minval = 1, group = "Regime")
+smaSlowLen = input.int(200, "Regime slow SMA", minval = 2, group = "Regime")
+tfA = input.timeframe("60", "Regime timeframe A", group = "Regime")
+tfB = input.timeframe("240", "Regime timeframe B", group = "Regime")
+
+// ── Two-strike (hand-set — the lamp cannot see your fills) ──────────────────────────
+strikesIn = input.int(0, "Strikes today (HAND-SET — reset every morning)", minval = 0, maxval = 2, group = "Two-strike (hand-set)",
+     tooltip = "Click up right after each stop-out on the same directional idea. 2 forces CHOP (fade family only). This value PERSISTS overnight — the lamp challenges a carried-over count at the open, but resetting it is on you.")
+tripwireMin = input.int(15, "Carried-over challenge window (minutes after open)", minval = 1, group = "Two-strike (hand-set)")
+
+// ── Helpers ─────────────────────────────────────────────────────────────────────────
+posFromStr(s) =>
+    switch s
+        "Top left"     => position.top_left
+        "Top right"    => position.top_right
+        "Bottom left"  => position.bottom_left
+        "Bottom right" => position.bottom_right
+        => position.top_right
+
+sizeFromStr(s) =>
+    switch s
+        "Tiny"   => size.tiny
+        "Small"  => size.small
+        "Normal" => size.normal
+        "Large"  => size.large
+        => size.small
+
+txtSize = sizeFromStr(sizeIn)
+etTz = "America/New_York"
+
+cLong  = #4ade80
+cShort = #f87171
+cChop  = #fbbf24
+cGrey  = #94a3b8
+cHand  = #f59e0b
+cText  = #e2e8f0
+cDim   = color.new(#94a3b8, 35)
+cPanel = color.new(#0f172a, 10)
+cWarnBg = color.new(#f59e0b, 80)
+
+// ── Session VWAP (anchored accumulation, reset at each anchor-session open) ─────────
+atr = ta.atr(14)
+inSess  = not na(time(timeframe.period, vwapSession + ":1234567", etTz))
+newSess = inSess and not inSess[1]
+
+var float pv = 0.0
+var float vv = 0.0
+var int sessBars = 0
+if newSess
+    pv := 0.0
+    vv := 0.0
+    sessBars := 0
+if inSess
+    pv += hlc3 * volume
+    vv += volume
+    sessBars += 1
+sessVwap = vv > 0 ? pv / vv : na
+
+// Slope needs a full lookback inside THIS session — sessVwap[n] across the session
+// boundary would read the prior session's line, so the lamp warms up instead.
+slopeReady = inSess and sessBars > slopeLookback and not na(sessVwap)
+slope   = slopeReady ? sessVwap - sessVwap[slopeLookback] : na
+isFlat  = slopeReady and math.abs(slope) <= atr * flatAtrFrac
+rising  = slopeReady and not isFlat and slope > 0
+falling = slopeReady and not isFlat and slope < 0
+
+// ── HTF SMA regimes (developing values — the forming HTF bar counts, per CONTEXT) ───
+[aFast, aSlow] = request.security(syminfo.tickerid, tfA, [ta.sma(close, smaFastLen), ta.sma(close, smaSlowLen)], lookahead = barmerge.lookahead_off)
+[bFast, bSlow] = request.security(syminfo.tickerid, tfB, [ta.sma(close, smaFastLen), ta.sma(close, smaSlowLen)], lookahead = barmerge.lookahead_off)
+bullA = aFast > aSlow
+bullB = bFast > bSlow
+
+// ── Side state ──────────────────────────────────────────────────────────────────────
+// "off" | "warmup" | "long" | "short" | "chop" | "standby"
+string side = "off"
+if inSess
+    if not slopeReady
+        side := "warmup"
+    else if isFlat
+        side := "chop"
+    else if rising
+        side := close >= sessVwap ? "long" : "standby"
+    else
+        side := close <= sessVwap ? "short" : "standby"
+
+// Two strikes force chop — but stand-by (nothing legal) is stricter and wins; legality
+// always composes by the MOST restrictive state.
+twoStrike = strikesIn >= 2
+forcedChop = twoStrike and (side == "long" or side == "short" or side == "chop")
+sideEff = forcedChop ? "chop" : side
+
+// ── Ambition — unanimity rule ───────────────────────────────────────────────────────
+directional = sideEff == "long" or sideEff == "short"
+press = (sideEff == "long" and bullA and bullB) or (sideEff == "short" and not bullA and not bullB)
+
+// ── Legality — direction lock × family lock ─────────────────────────────────────────
+// continuation family: Breakout & retest, Retracement continuation
+// fade family:         Range trade, Failed auction, Sweep reversal, S/D rejection
+contText = sideEff == "long" ? "✓ LONG" : sideEff == "short" ? "✓ SHORT" : "✗"
+fadeText = sideEff == "long" ? "✓ LONG" : sideEff == "short" ? "✓ SHORT" : sideEff == "chop" ? "✓ BOTH (fade)" : "✗"
+contCol  = sideEff == "long" ? cLong : sideEff == "short" ? cShort : cDim
+fadeCol  = sideEff == "long" ? cLong : sideEff == "short" ? cShort : sideEff == "chop" ? cChop : cDim
+
+// ── Table ───────────────────────────────────────────────────────────────────────────
+var table t = table.new(posFromStr(posIn), 2, 13, bgcolor = cPanel, border_width = 0, frame_width = 1, frame_color = color.new(#334155, 40))
+if barstate.isfirst
+    table.merge_cells(t, 0, 0, 1, 0)
+    table.merge_cells(t, 0, 4, 1, 4)
+    table.merge_cells(t, 0, 12, 1, 12)
+
+kv(int row, string k, string v, color vCol, color bg) =>
+    table.cell(t, 0, row, k, text_color = cGrey, text_halign = text.align_left, text_size = txtSize, bgcolor = bg)
+    table.cell(t, 1, row, v, text_color = vCol, text_halign = text.align_right, text_size = txtSize, bgcolor = bg)
+
+if barstate.islast
+    // header
+    table.cell(t, 0, 0, "PERMISSION LAMP", text_color = cText, text_halign = text.align_center, text_size = txtSize, bgcolor = color.new(#1e293b, 0))
+
+    // side row
+    string sideText = switch sideEff
+        "long"    => "LONG-ONLY"
+        "short"   => "SHORT-ONLY"
+        "chop"    => forcedChop ? "CHOP — two-strike (hand-set)" : "CHOP"
+        "standby" => "STAND-BY"
+        "warmup"  => "WARMING UP " + str.tostring(sessBars) + "/" + str.tostring(slopeLookback + 1)
+        => "OFF"
+    string sideCause = switch sideEff
+        "long"    => "price above rising VWAP"
+        "short"   => "price below falling VWAP"
+        "chop"    => forcedChop ? "day reclassified — fades only" : "VWAP flat"
+        "standby" => rising ? "price below rising VWAP — mid-argument" : "price above falling VWAP — mid-argument"
+        "warmup"  => "VWAP slope not yet measurable"
+        => "outside anchor session"
+    color sideCol = switch sideEff
+        "long"    => cLong
+        "short"   => cShort
+        "chop"    => forcedChop ? cHand : cChop
+        "standby" => cGrey
+        => cDim
+    kv(1, "Side", sideText + "\n" + sideCause, sideCol, cPanel)
+
+    // ambition row — displayed split state stays visible even when the verdict is harvest
+    string regDetail = tfA + " " + (bullA ? "bull" : "bear") + " · " + tfB + " " + (bullB ? "bull" : "bear") + (bullA != bullB ? " — split" : "")
+    string ambText = not directional ? "—" : press ? "PRESS" : "HARVEST"
+    color ambCol = not directional ? cDim : press ? cLong : cGrey
+    kv(2, "Ambition", ambText + "\n" + regDetail, ambCol, cPanel)
+
+    // strikes row (the one hand-set input, quarantined)
+    string strikeText = strikesIn == 0 ? "0" : str.tostring(strikesIn) + " — HAND-SET"
+    kv(3, "Strikes", strikeText, strikesIn == 0 ? cGrey : cHand, cPanel)
+
+    // carried-over challenge — first minutes of a new session with a nonzero count
+    sessMins = sessBars * timeframe.in_seconds() / 60
+    bool challenge = strikesIn > 0 and inSess and sessMins <= tripwireMin
+    table.cell(t, 0, 4, challenge ? "⚠ strikes carried over? reset before trading" : "", text_color = cHand, text_halign = text.align_center, text_size = txtSize, bgcolor = challenge ? cWarnBg : cPanel)
+
+    // setups — direction lock × family lock
+    kv(5, "Breakout & retest", contText, contCol, cPanel)
+    kv(6, "Range trade", fadeText, fadeCol, cPanel)
+    kv(7, "Retracement cont.", contText, contCol, cPanel)
+    kv(8, "Failed auction", fadeText, fadeCol, cPanel)
+    kv(9, "Sweep reversal", fadeText, fadeCol, cPanel)
+    kv(10, "S/D rejection", fadeText, fadeCol, cPanel)
+    kv(11, "", "", cDim, cPanel)
+
+    // degenerate-TF warning — the slope lookback is bar-based
+    bool tfWarn = timeframe.in_seconds() > 300
+    table.cell(t, 0, 12, tfWarn ? "⚠ slope is bar-based — use a 1–5m chart" : "", text_color = cHand, text_halign = text.align_center, text_size = txtSize, bgcolor = tfWarn ? cWarnBg : cPanel)

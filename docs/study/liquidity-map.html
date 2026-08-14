@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to read the Liquidity Map</title>
+<style>
+  :root{
+    --bg:#fbfaf7; --panel:#ffffff; --panel2:#f1efea; --edge:#d9d4cb;
+    --ink:#1a1e23; --muted:#5b6572; --rule:#e4e0d8;
+    --ok:#0c6b41; --ok-bg:rgba(12,107,65,.10); --ok-edge:rgba(12,107,65,.35);
+    --no:#a51f18; --no-bg:rgba(165,31,24,.09); --no-edge:rgba(165,31,24,.32);
+    --hold:#4c5561; --hold-bg:rgba(76,85,97,.10); --hold-edge:rgba(76,85,97,.30);
+    --hand:#8a5300; --hand-bg:rgba(138,83,0,.10); --hand-edge:rgba(138,83,0,.32);
+    --link:#1a5aa6;
+    --eqh:#a51f18; --eql:#0c6b41; --gap:rgba(76,85,97,.16);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#111417; --panel:#181c21; --panel2:#1f242b; --edge:#333b45;
+      --ink:#e7ecf1; --muted:#9aa6b3; --rule:#2a313a;
+      --ok:#5fd39a; --ok-bg:rgba(95,211,154,.10); --ok-edge:rgba(95,211,154,.32);
+      --no:#f5877e; --no-bg:rgba(245,135,126,.10); --no-edge:rgba(245,135,126,.30);
+      --hold:#a3aeba; --hold-bg:rgba(163,174,186,.09); --hold-edge:rgba(163,174,186,.26);
+      --hand:#e0b25c; --hand-bg:rgba(224,178,92,.10); --hand-edge:rgba(224,178,92,.30);
+      --link:#7fb3f0;
+      --eqh:#f87171; --eql:#4ade80; --gap:rgba(163,174,186,.16);
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  .wrap{max-width:46rem;margin:0 auto;padding:0 1.25rem}
+  a{color:var(--link)}
+  header{padding:2.6rem 0 1.6rem;border-bottom:1px solid var(--rule)}
+  .kicker{font-size:.75rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0 0 .5rem}
+  h1{font-size:1.75rem;line-height:1.25;margin:0 0 .5rem;letter-spacing:-.01em}
+  .standfirst{color:var(--muted);margin:0;font-size:1.02rem}
+  section{padding:1.9rem 0;border-bottom:1px solid var(--rule)}
+  h2{font-size:1.18rem;margin:0 0 .7rem;line-height:1.3}
+  h2 .n{color:var(--muted);font-variant-numeric:tabular-nums;font-weight:600;margin-right:.45rem}
+  h3{font-size:1rem;margin:1.5rem 0 .4rem}
+  p{margin:.7rem 0}
+  ul,ol{margin:.7rem 0;padding-left:1.25rem}
+  li{margin:.35rem 0}
+  .muted{color:var(--muted)}
+  strong{font-weight:650}
+  code{background:var(--panel2);border:1px solid var(--edge);border-radius:4px;padding:.05em .35em;
+    font:.87em/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .note{background:var(--panel);border:1px solid var(--edge);border-left:3px solid var(--muted);
+    border-radius:6px;padding:.8rem 1rem;margin:1rem 0}
+  .note.bad{border-left-color:var(--no);background:var(--no-bg)}
+  .note.good{border-left-color:var(--ok);background:var(--ok-bg)}
+  .note.hand{border-left-color:var(--hand);background:var(--hand-bg)}
+  .note p:first-child{margin-top:0}
+  .note p:last-child{margin-bottom:0}
+  .tablewrap{overflow-x:auto;margin:1rem 0}
+  table{width:100%;border-collapse:collapse;font-size:.88rem}
+  caption{text-align:left;color:var(--muted);font-size:.85rem;padding-bottom:.45rem}
+  th,td{border:1px solid var(--edge);padding:.45rem .55rem;text-align:left;vertical-align:top}
+  thead th{background:var(--panel2);font-weight:650}
+  tbody th{background:var(--panel);font-weight:600}
+  td.ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-edge);font-weight:600}
+  td.no{background:var(--no-bg);color:var(--no);border-color:var(--no-edge);font-weight:600}
+  td.hold{background:var(--hold-bg);color:var(--hold);border-color:var(--hold-edge);font-weight:600}
+  td code,th code{white-space:nowrap}
+  .duo{display:grid;gap:.9rem;grid-template-columns:1fr;margin:1.1rem 0}
+  @media (min-width:34rem){.duo{grid-template-columns:1fr 1fr}}
+  figure{margin:1.1rem 0;background:var(--panel);border:1px solid var(--edge);border-radius:8px;padding:.75rem}
+  .duo figure{margin:0}
+  figure svg{display:block;width:100%;height:auto}
+  figcaption{font-size:.85rem;color:var(--muted);margin-top:.4rem}
+  figcaption b{color:var(--ink)}
+  .lvl{stroke-width:2;fill:none}
+  .lvl.eql{stroke:var(--eql)}
+  .lvl.eqh{stroke:var(--eqh)}
+  .lvl.dead{stroke-dasharray:2 4;opacity:.55}
+  .tolline{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 4;opacity:.7;fill:none}
+  .wick{stroke:var(--ink);stroke-width:1.4;stroke-linecap:butt}
+  .body-up{fill:var(--panel);stroke:var(--ink);stroke-width:1.4}
+  .body-dn{fill:var(--ink);stroke:var(--ink);stroke-width:1.4}
+  .track{stroke:var(--ink);stroke-width:2;fill:none;stroke-linejoin:round;stroke-linecap:round}
+  .axis{stroke:var(--edge);stroke-width:1}
+  .gapbox{fill:var(--gap);stroke:none}
+  .arrow{stroke:var(--muted);stroke-width:1.4;fill:none}
+  .svgtext{fill:var(--muted);font:11px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .svgtext.strong{fill:var(--ink);font-weight:650}
+  .svgtext.good{fill:var(--eql)}
+  .svgtext.bad{fill:var(--eqh)}
+  .kv{margin:.8rem 0;border-top:1px solid var(--rule)}
+  .kv div{display:grid;grid-template-columns:1fr;gap:0 1rem;padding:.5rem 0;border-bottom:1px solid var(--rule)}
+  @media (min-width:34rem){.kv div{grid-template-columns:13rem 1fr}}
+  .kv dt{color:var(--muted);font-size:.9rem;margin:0}
+  .kv dd{margin:0}
+  footer{padding:1.6rem 0 3rem;color:var(--muted);font-size:.88rem}
+  @media print{
+    :root{--bg:#fff;--panel:#fff;--panel2:#f3f3f3;--ink:#000;--muted:#444;--edge:#bbb;--rule:#ccc;
+      --gap:rgba(0,0,0,.12)}
+    body{font-size:11pt}
+    table,figure,.note{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <p class="kicker">Study library · personal</p>
+    <h1>How to read the Liquidity Map</h1>
+    <p class="standfirst">It draws where other people's stops are sitting. That's all it draws.
+    Where the fuel is, never what to do about it.</p>
+  </div>
+</header>
+
+<main class="wrap">
+
+<section id="idea">
+  <h2><span class="n">01</span> The idea it implements</h2>
+
+  <p><strong>Patterns are liquidity maps, never entry signals.</strong></p>
+
+  <p>Classical patterns "work" not because shapes predict prices, but because enough traders act on
+  them identically. A shape everyone recognizes implies a knowable cluster of entries and stops —
+  it tells you who is positioned where. Stops are forced orders. Forced orders are fuel. Fuel is
+  where price gets pushed.</p>
+
+  <p>So the map answers two questions, and neither of them is "should I buy here":</p>
+
+  <ul>
+    <li><strong>Offensive</strong> — where is the pool the market is likely to run <em>before</em>
+    the real move, so the run becomes your trigger instead of your stop-out?</li>
+    <li><strong>Defensive</strong> — when you're already in, which incoming shakeout is expected
+    collection of <em>other people's</em> stops (hold through it), and where must <em>your</em> stop
+    sit so that collection can't reach it?</li>
+  </ul>
+
+  <div class="note good">
+    <p>Your entries do not change. They remain the six setups: sweep-reclaim, breakout &amp; retest,
+    range fade, failed auction, retracement continuation, S/D rejection. The map is a layer
+    underneath them that says which levels are worth caring about and what just happened at one.</p>
+  </div>
+
+  <p class="muted">The long-form reasoning lives in <code>docs/study/patterns-as-liquidity.md</code>.
+  This page is organized around what's actually on the screen. For what you're <em>permitted</em> to
+  trade at any moment, that's the other instrument:
+  <a href="permission-lamp.html">permission-lamp.html</a>.</p>
+</section>
+
+<section id="equal">
+  <h2><span class="n">02</span> Equal-extremes lines (EQH / EQL)</h2>
+
+  <h3>What a line appearing means</h3>
+  <p>Two or more confirmed pivots landed at roughly the same price — within a fraction of ATR14 —
+  so the indicator drew a line there and labeled it. That price is now a shared reference that
+  everyone with a chart can see. Under it (for equal lows) sits a growing pool: protective sell-stops
+  from everyone long the "double bottom", plus sell-stop <em>entries</em> from everyone waiting to
+  short the break. Mirror it above equal highs.</p>
+
+  <p><strong>Equal, untouched lows are a pending event, not support.</strong> The line is not telling
+  you the price will hold. It is telling you there is a reason for price to go there.</p>
+
+  <h3>What the touch count means</h3>
+  <p>The label reads <code>EQL ×3</code> or <code>EQH ×4</code>. That number does two jobs at once:</p>
+  <ul>
+    <li>Every touch <em>grows</em> the pool beyond the level — more stops, more resting breakout
+    orders, a bigger prize.</li>
+    <li>It feeds the <strong>third-test rule</strong> directly. Three or more tests of the same edge
+    reads as <strong>Erosion</strong>: passive orders being consumed, not defended. Fading that edge
+    is banned, and the break <em>through</em> it becomes the favored trade.</li>
+  </ul>
+  <p>So a rising count is not a strengthening level. Classically "more touches = stronger"; here it
+  is the opposite once you hit three. Read the count as a countdown.</p>
+
+  <h3>The two ways a line dies</h3>
+  <p>Price pokes beyond the level by more than the tolerance. Exactly one of two things happens on
+  that bar's close, and the difference is the whole point of the indicator.</p>
+
+  <div class="duo">
+    <figure>
+      <svg viewBox="0 0 200 118" role="img" aria-label="A candle wicks below the equal-lows line and closes back above it: swept">
+        <line class="axis" x1="6" y1="110" x2="194" y2="110"></line>
+        <path class="lvl eql" d="M10 58 L190 58"></path>
+        <path class="tolline" d="M10 68 L190 68"></path>
+        <g>
+          <line class="wick" x1="42" y1="34" x2="42" y2="60"></line>
+          <rect class="body-dn" x="37" y="40" width="10" height="14"></rect>
+          <line class="wick" x1="66" y1="42" x2="66" y2="62"></line>
+          <rect class="body-dn" x="61" y="46" width="10" height="12"></rect>
+          <line class="wick" x1="98" y1="40" x2="98" y2="94"></line>
+          <rect class="body-up" x="93" y="42" width="10" height="12"></rect>
+          <line class="wick" x1="128" y1="20" x2="128" y2="48"></line>
+          <rect class="body-up" x="123" y="24" width="10" height="20"></rect>
+        </g>
+        <text class="svgtext good" x="106" y="98">SWEPT</text>
+        <text class="svgtext" x="150" y="55">EQL ×3</text>
+        <text class="svgtext" x="10" y="80">tolerance</text>
+      </svg>
+      <figcaption><b>SWEPT</b> — the wick runs through, the close comes back inside. The pool got
+      collected and price rejected the price. A marker prints. This is the spring (or the upthrust
+      at equal highs), and it is the tradeable event.</figcaption>
+    </figure>
+
+    <figure>
+      <svg viewBox="0 0 200 118" role="img" aria-label="A candle closes below the equal-lows line: broken, the line freezes dotted">
+        <line class="axis" x1="6" y1="110" x2="194" y2="110"></line>
+        <path class="lvl eql" d="M10 58 L104 58"></path>
+        <path class="lvl eql dead" d="M104 58 L190 58"></path>
+        <path class="tolline" d="M10 68 L190 68"></path>
+        <g>
+          <line class="wick" x1="42" y1="34" x2="42" y2="60"></line>
+          <rect class="body-dn" x="37" y="40" width="10" height="14"></rect>
+          <line class="wick" x1="66" y1="42" x2="66" y2="62"></line>
+          <rect class="body-dn" x="61" y="46" width="10" height="12"></rect>
+          <line class="wick" x1="98" y1="48" x2="98" y2="92"></line>
+          <rect class="body-dn" x="93" y="52" width="10" height="34"></rect>
+          <line class="wick" x1="128" y1="76" x2="128" y2="102"></line>
+          <rect class="body-dn" x="123" y="82" width="10" height="16"></rect>
+        </g>
+        <text class="svgtext bad" x="108" y="96">broken</text>
+        <text class="svgtext" x="140" y="54">line freezes</text>
+      </svg>
+      <figcaption><b>Broken</b> — the close is beyond the level. No marker, no announcement: the
+      line just fades to dotted and stops updating. Silence is the verdict.</figcaption>
+    </figure>
+  </div>
+
+  <p>A dotted frozen line is still useful — it's where the pool <em>was</em>, and a retest of it from
+  the other side is a Breakout &amp; retest candidate. But it is finished as an active level; the
+  indicator will not touch it again.</p>
+
+  <h3>Which one to expect: the bounce-strength gradient</h3>
+  <p>The indicator prints the verdict after the fact. Reading it <em>before</em> is your job, and the
+  read is the shape of the bounces off the level so far.</p>
+
+  <div class="duo">
+    <figure>
+      <svg viewBox="0 0 200 110" role="img" aria-label="Three bounces of similar strength off a floor: defended">
+        <line class="axis" x1="6" y1="102" x2="194" y2="102"></line>
+        <path class="lvl eql" d="M10 76 L190 76"></path>
+        <path class="track" d="M14 30 L40 74 L64 26 L92 75 L116 24 L146 74 L164 46 L184 20"></path>
+        <text class="svgtext" x="120" y="94">strong, even bounces</text>
+      </svg>
+      <figcaption><b>Defended</b> — each bounce leaves with the same energy. Someone is holding the
+      price. The pool below still gets collected eventually: expect the <em>spring</em>, and let the
+      sweep be your trigger.</figcaption>
+    </figure>
+
+    <figure>
+      <svg viewBox="0 0 200 110" role="img" aria-label="Three bounces of decreasing strength off a floor, then a break down through it">
+        <line class="axis" x1="6" y1="102" x2="194" y2="102"></line>
+        <path class="lvl eql" d="M10 76 L134 76"></path>
+        <path class="lvl eql dead" d="M134 76 L190 76"></path>
+        <path class="track" d="M14 26 L40 74 L62 40 L88 75 L110 56 L134 76 L154 68 L184 96"></path>
+        <text class="svgtext" x="96" y="24">each bounce weaker</text>
+      </svg>
+      <figcaption><b>Erosion</b> — each bounce is shallower than the last. The floor is being eaten,
+      not defended. The break goes through and continues; the crowd buying "the triple bottom" here
+      is the fuel for the flush.</figcaption>
+    </figure>
+  </div>
+
+  <p>Tempo separates them cleanly: a <strong>Liquidity sweep</strong> is one fast wick with a sharp
+  reclaim; <strong>Erosion</strong> is slow, repeated and shallow. The <em>spring-vs-erosion test</em>
+  is the entry gate that enforces it — a sweep-reversal entry needs the close back inside within
+  one or two candles on the signal timeframe, with Confirmation. A slow crawl back inside is not a
+  spring, and there is no trade.</p>
+
+  <div class="note bad">
+    <p><strong>Trend context outranks the gradient.</strong> Pools sitting <em>in the auction's
+    path</em> — equal lows under a falling session VWAP — get ridden <em>through</em>, not defended.
+    The defended-spring read belongs to pools swept <em>against</em> the session's direction. This is
+    where the two instruments meet: the map says a pool is there, the
+    <a href="permission-lamp.html">Permission lamp</a> says which way the day is allowed to go, and
+    that combination is what tells you whether the sweep is your entry or someone else's.</p>
+  </div>
+
+  <p class="muted">Defensive corollary: long from a spring, and equal lows later form <em>above</em>
+  your entry? Other people's stops now cluster there, and a dip to collect them is normal, not a
+  thesis break — which is why your stop lives beyond the original <strong>sweep extreme</strong>,
+  per the <strong>Stop anchor</strong> rule, and not below the new lows.</p>
+</section>
+
+<section id="gaps">
+  <h2><span class="n">03</span> Gap boxes</h2>
+
+  <p>The box spans prior RTH close → today's RTH open: a price band that nobody traded during
+  regular hours, with the prior close sitting at its far edge as a magnet Level.</p>
+
+  <figure>
+    <svg viewBox="0 0 240 130" role="img" aria-label="Gap box drawn from the prior RTH close up to today's open, with the prior close as a magnet below">
+      <line class="axis" x1="6" y1="122" x2="234" y2="122"></line>
+      <rect class="gapbox" x="96" y="42" width="138" height="42"></rect>
+      <path class="tolline" d="M10 84 L234 84"></path>
+      <g>
+        <line class="wick" x1="26" y1="70" x2="26" y2="96"></line>
+        <rect class="body-dn" x="21" y="76" width="10" height="14"></rect>
+        <line class="wick" x1="50" y1="72" x2="50" y2="94"></line>
+        <rect class="body-up" x="45" y="78" width="10" height="12"></rect>
+        <line class="wick" x1="74" y1="76" x2="74" y2="92"></line>
+        <rect class="body-dn" x="69" y="80" width="10" height="8"></rect>
+        <line class="wick" x1="112" y1="24" x2="112" y2="46"></line>
+        <rect class="body-up" x="107" y="30" width="10" height="12"></rect>
+        <line class="wick" x1="136" y1="26" x2="136" y2="52"></line>
+        <rect class="body-dn" x="131" y="32" width="10" height="14"></rect>
+        <line class="wick" x1="160" y1="30" x2="160" y2="58"></line>
+        <rect class="body-dn" x="155" y="36" width="10" height="16"></rect>
+      </g>
+      <path class="arrow" d="M196 46 L196 78"></path>
+      <path class="arrow" d="M192 72 L196 80 L200 72"></path>
+      <text class="svgtext" x="4" y="18">prior session</text>
+      <text class="svgtext" x="104" y="18">today's open</text>
+      <text class="svgtext" x="120" y="66">the gap — nobody traded here</text>
+      <text class="svgtext strong" x="10" y="98">prior RTH close · the magnet</text>
+    </svg>
+    <figcaption>The box grows to the right every bar until price touches the prior close. When it
+    fills, the box freezes where it is and the indicator forgets it.</figcaption>
+  </figure>
+
+  <p><strong>The trapped-crowd read.</strong> A gap up traps the overnight shorts: their buy-stops
+  sit overhead, so there is fuel <em>above</em>. At the same time it attracts fill-faders selling
+  toward yesterday's close, so there is a pull <em>below</em>. Two crowds, opposite directions, and
+  the first ~30 minutes decides which one pays:</p>
+
+  <ul>
+    <li><strong>Initiative away from the gap = gap-and-go.</strong> Don't fade it. The fill-faders
+    become the fuel.</li>
+    <li><strong>Rotation back into the zone = the fill is on</strong>, and the prior close is your
+    target.</li>
+  </ul>
+
+  <p>Small gaps in balance conditions fill routinely. Trend-day gaps don't. An unfilled gap stays a
+  standing magnet — for the rest of the session and often for days, which is why the indicator keeps
+  several of them on the chart at once.</p>
+</section>
+
+<section id="deliberate">
+  <h2><span class="n">04</span> What the indicator deliberately does not do</h2>
+
+  <p>No named-pattern detection. No head &amp; shoulders, no cups, no channels, no auto-drawn
+  trendlines. That was a decision, not a backlog item: the shapes are subjective, detectors fire
+  late and false, and under the maps-only rule <em>the pools are the signal, not the shapes</em>.
+  Anything a pattern name would have told you is already visible as a line or a box.</p>
+
+  <p>The translations, so you can do it in your head when a pattern name surfaces:</p>
+
+  <div class="tablewrap">
+    <table>
+      <caption>The classical name → what it actually is on this map.</caption>
+      <thead>
+        <tr><th scope="col">Textbook pattern</th><th scope="col">What it really is</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">Double / triple bottom or top</th>
+          <td><strong>Equal extremes</strong> — already drawn, already counted. The pool grows with
+          every touch; the one that pays is the one whose second low <em>undercuts</em> the first and
+          reclaims. Read the bounce gradient, not the number of touches.</td>
+        </tr>
+        <tr>
+          <th scope="row">Head &amp; shoulders</th>
+          <td><strong>The head is the sweep.</strong> First peak leaves stops above it; the head is
+          the push through them that fails and reclaims — <em>that</em> sweep-reclaim was the short
+          entry, long before the shape has a name. Right shoulder = confirmation, nothing to trade.
+          Neckline sellers park buy-stops just above the third peak, so a bounce up into that pocket
+          after the pattern completes is expected collection, not failure. Your stop belongs above
+          the head's sweep extreme, beyond the whole formation, where the shakeout can't reach it.</td>
+        </tr>
+        <tr>
+          <th scope="row">Triangle / pennant / flag / wedge</th>
+          <td>All of them are the <strong>Coil</strong>, and the <strong>Coil rule</strong> governs:
+          never positioned inside. Trade it as a Liquidity-sweep reversal of the far side, or as a
+          Breakout &amp; retest after a clean break that ran without a shakeout. Special case: a bull
+          flag's low is a favorite single dip-collection point — the flush through it right before
+          the continuation the flag crowd was waiting for.</td>
+        </tr>
+        <tr>
+          <th scope="row">Pin bar / hammer / shooting star</th>
+          <td>A <strong>one-candle sweep</strong>: the wick is the run through the level, the close-back
+          is the reclaim. Meaningful only <em>at</em> a Level — noise in open space. Engulfing candles
+          are already a Confirmation element.</td>
+        </tr>
+        <tr>
+          <th scope="row">Cup &amp; handle / rounding bottom</th>
+          <td>The mirror of <strong>Erosion</strong> — higher lows with weakening selling, sellers
+          being absorbed — plus a <strong>Coil</strong> for the handle. Read the gradient and the
+          coil; skip the name.</td>
+        </tr>
+        <tr>
+          <th scope="row">Measured-move projections</th>
+          <td>Predictable take-profit clusters, so modest magnets. Useful for placing <em>your</em>
+          targets. Never a reason to enter.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="limits">
+  <h2><span class="n">05</span> Known limitations</h2>
+
+  <ul>
+    <li><strong>Pivots confirm late.</strong> A pivot needs <code>pivotLen</code> bars on each side,
+    so a level appears <code>pivotLen</code> bars after the price that made it. On a 5-bar setting
+    that's five bars of hindsight, every time. The line is never news.</li>
+    <li><strong>The swept-vs-broken verdict is a bar-close call.</strong> On the live bar it can
+    flicker — a candle that's currently "swept" is one tick from being "broken" and back again.
+    Wait for the close, or don't use it for that decision.</li>
+    <li><strong>Levels are capped and retired.</strong> Only so many active levels per side; the
+    oldest gets frozen when the cap is hit. A lone pivot waiting for a partner expires after
+    <code>candExpiry</code> bars. Absence of a line does not mean absence of a pool.</li>
+    <li><strong>It is a map, not an entry signal.</strong> Everything above assumes you already know
+    which setups are legal — and the map has no opinion on that whatsoever.</li>
+  </ul>
+
+  <div class="note">
+    <p>Where the two instruments split: level-scoped vetoes (the third-test/Erosion ban at a specific
+    edge, the Coil rule at a specific structure) are read <em>here</em>, off per-level evidence.
+    Regime-scoped permission (which side, which family, press or harvest) is read on the
+    <a href="permission-lamp.html">Permission lamp</a>. You are the join.</p>
+  </div>
+</section>
+
+<section id="inputs">
+  <h2><span class="n">06</span> Inputs quick reference</h2>
+
+  <p class="muted">One instrument-agnostic script: <code>tradingview/liquidity-map.pine</code>.
+  Runs on the index and gold charts alike; only the RTH session input changes.</p>
+
+  <h3>Equal extremes</h3>
+  <dl class="kv">
+    <div>
+      <dt>Pivot length (bars each side)</dt>
+      <dd>Default <strong>5</strong>, minimum 2. Bigger = fewer, more significant levels and a
+      longer confirmation lag. This is the main "how noisy is my map" dial.</dd>
+    </div>
+    <div>
+      <dt>Equal tolerance (× ATR14)</dt>
+      <dd>Default <strong>0.25</strong>. Two pivots count as equal when their prices are within this
+      fraction of ATR14. The same band decides pokes: within it is a touch, beyond it ends the
+      level as a sweep or a break.</dd>
+    </div>
+    <div>
+      <dt>Max active levels per side</dt>
+      <dd>Default <strong>8</strong>. When exceeded, the oldest level is frozen. Keeps the chart
+      readable.</dd>
+    </div>
+    <div>
+      <dt>Unpaired pivot expiry (bars)</dt>
+      <dd>Default <strong>500</strong>. How long a lone pivot waits for an equal partner before it
+      stops being a candidate.</dd>
+    </div>
+    <div>
+      <dt>Mark sweeps</dt>
+      <dd>On. Prints the "EQH sweep" / "EQL sweep" marker on a wick-through that closes back inside.
+      Breaks stay silent by design.</dd>
+    </div>
+    <div>
+      <dt>Show labels / label size / colors</dt>
+      <dd>Cosmetic. Labels carry the touch count — leave them on.</dd>
+    </div>
+  </dl>
+
+  <h3>Gaps</h3>
+  <dl class="kv">
+    <div>
+      <dt>RTH session (ET)</dt>
+      <dd>Index (NQ/ES): <code>0930-1600</code>. Gold: e.g. <code>0820-1330</code>. The prior close
+      is taken from the last bar of this session, and the gap is measured to the next session's
+      open — set it wrong and every box is wrong.</dd>
+    </div>
+    <div>
+      <dt>Min gap size (points)</dt>
+      <dd>Default <strong>0</strong> = draw any gap. Raise it if the tiny overnight drifts clutter
+      the chart.</dd>
+    </div>
+    <div>
+      <dt>Max unfilled gaps kept</dt>
+      <dd>Default <strong>5</strong>. Oldest box is dropped past the cap.</dd>
+    </div>
+  </dl>
+</section>
+
+</main>
+
+<footer class="wrap">
+  <p>Companion pages: <a href="permission-lamp.html">permission-lamp.html</a> (the regime permission
+  layer) · <code>docs/study/patterns-as-liquidity.md</code> (the source reasoning) ·
+  <code>docs/study/method.html</code>. Script: <code>tradingview/liquidity-map.pine</code>.
+  Vocabulary: <code>CONTEXT.md</code> — Equal extremes, Erosion, Liquidity sweep, Coil, Gap,
+  Head &amp; shoulders, Two-sided run, Entry gates, Stop anchor.</p>
+</footer>
+
+</body>
+</html>

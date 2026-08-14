@@ -9,8 +9,13 @@ rather than outcome. This glossary fixes the language; implementation lives in c
 ### Strategy & market terms
 
 **Opening Range**:
-The high–low band of the first **15 minutes** of RTH (09:30–09:45 ET). Its high/low are the
-ORB breakout levels.
+The high–low band of a session's opening window, per (instrument, session): index (NQ/ES) —
+the first **15** and **30 minutes** of RTH (from 09:30 ET); gold — the first **15 minutes** of
+the COMEX metals open (08:20–08:35 ET) and the first **5 minutes** of the Asia open
+(18:00–18:05 ET). Each has a high, low, and **midpoint** (50%), all breakout/reaction levels.
+An opening range is drawn **only for a session the user trades at its open**; every other
+session contributes its H/L as liquidity **Level**s only — hence no London opening range
+(resolved 2026-08-11). The sim's Opening Range remains the RTH 15m (09:30–09:45).
 
 **ORB** (Opening Range Breakout):
 A strategy that trades a break of the **Opening Range**.
@@ -50,6 +55,50 @@ opposite-colored engulfing candle — demand (support) or supply (resistance). N
 **Liquidity sweep**:
 Price wicking through a key level to trip stops, then sharply reversing; a **double liquidity
 sweep** is two coincident levels (e.g. IB low + London low) swept at once — an A+ signal.
+The wick's furthest point is the **sweep extreme** — the price that just proved it won't hold,
+and therefore the structural anchor for a post-sweep stop. A **pin bar** (hammer / shooting
+star) is a one-candle sweep — the wick is the run through the level, the close-back is the
+reclaim — meaningful only at a **Level**, noise in open space.
+
+**Coil**:
+A tight consolidation at an obvious, widely watched **Level** (e.g. the OR midpoint) ahead of an
+anticipated breakout. Read as **engineered liquidity**, not a launchpad: stops accumulate on both
+sides of the coil, and the real break is routinely preceded by a **liquidity sweep** of the side
+opposite the eventual direction (the spring/upthrust). Being right about the coming break entitles
+the trade *after* that shakeout, not before it.
+_Avoid_: "consolidation entry" — positioning inside a Coil is not a setup (resolved 2026-08-11,
+see the Coil rule under Setups). Classical TA names for coils: **triangles, pennants, flags,
+wedges** — all narrowing consolidations, all governed by the Coil rule. The pattern crowd buys
+the drawn-trendline break with stops inside/behind the shape; a flag's low (in an uptrend) is a
+favorite dip-collection point right before the continuation the flag crowd was positioned for.
+
+**Equal extremes** (relative equal lows / equal highs):
+Two-plus touches of roughly the same price — what classical TA charts as a **double/triple
+bottom or top**. Read as a liquidity map only (resolved 2026-08-12): each touch *grows* the
+stop pool just beyond the shared price (pattern-crowd stops + breakout entries), so equal
+extremes are never faded directly — the **liquidity sweep** through them is the tradeable
+event. The bounce-strength gradient decides what the sweep means: strong bounces → spring
+(reversal, the paying "W" has a *lower* second low); weakening bounces → **Erosion** (the
+floor is being eaten; the break continues). Note the classical read inverts here: a "triple
+bottom" with weakening bounces is not extra-bullish, it is Erosion. Trend context
+disambiguates further (2026-08-12, see **Auction bias gate**): equal lows sitting *in the
+auction's path* — e.g. under a falling session VWAP — get ridden **through**, not defended;
+the defended-spring read belongs to pools swept *against* the session's direction.
+
+**Two-sided run** (steamroller):
+A stretch where outsized wicks repeatedly harvest stops on *both* sides of a meandering
+midrange (a "snaking neckline") — a balance auction or thin book collecting everyone
+positioned near price, in either direction. No tactical stop distance is safe inside one:
+the response is structural stops at reduced size, or standing aside — not a better entry.
+Common in thin sessions (gold's Asia evening, lunch) and on chop days; often what the
+**two-strike regime switch** is detecting.
+
+**Erosion**:
+Repeated tests of the *same* side of a range or Level, each bounce weaker than the last — passive
+orders being consumed, not defended. The opposite read of a sweep: a level tested three-plus times
+is expected to break, not hold. Distinguished from a **liquidity sweep** by tempo: sweep = one fast
+wick with a sharp reclaim; erosion = slow, repeated, shallow. Erosion flips the trade to the break
+*through* that side (on retest); fading an eroding edge is banned (third-test rule, Entry gates).
 
 **Cumulative delta** (CVD):
 A running per-session total of aggressive buying minus aggressive selling (trades lifting the
@@ -73,6 +122,30 @@ exhaustion read — the same shape-reads, resolved to price and side from real t
 shows walls *being hit* (including icebergs, as absorption), never walls *waiting* — resting
 passive liquidity is a different signal (a heatmap read, not adopted).
 
+**Head & shoulders** (three-peak top; the inverse, a three-valley bottom, mirrors everything):
+Read as a liquidity map only (2026-08-12). For the top version: price makes a high (first
+peak — sellers' stops now sit above it), pushes *through* that high and fails (the middle,
+tallest peak — this is usually a completed **liquidity sweep**, and the sweep-and-reclaim up
+there was the actual short entry, long before the pattern has a name), then can't get back up
+(the lower third peak). Pattern-following traders **sell** when price drops below the valley
+floor between the peaks, and they park their protective **buy**-stops just above the third
+peak. So after the pattern completes there is a known pocket of forced *buying* sitting above
+the third peak: a bounce up into it that shakes out those sellers is expected stop collection,
+not the pattern failing. If already short from the middle peak's sweep, the stop belongs above
+that sweep's extreme — beyond the whole formation — so the shakeout bounce can't reach it.
+Caveat: on a strong trend day price may run off without ever coming back for that pocket; the
+map says where the fuel is, not that the market must stop for it.
+
+**Gap** (RTH gap / gap fill):
+The distance between today's RTH open and the prior day's RTH close; the zone between them
+traded by nobody during regular hours, with the **prior close as its magnet Level** ("gap
+fill"). A gap traps the overnight wrong-way crowd — gap up = trapped shorts with buy-stops
+overhead (fuel above), plus fill-faders selling toward yesterday's close (pull below). The
+first ~30 minutes decides which crowd pays: initiative *away* from the gap = **gap-and-go**
+(don't fade it); rotation back *into* the zone = the fill is on. An unfilled gap stays a
+standing magnet all session. Small gaps in balance fill routinely; trend-day gaps don't, and
+the fill-traders become the fuel.
+
 **Failed auction**:
 A failed IB breakout — price pokes outside the range then closes back inside (by definition a
 30-minute candle close; read earlier on 1m/5m).
@@ -93,8 +166,10 @@ On the live chart it is read via the **HTF SMA regime**.
 **HTF SMA regime**:
 The per-timeframe bull/bear verdict from the 50 vs 200 SMA on the 4h and the 1h: 50 above
 200 = bull, 200 above 50 = bear. Read from **developing** values (the forming HTF bar counts).
-The two timeframes may disagree — that split state is itself decision-relevant. A live-chart
-operationalization of **HTF trend** (borrowed from Peachy Investor).
+The two timeframes may disagree — a **split** state, always displayed rather than hidden, and
+resolved conservatively: a split can never authorize **press** (see the unanimity rule under
+**Auction bias gate**, resolved 2026-08-14). A live-chart operationalization of **HTF trend**
+(borrowed from Peachy Investor).
 
 **EMA cloud**:
 The shaded band between the 4- and 9-period EMAs on the **5-minute** timeframe — a momentum
@@ -120,6 +195,87 @@ engulfing confirmation, taken with the HTF trend.
 
 A **Session** typically runs ORB setups early, then switches to IB setups once the IB forms (~10:30).
 
+**Setup families** (resolved 2026-08-14): the six archetypes split into the **continuation
+family** (Breakout & retest, Retracement continuation — trades that need a trend to keep going)
+and the **fade family** (Range trade, Failed auction, Liquidity-sweep reversal, Supply/demand
+rejection — trades against an extreme, back toward balance). Setup legality composes from two
+orthogonal locks: the **direction lock** (the side state permits long, short, both in chop, or
+neither in stand-by) and the **family lock** (chop bans the continuation family and permits the
+fade family both ways; trending states permit both families, direction-locked; stand-by permits
+nothing). "Range trade fades only" in the two-strike rule means the fade *family*, not the one
+archetype. Ambition (press/harvest) never changes legality — it is management, not permission.
+
+**Coil rule** (adopted 2026-08-11): a **Coil** before an anticipated breakout is never entered from
+inside. It is traded only as (a) a **Liquidity-sweep reversal** of the coil's far side — the
+sweep-and-reclaim IS the trigger, stop beyond the **sweep extreme** — or (b) a **Breakout & retest**
+after a clean break that ran without a shakeout. Missing the rare no-shakeout break is the accepted
+cost of not being the liquidity.
+
+**Entry gates** (adopted 2026-08-11, companions to the Coil rule):
+1. **Spring-vs-erosion test** — sweep-reversal entries require a *fast* reclaim: close back inside
+   within 1–2 candles on the signal TF, with **Confirmation** (volume/engulfing). A slow crawl back
+   inside is **Erosion**, not a spring — no trade.
+2. **Third-test rule** — three or more tests of the same edge = Erosion; fading that edge is off,
+   and the break through it becomes the favored trade.
+3. **No mid-impulse entries** — entries happen *at* structure (sweep reclaim or retest), never into
+   an extended move. A break that never retests was never your trade; a retest that fails back
+   inside the range is the **Failed auction** signal, not a dip to buy.
+4. **Two-strike regime switch** — two stop-outs on the same directional idea reclassifies the day
+   as **chop**: breakout playbook off, **Range trade** fades only, or done for the day.
+
+**Auction bias gate** (adopted 2026-08-12): before any setup gets a name, two questions.
+(1) *Which side of the session VWAP is price, and which way is VWAP sloping?* Four side states
+(resolved 2026-08-14). Below a falling VWAP only short-side setups exist (sell failed pushes
+into VWAP/cloud, short overhead-pool sweeps, short the erosion break); above a rising VWAP,
+mirror it; oscillating around a flat VWAP = chop rules; and price/slope *disagreement* (price
+above a falling VWAP, or below a rising one) = **stand-by** — the auction is mid-argument
+(a reclaim attempt or a stretching pullback, decided only by what happens next), so no
+directional setups *and* no chop fades until price returns to its side or the slope gives in.
+Trading the reclaim itself is a judgment read at structure, outside the gate. The flat-slope
+threshold is a tunable open param. The **HTF SMA regime** never overrides this — it sets **ambition**: press
+or harvest. **Unanimity rule** (resolved 2026-08-14): **press** (scale out at the first
+magnets, keep a runner, trail toward the far targets) requires all three verdicts to agree —
+the session side, the 1h regime, and the 4h regime; *any* disagreement (HTF vs session, or a
+1h/4h split) = **harvest** (nearest magnet stack, take the money, no runner) at reduced size —
+timeframe disagreement is where **Two-sided run**s live. When the side state is chop, ambition
+is undefined (chop rules already fix the behavior). Accepted cost: the 4h lags at genuine
+regime turns, so the first press-worthy day of a new trend reads harvest — the runner is
+forfeited, never the trade. (2) *Did the day's first
+initiative move fail?* A **failed auction** at the open flips the target map: the pools in the
+failed direction become supply, and the level stack in the other direction becomes the target
+sequence. Corollary — the A+ lesson (2026-08-12): **a first sweep in an unresolved auction is
+never A+.** Sweeps come in sequences until the argument ends; A+ requires the auction to have
+finished arguing — erosion confirmed at the opposite edge, the bias gate aligned, or a **double
+liquidity sweep**.
+
+**Stop anchor** (adopted 2026-08-11): a stop is placed beyond the price that *invalidates the idea*,
+never "just beyond" the entry level. Post-sweep entries anchor beyond the **sweep extreme** (the
+price that just proved it won't hold); confirmation entries with no sweep yet anchor beyond the
+invalidating structure. A stop tightened to sit inside the reachable liquidity zone is the trade
+telling you it isn't a trade yet. (Sizing from stop distance was considered and deliberately left
+discretionary — see Flagged ambiguities.)
+Three stop **policies**, never mixed by halves (adopted 2026-08-12):
+1. **Tight** — beyond the sweep extreme. Legal only after a *fast* reclaim, and only with the
+   willingness to re-enter when a deeper second sweep runs it — paying twice is the price of tight.
+2. **Structural** — beyond the price that invalidates the *day thesis* (e.g. the failed-auction
+   high), sized down to fit the width.
+3. **Conditional** — exit on evidence, not price: a 5m **close** through the thesis level (a wick
+   is noise, a close is information), backed by a disaster stop at the structural level.
+The banned hybrid: tight stop + no re-entry plan + full-conviction hold — the worst half of each.
+
+**Permission lamp**:
+The passive on-chart display of the current regime state and the resulting legality of each
+setup archetype — vetoes with reasons, never entries. It operationalizes the **Auction bias
+gate** and **Entry gates** as a read-only lamp: it may say a setup is banned and why, but it
+never says "enter" or "conditions met" — its silence on triggers is the design, so a wrong
+output fails safe (an unneeded stand-down, not a prompted entry). Judgment reads (footprint,
+auction resolution, A+ quality) stay with the trader, as does the **failed-auction** target-map
+flip — targets are not permissions, so it is outside the lamp (resolved 2026-08-14). The
+**two-strike** counter is the lamp's one hand-set input (a live chart cannot see fills) and is
+quarantined as such: visibly marked hand-set, its chop override labeled with its cause, and a
+carried-over nonzero count challenged at each new session's open rather than silently obeyed.
+_Avoid_: "signal", "trigger", "bot" — the lamp displays permission state; it does not act or point.
+
 **Level**:
 A horizontal price of interest, either auto-computed (PDH/PDL, prior-week/-month H/L, overnight
 H/L, developing IB, POC/VAH/VAL) or drawn by the user in Prep.
@@ -129,9 +285,11 @@ _Avoid_: line, zone (a **Zone** is a user-drawn band, distinct from a single-pri
 Regular Trading Hours (the 09:30–11:30 ET replay window) vs Extended/overnight Globex hours.
 
 **Trading window**:
-The hours the user actually trades live: 09:30 to ~12:00 ET at the latest. Levels are still
-marked per **full-day market convention** — the user exits early but trades against participants
-who hold all day, so the levels that matter are the ones *they* watch.
+The hours the user actually trades live: 09:30 to ~12:00 ET at the latest for index (NQ/ES) —
+plus, for **gold**, the NY metals morning (from the 08:20 ET COMEX open) and the **Asia open**
+(~18:00 ET, typically Sunday and Wednesday evenings). Levels are still marked per **full-day
+market convention** — the user exits early but trades against participants who hold all day, so
+the levels that matter are the ones *they* watch. Gold is live-chart-only; the sim stays NQ/ES.
 
 ### Session & the five phases (the day spine)
 
@@ -246,3 +404,6 @@ R stays anchored to the initial stop (see **R-multiple**).
 - "prior day/week/month H/L" RTH vs ETH — resolved 2026-07-20: the **live chart** uses full ETH
   days + calendar weeks/months (market convention); the **sim** answer key stays RTH-only. A
   deliberate, known divergence — not a bug to reconcile.
+- Position sizing from stop distance (fixed dollar risk per trade) — proposed 2026-08-11 alongside
+  the **Stop anchor** rule, **not adopted**: sizing stays discretionary for now. Revisit if
+  structural stops keep producing inconsistent dollar risk across trades.
