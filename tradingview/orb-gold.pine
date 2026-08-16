@@ -294,7 +294,11 @@ drawPeriodLevel(active, val, lbl, col, styleStr, xOffset) =>
     var line ln = na
     var label lb = na
     if active and not na(val)
-        if val != lastVal
+        // na(lastVal) first: on the bar a level goes from na to its first real value, the
+        // bare `val != lastVal` compares against na, and na-propagating comparisons are not
+        // reliably true — the level would silently never get a line. Matters most for the
+        // VA levels, which sit na for the whole chart until the first session close.
+        if na(lastVal) or val != lastVal
             lastVal := val
             line.delete(ln)
             label.delete(lb)
@@ -398,6 +402,19 @@ if showVa and inVaWin and not na(vaLtfVol) and array.size(vaLtfVol) > 0
 drawPeriodLevel(showVa and vaShowVah, vahVal, "VAH", vahColor, highStyle, vaLabelOffset)
 drawPeriodLevel(showVa and vaShowVal, valVal, "VAL", valColor, lowStyle, vaLabelOffset)
 drawPeriodLevel(showVa and vaShowPoc, pocVal, "POC", pocColor, midStyle, vaLabelOffset - 1)
+
+// Data Window readout for the VA pipeline. Nothing renders on the chart (display.data_window
+// only) — these exist so the frozen values are readable as numbers, and so a missing line can
+// be told apart from a missing computation: `VA bins` counts the histogram buckets filling
+// during the profile session, `VA intrabars` is how many 1m bars request.security_lower_tf
+// handed back on this chart bar (0 across the board = no intrabar data, not a drawing bug).
+plot(vahVal, "VAH (value)", display = display.data_window)
+plot(valVal, "VAL (value)", display = display.data_window)
+plot(pocVal, "POC (value)", display = display.data_window)
+plot(pdHigh, "PDH (value)", display = display.data_window)
+plot(vaBins.size(), "VA bins", display = display.data_window)
+plot(na(vaLtfVol) ? 0 : array.size(vaLtfVol), "VA intrabars", display = display.data_window)
+plot(inVaWin ? 1 : 0, "VA in-window", display = display.data_window)
 
 // ═══════════════════════════════════════════════════════════════════════════════════
 // Session H/L — Overnight / Asia / London (windows shared with the sim)
