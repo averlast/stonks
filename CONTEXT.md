@@ -11,11 +11,13 @@ rather than outcome. This glossary fixes the language; implementation lives in c
 **Opening Range**:
 The high–low band of a session's opening window, per (instrument, session): index (NQ/ES) —
 the first **15** and **30 minutes** of RTH (from 09:30 ET); gold — the first **15 minutes** of
-the COMEX metals open (08:20–08:35 ET) and the first **5 minutes** of the Asia open
-(18:00–18:05 ET). Each has a high, low, and **midpoint** (50%), all breakout/reaction levels.
-An opening range is drawn **only for a session the user trades at its open**; every other
-session contributes its H/L as liquidity **Level**s only — hence no London opening range
-(resolved 2026-08-11). The sim's Opening Range remains the RTH 15m (09:30–09:45).
+the COMEX metals open (08:20–08:35 ET). Each has a high, low, and **midpoint** (50%), all
+breakout/reaction levels. An opening range is drawn **only for a session the user trades at its
+open**; every other session contributes its H/L as liquidity **Level**s only — hence no London
+opening range (resolved 2026-08-11), and the Asia 18:00 5m opening range is retired
+(2026-08-15): under the Asia evening playbook the traded event is the **Tokyo open** sweep of
+the **Pre-Tokyo range**, not an 18:00 breakout — and no Tokyo opening range exists either.
+The sim's Opening Range remains the RTH 15m (09:30–09:45).
 
 **ORB** (Opening Range Breakout):
 A strategy that trades a break of the **Opening Range**.
@@ -30,6 +32,14 @@ Globex sub-sessions preceding the RTH open, each with its own high/low: **Asia/T
 the prior TBD — plus the whole **Overnight** span (18:00 ET prior day → 09:30 ET) giving
 ONH/ONL. Asia and London H/L are watched as liquidity levels; "pre-market low" ≈ **London low**.
 
+**Pre-Tokyo range** (PT H / PT L):
+The high–low band of the Globex-open-to-Tokyo-open window, [18:00–20:00 ET) by default
+(tunable), frozen at the **Tokyo open** (20:00 ET, when Asia volume actually arrives). Its H/L
+are the primary sweep levels for the Asia evening playbook — an IB-like accumulation window, not
+an opening range (nothing is traded at 18:00 itself). Resolved 2026-08-15.
+_Avoid_: "Asia high/low" for this window (that means the full 18:00–03:00 session H/L);
+"premarket" (already resolved to ≈ London in this glossary).
+
 **Prior-session levels**:
 PDH/PDL and prior-week/-month H/L. Scope differs by surface, deliberately: on the **live chart**
 (TradingView) they follow market convention — the full **ETH day** (18:00→17:00 ET) and prior
@@ -42,7 +52,12 @@ Volume-weighted average price — a developing line drawn live, tracked at multi
 
 **Value Area** (VAH / VAL / POC):
 The price band holding most of a session's volume — value-area high, value-area low, point of
-control — computed for the prior session and prior week.
+control — computed for the prior session and prior week. On the live chart, "prior session"
+scopes **per instrument** (resolved 2026-08-15): index (NQ/ES) — the prior **NY RTH** session
+(09:30–16:00 ET; overnight volume is too thin to move the profile); gold — the prior **full ETH
+day** (18:00→17:00 ET; gold's Asia volume is material). The band is the standard **70%** of
+session volume (tunable). Prior-session values hold until the next session close — Friday's
+carry through Sunday evening.
 
 **High Volume Node** (HVN):
 A band of elevated volume on a higher-timeframe visible-range profile, marked as a horizontal
@@ -286,10 +301,12 @@ Regular Trading Hours (the 09:30–11:30 ET replay window) vs Extended/overnight
 
 **Trading window**:
 The hours the user actually trades live: 09:30 to ~12:00 ET at the latest for index (NQ/ES) —
-plus, for **gold**, the NY metals morning (from the 08:20 ET COMEX open) and the **Asia open**
-(~18:00 ET, typically Sunday and Wednesday evenings). Levels are still marked per **full-day
-market convention** — the user exits early but trades against participants who hold all day, so
-the levels that matter are the ones *they* watch. Gold is live-chart-only; the sim stays NQ/ES.
+plus, for **gold**, the NY metals morning (from the 08:20 ET COMEX open) — plus the **Asia
+evening session** on **both** NQ and gold (~two evenings a week, chosen to avoid trading during
+the day job; resolved 2026-08-15, superseding the gold-only Sunday/Wednesday scope). Levels are
+still marked per **full-day market convention** — the user exits early but trades against
+participants who hold all day, so the levels that matter are the ones *they* watch. Gold and
+the Asia evenings are live-chart-only; the sim stays NQ/ES RTH.
 
 ### Session & the five phases (the day spine)
 

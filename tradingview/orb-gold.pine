@@ -1,19 +1,22 @@
 //@version=6
 // Gold (GC) — ORB + Objective Levels
 //
-// Companion to the local sim (see ../CONTEXT.md, ../docs/adr/0009-*, 0010-*). One of two
-// per-instrument indicators (the other is orb-index.pine, ADR-0010): this file carries the
-// gold-session catalog — the NY 08:20 ET (COMEX metals open) 15m opening range, the Asia
-// 18:00 ET 5m opening range (the Sunday/Wednesday evening sessions), a 08:20-anchored NY
-// session VWAP, daily/weekly VWAPs, and period/session H/L. No IB (an index-session
-// concept in this playbook), no VRVP (use TradingView's native visible-range Volume
-// Profile), no ad-hoc AVWAP (use the built-in Anchored VWAP drawing tool).
+// Companion to the local sim (see ../CONTEXT.md, ../docs/adr/0009-*, 0010-*, 0012-*). One of
+// two per-instrument indicators (the other is orb-index.pine, ADR-0010): this file carries
+// the gold-session catalog — the NY 08:20 ET (COMEX metals open) 15m opening range, the
+// Pre-Tokyo range (18:00–20:00 ET accumulation window frozen at the Tokyo open — the
+// Asia-evening sweep levels, ADR-0012; the old Asia 18:00 5m ORB is RETIRED, nothing is
+// traded at 18:00 under this playbook), prior-session VAH/VAL/POC auto-computed over the
+// prior full ETH day (18:00→17:00 ET — gold's Asia volume is material, ADR-0012), a
+// 08:20-anchored NY session VWAP, daily/weekly VWAPs, and period/session H/L. No IB (an
+// index-session concept in this playbook), no VRVP (use TradingView's native visible-range
+// Volume Profile), no ad-hoc AVWAP (use the built-in Anchored VWAP drawing tool).
 //
-// ORB anatomy (ADR-0010): high/low/midpoint lines, each toggleable, role-styled (solid
-// high / dashed low / dotted mid by default), with an optional transparent shaded box.
-// ORB lines and shading are WINDOWED — they start at the window open and extend right
-// until the session span ends — never full-chart-width. Period H/L scope follows market
-// convention (full ETH day, calendar week/month) — ADR-0009.
+// ORB anatomy (ADR-0010, shared by the Pre-Tokyo range): high/low/midpoint lines, each
+// toggleable, role-styled (solid high / dashed low / dotted mid by default), with an
+// optional transparent shaded box. Lines and shading are WINDOWED — they start at the
+// window open and extend right until the session span ends — never full-chart-width.
+// Period H/L scope follows market convention (full ETH day, calendar week/month) — ADR-0009.
 indicator("Gold ORB + Levels", overlay = true, max_lines_count = 480,
      max_labels_count = 480, max_boxes_count = 30)
 
@@ -21,13 +24,13 @@ indicator("Gold ORB + Levels", overlay = true, max_lines_count = 480,
 showLabels   = input.bool(true, "Show price labels", group = "Display")
 labelSizeIn  = input.string("Small", "Label size (all labels)", options = ["Tiny", "Small", "Normal", "Large", "Huge"], group = "Display")
 htfThreshold = input.timeframe("30", "Hide intraday groups above this timeframe",
-     group = "Display", tooltip = "Session H/L and the NY session VWAP auto-hide above this chart timeframe. Period H/L and Daily/Weekly VWAP always show; ORB windows simply don't form on TFs above their own length.")
+     group = "Display", tooltip = "Session H/L and the NY session VWAP auto-hide above this chart timeframe. Period H/L, prior-session VAH/VAL/POC, and Daily/Weekly VWAP always show; ORB/PT windows simply don't form on TFs above their own length.")
 isIntraday   = timeframe.in_seconds() <= timeframe.in_seconds(htfThreshold)
 highStyle    = input.string("Solid", "High-line style", options = ["Solid", "Dashed", "Dotted"], group = "Display")
 lowStyle     = input.string("Dashed", "Low-line style", options = ["Solid", "Dashed", "Dotted"], group = "Display")
 midStyle     = input.string("Dotted", "Midpoint-line style", options = ["Solid", "Dashed", "Dotted"], group = "Display")
-devDotted    = input.bool(true, "ORB: dotted while developing", group = "Display",
-     tooltip = "While an ORB window is still forming, show dotted regardless of the role styles above; once frozen, switch to each line's own style.")
+devDotted    = input.bool(true, "OR/PT: dotted while developing", group = "Display",
+     tooltip = "While an OR or Pre-Tokyo window is still forming, show dotted regardless of the role styles above; once frozen, switch to each line's own style.")
 
 // ── NY ORB (COMEX metals open, 08:20 ET) ────────────────────────────────────────────
 showNy       = input.bool(true, "Show NY ORB (15m from 08:20)", group = "NY ORB")
@@ -41,19 +44,19 @@ nyWindow     = input.session("0820-0835", "ORB window (start-end, ET)", group = 
 nySpan       = input.session("0820-1600", "Draw until (span, ET)", group = "NY ORB",
      tooltip = "Lines/shade start at the ORB window open and extend right while inside this span, then freeze.")
 orbLabelOffset = input.int(0, "ORB label offset (bars back)", group = "NY ORB",
-     tooltip = "How far back along the line the price tags sit for BOTH ORB groups; the Asia ORB staggers further back automatically. 0 = right at the live edge.")
+     tooltip = "How far back along the line the price tags sit for the ORB and Pre-Tokyo groups; the Pre-Tokyo range staggers further back automatically. 0 = right at the live edge.")
 
-// ── Asia ORB (Globex open, 18:00 ET — the Sunday/Wednesday evening sessions) ────────
-showAsiaOrb  = input.bool(true, "Show Asia ORB (5m from 18:00)", group = "Asia ORB",
-     tooltip = "Fires every Globex open including Sunday's. Toggle off on charts where you only trade the NY morning.")
-asiaShowHi   = input.bool(true, "High line", group = "Asia ORB", inline = "asialines")
-asiaShowLo   = input.bool(true, "Low", group = "Asia ORB", inline = "asialines")
-asiaShowMid  = input.bool(true, "Midpoint", group = "Asia ORB", inline = "asialines")
-asiaColor    = input.color(#facc15, "Color", group = "Asia ORB")
-asiaShade    = input.bool(true, "Shade area", group = "Asia ORB")
-asiaShadeCol = input.color(color.new(#facc15, 85), "Shade color (opacity slider = transparency)", group = "Asia ORB")
-asiaOrbWindow = input.session("1800-1805", "ORB window (start-end, ET)", group = "Asia ORB")
-asiaOrbSpan  = input.session("1800-0300", "Draw until (span, ET)", group = "Asia ORB")
+// ── Pre-Tokyo range (Globex open 18:00 → Tokyo open 20:00 ET — ADR-0012) ────────────
+showPt      = input.bool(true, "Show Pre-Tokyo range (18:00–20:00)", group = "Pre-Tokyo range",
+     tooltip = "The Globex-open-to-Tokyo-open accumulation window; freezes at the 20:00 ET Tokyo open and its H/L are the Asia-evening sweep levels (ADR-0012). Not an opening range — nothing is traded at 18:00. Fires every Globex open including Sunday's.")
+ptShowHi    = input.bool(true, "High line", group = "Pre-Tokyo range", inline = "ptlines")
+ptShowLo    = input.bool(true, "Low", group = "Pre-Tokyo range", inline = "ptlines")
+ptShowMid   = input.bool(false, "Midpoint", group = "Pre-Tokyo range", inline = "ptlines")
+ptColor     = input.color(#facc15, "Color", group = "Pre-Tokyo range")
+ptShade     = input.bool(true, "Shade area", group = "Pre-Tokyo range")
+ptShadeCol  = input.color(color.new(#facc15, 85), "Shade color (opacity slider = transparency)", group = "Pre-Tokyo range")
+ptWindow    = input.session("1800-2000", "Range window (start-end, ET)", group = "Pre-Tokyo range")
+ptSpan      = input.session("1800-0300", "Draw until (span, ET)", group = "Pre-Tokyo range")
 
 // ── VWAP ─────────────────────────────────────────────────────────────────────────────
 showVwapNy      = input.bool(true, "Show NY session VWAP", group = "VWAP")
@@ -77,6 +80,22 @@ pmhColor = input.color(#f59e0b, "Prior-month H color", group = "Period H/L")
 pmlColor = input.color(#f59e0b, "Prior-month L color", group = "Period H/L")
 periodLabelOffset = input.int(-5, "Period label offset (bars back)", group = "Period H/L",
      tooltip = "How far back along the line the PD tag sits; PW and PM stagger further back automatically.")
+
+// ── Value Area (prior-session VAH/VAL/POC — ADR-0012) ───────────────────────────────
+showVa     = input.bool(true, "Show prior-session VAH/VAL/POC", group = "Value Area",
+     tooltip = "Auto-computed volume profile of the prior session. Gold scopes to the prior full ETH day (18:00→17:00 ET) — gold's Asia volume is material (ADR-0012). Values freeze at the session close and hold until the next close (Friday's carry through Sunday evening). Within a few ticks of the native fixed-range VP, not tick-exact.")
+vaShowVah  = input.bool(true, "VAH", group = "Value Area", inline = "valines")
+vaShowVal  = input.bool(true, "VAL", group = "Value Area", inline = "valines")
+vaShowPoc  = input.bool(true, "POC", group = "Value Area", inline = "valines")
+vaWindow   = input.session("1800-1700", "Profile session (ET)", group = "Value Area")
+vaPct      = input.float(70, "Value area (% of session volume)", minval = 10, maxval = 100, step = 5, group = "Value Area")
+vaBinTicks = input.int(10, "Bin size (ticks)", minval = 1, group = "Value Area",
+     tooltip = "Histogram resolution: each bin spans this many ticks. Smaller = finer POC placement, more compute.")
+vahColor   = input.color(#e879f9, "VAH color", group = "Value Area")
+valColor   = input.color(#e879f9, "VAL color", group = "Value Area")
+pocColor   = input.color(#d946ef, "POC color", group = "Value Area")
+vaLabelOffset = input.int(-4, "VA label offset (bars back)", group = "Value Area",
+     tooltip = "How far back along the line the VAH/VAL tags sit; POC staggers further back automatically.")
 
 // ── Session H/L (Asia/London/Overnight — windows shared with the sim) ──────────────
 showOn          = input.bool(true, "Show Overnight H/L", group = "Session H/L")
@@ -119,11 +138,12 @@ labelSize = sizeFromStr(labelSizeIn)
 etTz = "America/New_York"
 
 // ═══════════════════════════════════════════════════════════════════════════════════
-// Opening Range ORBs — one generic windowed renderer (ADR-0010). Lines and shade start
-// at the window open and extend right while inside the span, then freeze; each new
-// window deletes the previous session's objects. H/L/mid individually toggleable;
-// styles come from the global role inputs (dotted while the window is still forming).
-// Day filter includes Sunday so the Asia ORB fires on the Sunday 18:00 ET Globex open.
+// Windowed ranges — one generic renderer (ADR-0010) shared by the NY ORB and the
+// Pre-Tokyo range (ADR-0012). Lines and shade start at the window open and extend right
+// while inside the span, then freeze; each new window deletes the previous session's
+// objects. H/L/mid individually toggleable; styles come from the global role inputs
+// (dotted while the window is still forming). Day filter includes Sunday so the
+// Pre-Tokyo range fires on the Sunday 18:00 ET Globex open.
 // ═══════════════════════════════════════════════════════════════════════════════════
 drawOrb(active, windowStr, spanStr, lbl, showHi, showLo, showMid, col, shade, shadeCol, xOffset) =>
     var float hi = na
@@ -206,7 +226,7 @@ drawOrb(active, windowStr, spanStr, lbl, showHi, showLo, showMid, col, shade, sh
                     label.set_text(midLabel, lbl + " M " + str.tostring(mid, format.mintick))
 
 drawOrb(showNy, nyWindow, nySpan, "NY OR", nyShowHi, nyShowLo, nyShowMid, nyColor, nyShade, nyShadeCol, orbLabelOffset)
-drawOrb(showAsiaOrb, asiaOrbWindow, asiaOrbSpan, "Asia OR", asiaShowHi, asiaShowLo, asiaShowMid, asiaColor, asiaShade, asiaShadeCol, orbLabelOffset - 2)
+drawOrb(showPt, ptWindow, ptSpan, "PT", ptShowHi, ptShowLo, ptShowMid, ptColor, ptShade, ptShadeCol, orbLabelOffset - 2)
 
 // ═══════════════════════════════════════════════════════════════════════════════════
 // VWAP — three independently toggleable anchors, no bands
@@ -269,7 +289,7 @@ extTicker = ticker.new(syminfo.prefix, syminfo.ticker, session.extended)
 [pwHigh, pwLow] = request.security(extTicker, "1W", [high[1], low[1]], lookahead = barmerge.lookahead_off)
 [pmHigh, pmLow] = request.security(extTicker, "1M", [high[1], low[1]], lookahead = barmerge.lookahead_off)
 
-drawPeriodLevel(active, val, lbl, col, isHigh, xOffset) =>
+drawPeriodLevel(active, val, lbl, col, styleStr, xOffset) =>
     var float lastVal = na
     var line ln = na
     var label lb = na
@@ -278,23 +298,106 @@ drawPeriodLevel(active, val, lbl, col, isHigh, xOffset) =>
             lastVal := val
             line.delete(ln)
             label.delete(lb)
-            ln := line.new(bar_index - 1, val, bar_index, val, color = col, width = 1, style = resolveStyle(isHigh ? highStyle : lowStyle, false), extend = extend.both)
+            ln := line.new(bar_index - 1, val, bar_index, val, color = col, width = 1, style = styleFromStr(styleStr), extend = extend.both)
             if showLabels
                 lb := label.new(bar_index + xOffset, val, lbl + " " + str.tostring(val, format.mintick), style = label.style_label_left,
                      textcolor = col, color = color.new(color.black, 100), size = labelSize)
         line.set_y1(ln, val)
         line.set_y2(ln, val)
-        line.set_style(ln, resolveStyle(isHigh ? highStyle : lowStyle, false))
+        line.set_style(ln, styleFromStr(styleStr))
         if showLabels
             label.set_xy(lb, bar_index + xOffset, val)
             label.set_text(lb, lbl + " " + str.tostring(val, format.mintick))
 
-drawPeriodLevel(showPdhl, pdHigh, "PDH", pdhColor, true, periodLabelOffset)
-drawPeriodLevel(showPdhl, pdLow, "PDL", pdlColor, false, periodLabelOffset)
-drawPeriodLevel(showPwhl, pwHigh, "PWH", pwhColor, true, periodLabelOffset - 1)
-drawPeriodLevel(showPwhl, pwLow, "PWL", pwlColor, false, periodLabelOffset - 1)
-drawPeriodLevel(showPmhl, pmHigh, "PMH", pmhColor, true, periodLabelOffset - 2)
-drawPeriodLevel(showPmhl, pmLow, "PML", pmlColor, false, periodLabelOffset - 2)
+drawPeriodLevel(showPdhl, pdHigh, "PDH", pdhColor, highStyle, periodLabelOffset)
+drawPeriodLevel(showPdhl, pdLow, "PDL", pdlColor, lowStyle, periodLabelOffset)
+drawPeriodLevel(showPwhl, pwHigh, "PWH", pwhColor, highStyle, periodLabelOffset - 1)
+drawPeriodLevel(showPwhl, pwLow, "PWL", pwlColor, lowStyle, periodLabelOffset - 1)
+drawPeriodLevel(showPmhl, pmHigh, "PMH", pmhColor, highStyle, periodLabelOffset - 2)
+drawPeriodLevel(showPmhl, pmLow, "PML", pmlColor, lowStyle, periodLabelOffset - 2)
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// Value Area — prior-session VAH/VAL/POC, auto-computed (ADR-0012). Volume histogram
+// from 1m intrabars, each bar's volume split evenly across the tick-bins its range
+// covers; frozen at the session close and drawn full-width until the next close, so
+// Friday's values carry through Sunday evening with no weekend special-casing. Lands
+// within a few ticks of TradingView's native fixed-range VP, not tick-exact. Intrabar
+// data caps at ~100k 1m bars (~2-3 months), so lines only render on recent history;
+// window edges quantize to chart bars, so prefer <=30m charts for exact values.
+// ═══════════════════════════════════════════════════════════════════════════════════
+vaLtf = timeframe.in_seconds() >= 60 ? "1" : timeframe.period
+[vaLtfHi, vaLtfLo, vaLtfVol] = request.security_lower_tf(syminfo.tickerid, vaLtf, [high, low, volume])
+
+var vaBins = map.new<int, float>()
+var float vahVal = na
+var float valVal = na
+var float pocVal = na
+vaBinSize = vaBinTicks * syminfo.mintick
+
+vaCompute() =>
+    keys = vaBins.keys()
+    int minK = na
+    int maxK = na
+    float total = 0.0
+    for i = 0 to array.size(keys) - 1
+        int k = array.get(keys, i)
+        total += vaBins.get(k)
+        if na(minK) or k < minK
+            minK := k
+        if na(maxK) or k > maxK
+            maxK := k
+    // POC: the max-volume bin; ties resolve toward the session midpoint (native-VP convention)
+    float midK = (minK + maxK) / 2.0
+    int pocK = minK
+    float best = -1.0
+    for k = minK to maxK
+        float v = vaBins.contains(k) ? vaBins.get(k) : 0.0
+        if v > best or (v == best and math.abs(k - midK) < math.abs(pocK - midK))
+            best := v
+            pocK := k
+    // Standard expansion: absorb the bigger neighboring bin until vaPct% of volume is inside
+    float acc = best
+    int upK = pocK
+    int dnK = pocK
+    float target = total * vaPct / 100.0
+    while acc < target and (upK < maxK or dnK > minK)
+        float upV = upK < maxK ? (vaBins.contains(upK + 1) ? vaBins.get(upK + 1) : 0.0) : -1.0
+        float dnV = dnK > minK ? (vaBins.contains(dnK - 1) ? vaBins.get(dnK - 1) : 0.0) : -1.0
+        if upV >= dnV
+            upK += 1
+            acc += upV
+        else
+            dnK -= 1
+            acc += dnV
+    [(pocK + 0.5) * vaBinSize, (upK + 1) * vaBinSize, dnK * vaBinSize]
+
+inVaWin = not na(time(timeframe.period, vaWindow + ":1234567", etTz))
+// Freeze on the bar after the window ends — or, when the window abuts the next session
+// across the 17:00-18:00 halt (no out-of-window bar ever prints, e.g. the 1800-1700
+// default here), on the first bar of the new Globex day.
+vaNewSes = inVaWin and (not inVaWin[1] or newGlobexDay)
+vaFreeze = (not inVaWin and inVaWin[1]) or vaNewSes
+
+if vaFreeze and vaBins.size() > 0
+    [p, vh, vl] = vaCompute()
+    pocVal := p
+    vahVal := vh
+    valVal := vl
+    vaBins.clear()
+
+if showVa and inVaWin and not na(vaLtfVol) and array.size(vaLtfVol) > 0
+    for i = 0 to array.size(vaLtfVol) - 1
+        float v = array.get(vaLtfVol, i)
+        if v > 0
+            int loK = int(math.floor(array.get(vaLtfLo, i) / vaBinSize))
+            int hiK = int(math.floor(array.get(vaLtfHi, i) / vaBinSize))
+            float share = v / (hiK - loK + 1)
+            for k = loK to hiK
+                vaBins.put(k, (vaBins.contains(k) ? vaBins.get(k) : 0.0) + share)
+
+drawPeriodLevel(showVa and vaShowVah, vahVal, "VAH", vahColor, highStyle, vaLabelOffset)
+drawPeriodLevel(showVa and vaShowVal, valVal, "VAL", valColor, lowStyle, vaLabelOffset)
+drawPeriodLevel(showVa and vaShowPoc, pocVal, "POC", pocColor, midStyle, vaLabelOffset - 1)
 
 // ═══════════════════════════════════════════════════════════════════════════════════
 // Session H/L — Overnight / Asia / London (windows shared with the sim)
