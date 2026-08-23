@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Position sizing — the one number that decides survival</title>
+<title>How to read the Permission lamp</title>
+<style>
+  :root{
+    --bg:#fbfaf7; --panel:#ffffff; --panel2:#f1efea; --edge:#d9d4cb;
+    --ink:#1a1e23; --muted:#5b6572; --rule:#e4e0d8;
+    --ok:#0c6b41; --ok-bg:rgba(12,107,65,.10); --ok-edge:rgba(12,107,65,.35);
+    --no:#a51f18; --no-bg:rgba(165,31,24,.09); --no-edge:rgba(165,31,24,.32);
+    --hold:#4c5561; --hold-bg:rgba(76,85,97,.10); --hold-edge:rgba(76,85,97,.30);
+    --hand:#8a5300; --hand-bg:rgba(138,83,0,.10); --hand-edge:rgba(138,83,0,.32);
+    --link:#1a5aa6;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#111417; --panel:#181c21; --panel2:#1f242b; --edge:#333b45;
+      --ink:#e7ecf1; --muted:#9aa6b3; --rule:#2a313a;
+      --ok:#5fd39a; --ok-bg:rgba(95,211,154,.10); --ok-edge:rgba(95,211,154,.32);
+      --no:#f5877e; --no-bg:rgba(245,135,126,.10); --no-edge:rgba(245,135,126,.30);
+      --hold:#a3aeba; --hold-bg:rgba(163,174,186,.09); --hold-edge:rgba(163,174,186,.26);
+      --hand:#e0b25c; --hand-bg:rgba(224,178,92,.10); --hand-edge:rgba(224,178,92,.30);
+      --link:#7fb3f0;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  .wrap{max-width:46rem;margin:0 auto;padding:0 1.25rem}
+  a{color:var(--link)}
+  header{padding:2.6rem 0 1.6rem;border-bottom:1px solid var(--rule)}
+  .kicker{font-size:.75rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0 0 .5rem}
+  h1{font-size:1.75rem;line-height:1.25;margin:0 0 .5rem;letter-spacing:-.01em}
+  .standfirst{color:var(--muted);margin:0;font-size:1.02rem}
+  section{padding:1.9rem 0;border-bottom:1px solid var(--rule)}
+  h2{font-size:1.18rem;margin:0 0 .7rem;line-height:1.3}
+  h2 .n{color:var(--muted);font-variant-numeric:tabular-nums;font-weight:600;margin-right:.45rem}
+  h3{font-size:1rem;margin:1.4rem 0 .4rem}
+  p{margin:.7rem 0}
+  ul,ol{margin:.7rem 0;padding-left:1.25rem}
+  li{margin:.3rem 0}
+  .muted{color:var(--muted)}
+  strong{font-weight:650}
+  code{background:var(--panel2);border:1px solid var(--edge);border-radius:4px;padding:.05em .35em;
+    font:.87em/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .note{background:var(--panel);border:1px solid var(--edge);border-left:3px solid var(--muted);
+    border-radius:6px;padding:.8rem 1rem;margin:1rem 0}
+  .note.bad{border-left-color:var(--no);background:var(--no-bg)}
+  .note.good{border-left-color:var(--ok);background:var(--ok-bg)}
+  .note.hand{border-left-color:var(--hand);background:var(--hand-bg)}
+  .note p:first-child{margin-top:0}
+  .note p:last-child{margin-bottom:0}
+  .tablewrap{overflow-x:auto;margin:1rem 0}
+  table{width:100%;border-collapse:collapse;font-size:.88rem}
+  caption{text-align:left;color:var(--muted);font-size:.85rem;padding-bottom:.45rem}
+  th,td{border:1px solid var(--edge);padding:.45rem .55rem;text-align:left;vertical-align:top}
+  thead th{background:var(--panel2);font-weight:650}
+  tbody th{background:var(--panel);font-weight:600;white-space:nowrap}
+  td.ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-edge);font-weight:600}
+  td.no{background:var(--no-bg);color:var(--no);border-color:var(--no-edge);font-weight:600}
+  td.hold{background:var(--hold-bg);color:var(--hold);border-color:var(--hold-edge);font-weight:600}
+  td.hand{background:var(--hand-bg);color:var(--hand);border-color:var(--hand-edge);font-weight:600}
+  td small,th small{display:block;font-weight:400;color:var(--muted);font-size:.8em;line-height:1.35}
+  .legend{display:flex;flex-wrap:wrap;gap:.5rem;margin:.6rem 0 0;padding:0;list-style:none;font-size:.8rem}
+  .legend li{border:1px solid var(--edge);border-radius:999px;padding:.1rem .6rem;color:var(--muted)}
+  .legend .s-ok{color:var(--ok);border-color:var(--ok-edge)}
+  .legend .s-no{color:var(--no);border-color:var(--no-edge)}
+  .legend .s-hold{color:var(--hold);border-color:var(--hold-edge)}
+  .legend .s-hand{color:var(--hand);border-color:var(--hand-edge)}
+  .states{display:grid;gap:.9rem;grid-template-columns:1fr;margin:1.1rem 0}
+  @media (min-width:34rem){.states{grid-template-columns:1fr 1fr}}
+  figure{margin:0;background:var(--panel);border:1px solid var(--edge);border-radius:8px;padding:.75rem}
+  figure svg{display:block;width:100%;height:auto}
+  figcaption{font-size:.85rem;color:var(--muted);margin-top:.4rem}
+  figcaption b{color:var(--ink)}
+  .vwapline{stroke:var(--muted);stroke-width:2;stroke-dasharray:5 4;fill:none}
+  .pricepath{stroke:var(--ink);stroke-width:2;fill:none;stroke-linejoin:round;stroke-linecap:round}
+  .axis{stroke:var(--edge);stroke-width:1}
+  .svgtext{fill:var(--muted);font:11px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .kv{margin:.8rem 0;border-top:1px solid var(--rule)}
+  .kv div{display:grid;grid-template-columns:1fr;gap:0 1rem;padding:.5rem 0;border-bottom:1px solid var(--rule)}
+  @media (min-width:34rem){.kv div{grid-template-columns:12rem 1fr}}
+  .kv dt{color:var(--muted);font-size:.9rem;margin:0}
+  .kv dd{margin:0}
+  footer{padding:1.6rem 0 3rem;color:var(--muted);font-size:.88rem}
+  @media print{
+    :root{--bg:#fff;--panel:#fff;--panel2:#f3f3f3;--ink:#000;--muted:#444;--edge:#bbb;--rule:#ccc}
+    body{font-size:11pt}
+    table,figure,.note{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <p class="kicker">Study library · personal</p>
+    <h1>Position sizing</h1>
+    <p class="standfirst">Sizing does not improve your edge. It decides how much of your edge you
+    live long enough to collect. On a prop account with a fixed drawdown, that is the whole
+    game — and it is one number.</p>
+  </div>
+</header>
+
+<main class="wrap">
+
+<section id="nr">
+  <h2><span class="n">01</span> The one number</h2>
+
+  <p>Everything reduces to how many full losses the account can absorb before it dies:</p>
+
+  <div class="note good">
+    <p><strong>N<sub>R</sub> = account drawdown ÷ risk per trade.</strong></p>
+    <p>A $2,000 drawdown risking $80 a trade is <strong>N<sub>R</sub> = 25</strong>. That is the
+    only sizing number worth carrying around.</p>
+  </div>
+
+  <p>It is not "how many losses in a row would kill me" — wins interleave and rebuild the cushion.
+  It is the depth of hole the account can tolerate over its whole life. The chance of ever digging
+  that hole, given a real edge, falls away exponentially as N<sub>R</sub> grows.</p>
+
+  <div class="tablewrap">
+  <table>
+    <caption>Probability of eventually losing the account, by drawdown room. Assumes the edge is
+    real and permanent — so these are the optimistic numbers.</caption>
+    <thead>
+      <tr><th>Edge</th><th>N<sub>R</sub>=4</th><th>8</th><th>10</th><th>15</th><th>20</th><th>25</th><th>30</th><th>40</th></tr>
+    </thead>
+    <tbody>
+      <tr><th>40% @ 2R</th><td class="no">48%</td><td class="no">23%</td><td class="no">16%</td><td>6.2%</td><td>2.5%</td><td class="ok">1.0%</td><td class="ok">0.4%</td><td class="ok">0.06%</td></tr>
+      <tr><th>35% @ 3R</th><td class="no">42%</td><td class="no">17%</td><td class="no">11%</td><td>3.7%</td><td>1.2%</td><td class="ok">0.4%</td><td class="ok">0.1%</td><td class="ok">0.02%</td></tr>
+      <tr><th>50% @ 1.5R</th><td class="no">28%</td><td>7.7%</td><td>4.1%</td><td class="ok">0.8%</td><td class="ok">0.2%</td><td class="ok">&lt;0.1%</td><td class="ok">&lt;0.1%</td><td class="ok">&lt;0.1%</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note">
+    <p><strong>Halving your size squares your ruin probability.</strong> Read across the top row:
+    48% at N<sub>R</sub>=4 becomes 23% at N<sub>R</sub>=8 — and 0.48&sup2; = 0.23, exactly. Halve
+    again and it squares again. Sizing is not a linear dial. Small changes at the safe end do
+    almost nothing; small changes at the dangerous end do everything.</p>
+  </div>
+</section>
+
+<section id="target">
+  <h2><span class="n">02</span> Why the target is 25</h2>
+
+  <p>A winning strategy still digs holes. Over a few hundred trades, chance alone produces a
+  drawdown deeper than feels reasonable:</p>
+
+  <div class="tablewrap">
+  <table>
+    <caption>Expected <em>worst</em> drawdown, in R, for a profitable strategy — no mistakes, no
+    regime change, just variance.</caption>
+    <thead><tr><th>Edge</th><th>250 trades</th><th>500</th><th>1,000</th><th>2,000</th></tr></thead>
+    <tbody>
+      <tr><th>40% @ 2R</th><td>11.7R</td><td>15.4R</td><td>19.2R</td><td>22.9R</td></tr>
+      <tr><th>35% @ 3R</th><td>13.8R</td><td>16.9R</td><td>20.1R</td><td>23.2R</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>A normal year hands you a 15–20R hole whether you deserve it or not. If the account only
+  tolerates 12R, the strategy never gets to finish being right.</p>
+
+  <div class="note good">
+    <p><strong>N<sub>R</sub> ≥ 25 wherever the account is worth more than its replacement
+    cost.</strong> Below 15 you are gambling on a strategy you believe in. Below 5 the strategy is
+    irrelevant — it is a coin flip with extra steps.</p>
+  </div>
+
+  <h3>Which makes micros mandatory</h3>
+
+  <p>What one contract costs in drawdown room, on a $2,000 account:</p>
+
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Instrument</th><th>$/point</th><th>Typical stop</th><th>Risk per contract</th><th>N<sub>R</sub> at 1 contract</th></tr></thead>
+    <tbody>
+      <tr><th>NQ</th><td>$20</td><td>30 pt</td><td>$600</td><td class="no">3.3</td></tr>
+      <tr><th>MNQ</th><td>$2</td><td>30 pt</td><td>$60</td><td class="ok">33</td></tr>
+      <tr><th>GC</th><td>$100</td><td>$6</td><td>$600</td><td class="no">3.3</td></tr>
+      <tr><th>MGC</th><td>$10</td><td>$6</td><td>$60</td><td class="ok">33</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p><strong>A single mini on a $2,000 drawdown cannot be traded safely at any skill level.</strong>
+  Not "risky" — there is no smaller size available, so no amount of discipline fixes it. Micros cost
+  about 1% more of each R in commission. That is the cheapest thing on this page.</p>
+</section>
+
+<section id="clocks">
+  <h2><span class="n">03</span> Two clocks — why runners beat sizing down</h2>
+
+  <p>There are two ways to fail: blow up, or take so long it stops mattering. Sizing trades one
+  against the other. Expectancy improves both.</p>
+
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Lever</th><th>Blow-up risk</th><th>Time to target</th></tr></thead>
+    <tbody>
+      <tr><th>Cut size</th><td class="ok">better</td><td class="no">worse</td></tr>
+      <tr><th>Raise expectancy</th><td class="ok">better</td><td class="ok">better</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>Expectancy is what you make per trade, in R:</p>
+
+  <ul>
+    <li>40% win rate at 2R → <strong>0.20R per trade</strong></li>
+    <li>35% win rate at 3R → <strong>0.40R per trade</strong></li>
+  </ul>
+
+  <p>Win <em>less often</em>, make twice as much per trade, reach the target in half the time, and
+  be slightly safer doing it — at identical risk per trade and identical drawdown room. It is the
+  only lever here with no downside.</p>
+
+  <div class="note good">
+    <p><strong>The runner test.</strong> Of the trades that reach 2R, do more than
+    <strong>3 in 4</strong> also reach 3R? If yes, stop banking at 2R. If no, keep banking at 2R.</p>
+    <p class="muted">Why three quarters: a 2R target earns 3·P₂ − 1, a 3R target earns 4·P₃ − 1.
+    They break even at P₃ = 0.75·P₂.</p>
+  </div>
+
+  <p>This is measurable from your own fills — not a judgement call. It is also the one number that
+  would replace the assumed win rate everything else on this page rests on.</p>
+</section>
+
+<section id="split">
+  <h2><span class="n">04</span> The eval and the funded account want opposite sizes</h2>
+
+  <p>Identical rules, opposite correct answers, because the cost of failure is not the same:</p>
+
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th></th><th>Cost of losing it</th><th>Correct size</th><th>Optimise for</th></tr></thead>
+    <tbody>
+      <tr><th>Eval</th><td>$115 and a few days</td><td class="hand">4–5 MNQ</td><td>speed</td></tr>
+      <tr><th>Funded</th><td>the income stream</td><td class="ok">1 MNQ</td><td>survival</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>They are separate accounts, so nothing forces one size across both. All the survival discipline
+  belongs on the funded side. On the eval side it is just an expensive way to be slow.</p>
+
+  <div class="note hand">
+    <p><strong>Name the eval a funding operation, not trading.</strong> Two weeks of deliberately
+    reckless sizing is a habit that then has to be switched off. Making the switch a written rule
+    rather than a feeling is the reason this page exists.</p>
+  </div>
+
+  <h3>Why the blitz works even with an unproven edge</h3>
+
+  <p>The eval asks for +$3,000 before −$2,000. For a <em>zero-edge coin flipper</em>, the chance of
+  reaching the target first is 2,000 ÷ 5,000 = <strong>40%</strong>. Size up far enough and skill
+  stops mattering — you converge on that floor. The worst case is bounded, so the plan does not
+  depend on the playbook being proven yet.</p>
+
+  <div class="tablewrap">
+  <table>
+    <caption>Lucid Pro 50k eval at $115 a go — expected all-in spend to end up with five funded
+    accounts, and how long it takes. 40% @ 2R assumed.</caption>
+    <thead>
+      <tr><th>Size (40pt stop)</th><th>Risk</th><th>N<sub>R</sub></th><th>Pass rate</th><th>Median</th><th>Slow case</th><th>Total spend</th></tr>
+    </thead>
+    <tbody>
+      <tr><th>1 MNQ</th><td>$80</td><td>25</td><td>96%</td><td>17.6 wks</td><td>33 wks</td><td>$601</td></tr>
+      <tr><th>2 MNQ</th><td>$160</td><td>12.5</td><td>79%</td><td>7.0 wks</td><td>13.6 wks</td><td>$730</td></tr>
+      <tr><th>3 MNQ</th><td>$240</td><td>8.3</td><td>67%</td><td>3.6 wks</td><td>7.4 wks</td><td>$857</td></tr>
+      <tr><th>4 MNQ</th><td>$320</td><td>6.2</td><td class="hand">60%</td><td class="hand">2.4 wks</td><td>4.6 wks</td><td class="hand">$955</td></tr>
+      <tr><th>5 MNQ</th><td>$400</td><td>5.0</td><td class="hand">50%</td><td class="hand">1.6 wks</td><td>2.8 wks</td><td class="hand">$1,145</td></tr>
+      <tr><th>15 MNQ</th><td>$1,200</td><td>1.7</td><td>43%</td><td>2 days</td><td>4 days</td><td>$1,334</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>The entire span from four months to two days costs <strong>$733</strong>. Every survival
+  argument on this page is correct math applied to the wrong account when it is aimed at an eval.</p>
+
+  <p><strong>Stop around 5 MNQ.</strong> Past that you are paying about $200 for each further day
+  saved, and below N<sub>R</sub> = 4 one or two trades decide the account — skill has been converted
+  into variance, and the ten points of pass rate your edge was contributing are gone.</p>
+</section>
+
+<section id="lucid">
+  <h2><span class="n">05</span> The Lucid Pro 50k rules, and where they bite</h2>
+
+  <dl class="kv">
+    <div><dt>Eval</dt><dd>$115 one-time, no monthly fee. +$3,000 target, $2,000 max loss, $1,200
+      daily loss limit. No consistency rule, no minimum days.</dd></div>
+    <div><dt>Drawdown</dt><dd><strong>End-of-day trailing</strong>, locking at the $50,000 start
+      once peak EOD balance reaches $52,000.</dd></div>
+    <div><dt>Funded DLL</dt><dd>$1,200 below the initial trail; above it,
+      <strong>60% of (peak EOD balance − $50,000)</strong>.</dd></div>
+    <div><dt>Payout</dt><dd>$500 minimum, no upper limit. 40% consistency. Three minimum trading
+      days.</dd></div>
+  </dl>
+
+  <h3>EOD trailing means no cushion until the lock</h3>
+
+  <p>Before peak EOD reaches $52,000, every dollar made raises the floor by the same dollar. The
+  cushion is <strong>always $2,000, no matter how well you trade</strong>. Intraday gains do not
+  raise the floor — only closing green does — so handing profit back inside a session is free, while
+  closing green and losing it tomorrow is not.</p>
+
+  <p>After the lock, every dollar not withdrawn is permanent room. That is the first moment the
+  account starts getting safer instead of just richer.</p>
+
+  <div class="note bad">
+    <p><strong>The 60% DLL is a trap dressed as a perk.</strong> At a $56,000 peak it permits a
+    $3,600 loss in one day — against $6,000 of total room. The rule allows roughly four times more
+    daily risk than is survivable. It is a ceiling to stay far away from, never a budget.</p>
+  </div>
+
+  <h3>40% consistency</h3>
+
+  <p>Best day ≤ 40% of total profit, so total must be at least 2.5× the best day. That forces at
+  least three profitable days, which is why the separate 3-day rule is redundant. At 1 MNQ it never
+  binds — it only bites if you have one monster day, which is the thing to avoid anyway.</p>
+
+  <h3>Cushion beats size, quadratically</h3>
+
+  <p>Once the floor locks, expected lifetime payout scales with the <strong>square</strong> of the
+  cushion held, but only linearly with size. Doubling the cushion quadruples what the account pays
+  out over its life; halving the size only doubles it.</p>
+
+  <div class="note good">
+    <p>Build to roughly <strong>$2,000 of cushion</strong> before taking the $500 minimum payout,
+    then withdraw the excess and hold the cushion there.</p>
+  </div>
+</section>
+
+<section id="rules">
+  <h2><span class="n">06</span> The rules, short</h2>
+
+  <ol>
+    <li><strong>Eval: 4–5 MNQ, 40 point max stop.</strong> All five copy-traded. Expect about two
+    weeks and about $1,000 all-in. It is a funding operation, not trading.</li>
+    <li><strong>Funded: 1 MNQ, $80 max risk.</strong> The day it funds, the size drops. No
+    exceptions, no "just while I am ahead".</li>
+    <li><strong>An $80 budget is a 40 point stop on MNQ, $8.00 on MGC.</strong> If the honest stop
+    beyond the sweep extreme sits further than that, <strong>the trade is illegal</strong> — do not
+    tighten the stop, skip the setup. A size veto, same standing as the direction and family
+    locks.</li>
+    <li><strong>Step up only from ahead, never to catch up.</strong> Raising size while behind is
+    the martingale, and it is how a 20% risk becomes a 50% one.</li>
+    <li><strong>Build $2,000 of cushion before the first payout.</strong> Ignore the 60% DLL.</li>
+    <li><strong>Measure the runner test.</strong> If more than three in four 2R touches reach 3R,
+    move the target out and take the free half of the calendar.</li>
+  </ol>
+
+  <div class="note">
+    <p><strong>What a bad month means: nothing.</strong> At 40% @ 2R over 100 trades, an eight-loss
+    streak is a coin flip and a ten-loss streak happens one run in five. It takes roughly 216 trades
+    — about seven months at ~390 a year — before a losing stretch carries any information at all.
+    The correct response to a bad month is not to change the strategy.</p>
+  </div>
+</section>
+
+<section id="ref">
+  <h2><span class="n">07</span> Quick reference</h2>
+
+  <dl class="kv">
+    <div><dt>N<sub>R</sub></dt><dd>drawdown ÷ risk per trade. Target ≥ 25 on anything worth
+      keeping.</dd></div>
+    <div><dt>Halving size</dt><dd>squares the ruin probability.</dd></div>
+    <div><dt>Expected worst hole</dt><dd>15–20R over a normal year. Budget for it.</dd></div>
+    <div><dt>Runner test</dt><dd>hold for 3R if more than 75% of 2R touches get there.</dd></div>
+    <div><dt>Eval floor</dt><dd>40% pass rate with zero edge — $2k room ÷ $5k total span.</dd></div>
+    <div><dt>Cushion</dt><dd>lifetime payout scales with cushion squared.</dd></div>
+    <div><dt>One mini on $2k</dt><dd>N<sub>R</sub> = 3.3. Never.</dd></div>
+  </dl>
+</section>
+
+</main>
+
+<footer class="wrap">
+  <p>Derived 2026-08-22 from Monte Carlo over the exact Lucid Pro 50k ruleset, plus the standard
+  two-barrier ruin result. Win rate and R:R throughout are <em>assumed</em> at 40% @ 2R — replace
+  them with measured values from the session logs once there are enough funded fills to matter.</p>
+  <p class="muted">Related: <code>docs/study/permission-lamp.html</code> (the veto surface rule 3
+  belongs on) · <code>CONTEXT.md</code> Stop anchor · ADR-0011.</p>
+</footer>
+
+</body>
+</html>

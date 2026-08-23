@@ -40,6 +40,58 @@ here is enrichment, not the spine. **Unblocked now**:
 (discretionary S/D zone + HVN drawing tools). #14/#15 are unblocked once #13's data lands. The
 `ingestion/levels.py` `value_area`/`volume_profile` helpers are reusable for #14's live profile.
 
+### Position sizing + stop-budget veto (2026-08-22) — live-chart + prop economics, no sim change
+Worked the sizing question from first principles (prompted by a YouTube transcript, `quantguy.md`,
+untracked). Verified its claims by Monte Carlo: the losing-streak table and the
+`t = Sharpe x sqrt(years)` result are correct; its "97% chance of blowing a $2k account at $500
+risk" overstates ~2x (the honest number is ~48% — it conflates "a 4-loss run occurs" with "you were
+at the starting balance when it did"). Everything reduces to **N_R = account drawdown / risk per
+trade**: ruin ~ exp(-2*m*N_R/v) for per-trade expectancy m and variance v in R, so **halving size
+squares the ruin probability**. Expected worst drawdown over 500-1000 trades is 15-20R, so the
+survival target is **N_R >= 25**. One NQ/GC **mini** on a $2k drawdown is N_R = 3.3 —
+unsurvivable at any skill level; micros are structural, not preference.
+- **Lucid Pro 50k rules** (user-confirmed): eval $115 one-time, **no monthly fee**, +$3k target,
+  $2k max loss, **EOD trailing** DD locking at the $50k start once peak EOD hits $52k, $1.2k DLL,
+  no consistency, **no minimum days**. Funded: same, DLL = $1.2k below the initial trail then
+  **60% of (peak EOD - $50k)** above it (continuous at the lock point — and a trap: at a $56k peak
+  it permits a $3.6k daily loss against $6k of room). **40% consistency** (total >= 2.5x best day,
+  which is why the 3-day minimum is redundant). $500 min payout, no cap.
+- **The finding — eval and funded want OPPOSITE sizes**, because the cost of failure is asymmetric:
+  an eval bust costs $115, a funded bust costs the income stream. Eval is a **funding operation**:
+  4-5 MNQ / 40pt max stop, ~60%/50% pass, ~2 weeks, ~$950-1,150 all-in for 5 copy-traded accounts.
+  The **zero-edge floor is P(pass) = 2000/5000 = 40%**, so the blitz does not depend on the Tokyo
+  playbook being proven. The whole span from 4 months (1 MNQ) to 2 days (15 MNQ) costs only ~$733.
+  Funded: **1 MNQ / $80** (N_R = 25, ~98% two-year survival vs 66% at 2 MNQ); build ~$2k cushion
+  before the $500 payout (lifetime payout scales with cushion **squared**, size only linearly).
+- **Expectancy is the only lever that improves BOTH clocks** (ruin and time-to-target); size trades
+  one against the other. 40%@2R = 0.20R/trade, 35%@3R = 0.40R/trade. Decision rule, measurable from
+  fills: **hold for 3R iff >75% of the trades that reach 2R also reach 3R** (2R earns 3*P2-1, 3R
+  earns 4*P3-1; break-even at P3 = 0.75*P2).
+- **`tradingview/permission-lamp.pine` gained a Stop budget group** — the **size veto**, settling the
+  fixed-dollar-risk sizing left in Flagged ambiguities 2026-08-11. Inputs: risk budget ($, default
+  80), contracts, swing lookback, show-band. Derives max stop distance from `syminfo.pointvalue`
+  (instrument-agnostic: 40pt MNQ / $8.00 MGC at $80), draws a dashed **budget band** around price,
+  and adds a table row comparing it to the nearest swing on the **lamp's own permitted side**
+  (long -> swing low, short -> swing high). The anchor read is an explicit pivot APPROXIMATION of the
+  sweep extreme — the band is the truth, the row is a hint; the liquidity map draws the real
+  extremes. Table grew 13 -> 14 rows. **User-confirmed compiling + rendering in TV 2026-08-22.**
+  The band is a **ceiling only** — it never says where a stop belongs (that stays structural, beyond
+  the sweep extreme). Do not widen a stop to fill the budget.
+- **Study pages**: **`docs/study/position-sizing.html`** (N_R, the ruin/max-drawdown tables, the two
+  clocks, the eval/funded split, the Lucid rules and where they bite, six short rules) +
+  **`docs/study/footprint.html`** (the footprint read as rendered **ladders** — absorption, the
+  trapped-buyer delta flip, thin tops, stacked-imbalance initiative — since a footprint is a shape
+  and `cvd-and-rsi.md` only had the words; that file keeps the CVD history + the RSI half).
+- **Chart de-clutter** (user runs ORB + RSI + peachy + lamp + liquidity-map + volume): Peachy's
+  **regime table is a duplicate** of the lamp's Ambition row (same 1h/4h 50-vs-200 verdict) -> off;
+  **RSI off** (the 2026-07-30 call is chop-days-only, not being followed); **volume off once
+  footprint is on**. Keep ORB, liquidity-map, lamp, Peachy's EMA cloud, footprint.
+- **Open / deferred**: an **ATR noise floor** to turn the band into a corridor (too-tight as well as
+  too-wide, and an "untradeable at this size" veto when the floor exceeds the ceiling) — multiplier
+  is the open param, ~1.2x ATR proposed, NOT built. `analysis/sizing.py` (the simulators, plus
+  estimating real w/b and the 75% runner test from `data/sessions/*.ndjson`) deferred by user until
+  there are enough funded fills to measure. **All figures above assume 40%@2R — unmeasured.**
+
 ### Permission lamp (2026-08-14) — grill session; design + docs only, NO pine written yet
 Resolved: the playbook's deterministic rules become a **Permission lamp** (CONTEXT.md entry) —
 a vetoes-only on-chart display of regime state + per-setup legality; never "enter", never

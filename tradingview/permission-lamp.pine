@@ -56,6 +56,17 @@ strikesIn = input.int(0, "Strikes today (HAND-SET — reset every morning)", min
      tooltip = "Click up right after each stop-out on the same directional idea. 2 forces CHOP (fade family only). This value PERSISTS overnight — the lamp challenges a carried-over count at the open, but resetting it is on you.")
 tripwireMin = input.int(15, "Carried-over challenge window (minutes after open)", minval = 1, group = "Two-strike (hand-set)")
 
+// ── Stop budget (the size veto — docs/study/position-sizing.html) ─────────────────
+// Risk per trade is fixed in DOLLARS; the stop distance that buys is therefore fixed too.
+// The band is the budget drawn on the chart: if the stop anchor you would honestly use sits
+// outside it, the setup is illegal at this size. You do NOT tighten the stop to fit.
+showBudget = input.bool(true, "Show stop-budget band", group = "Stop budget")
+riskUsd    = input.float(80.0, "Risk budget per trade ($)", minval = 1.0, step = 5.0, group = "Stop budget",
+     tooltip = "Dollars you are willing to lose on ONE trade. Funded: drawdown / 25 (a $2,000 drawdown = $80). Eval blitz: raise deliberately, and put it back the day the account funds.")
+qtyIn      = input.int(1, "Contracts", minval = 1, group = "Stop budget")
+anchorPiv  = input.int(5, "Stop-anchor swing lookback (bars)", minval = 2, group = "Stop budget",
+     tooltip = "Bars either side of a pivot. The anchor read is an APPROXIMATION of the sweep extreme you would actually stop beyond — the band is the truth, this row is a hint.")
+
 // ── Helpers ─────────────────────────────────────────────────────────────────────────
 posFromStr(s) =>
     switch s
@@ -149,12 +160,46 @@ fadeText = sideEff == "long" ? "✓ LONG" : sideEff == "short" ? "✓ SHORT" : s
 contCol  = sideEff == "long" ? cLong : sideEff == "short" ? cShort : cDim
 fadeCol  = sideEff == "long" ? cLong : sideEff == "short" ? cShort : sideEff == "chop" ? cChop : cDim
 
+// ── Stop budget ────────────────────────────────────────────────────────────
+// syminfo.pointvalue = quote-currency value of a 1-point move, per contract (MNQ 2, MGC 10).
+budgetPts = riskUsd / (qtyIn * syminfo.pointvalue)
+
+// Most recent confirmed swings, as a rough stand-in for the sweep extreme.
+phRaw = ta.pivothigh(high, anchorPiv, anchorPiv)
+plRaw = ta.pivotlow(low, anchorPiv, anchorPiv)
+var float lastPH = na
+var float lastPL = na
+if not na(phRaw)
+    lastPH := phRaw
+if not na(plRaw)
+    lastPL := plRaw
+
+// Which extreme you would stop beyond depends on the side the lamp already permits.
+float anchorPx = sideEff == "long" ? lastPL : sideEff == "short" ? lastPH : na
+float anchorDist = na(anchorPx) ? na : math.abs(close - anchorPx)
+bool  budgetOk = not na(anchorDist) and anchorDist <= budgetPts
+
+// Band — the affordable stop distance either side of price, redrawn on the last bar.
+var box  budgetBox = na
+var label budgetLbl = na
+if barstate.islast
+    box.delete(budgetBox)
+    label.delete(budgetLbl)
+    if showBudget
+        budgetBox := box.new(bar_index - 40, close + budgetPts, bar_index + 12, close - budgetPts,
+             border_color = color.new(cGrey, 45), border_width = 1, border_style = line.style_dashed,
+             bgcolor = color.new(cGrey, 92))
+        budgetLbl := label.new(bar_index + 12, close - budgetPts,
+             str.tostring(budgetPts, format.mintick) + " pt budget",
+             style = label.style_label_upper_left, color = color.new(cPanel, 20),
+             textcolor = cGrey, size = size.tiny)
+
 // ── Table ───────────────────────────────────────────────────────────────────────────
-var table t = table.new(posFromStr(posIn), 2, 13, bgcolor = cPanel, border_width = 0, frame_width = 1, frame_color = color.new(#334155, 40))
+var table t = table.new(posFromStr(posIn), 2, 14, bgcolor = cPanel, border_width = 0, frame_width = 1, frame_color = color.new(#334155, 40))
 if barstate.isfirst
     table.merge_cells(t, 0, 0, 1, 0)
     table.merge_cells(t, 0, 4, 1, 4)
-    table.merge_cells(t, 0, 12, 1, 12)
+    table.merge_cells(t, 0, 13, 1, 13)
 
 kv(int row, string k, string v, color vCol, color bg) =>
     table.cell(t, 0, row, k, text_color = cGrey, text_halign = text.align_left, text_size = txtSize, bgcolor = bg)
@@ -209,8 +254,13 @@ if barstate.islast
     kv(8, "Failed auction", fadeText, fadeCol, cPanel)
     kv(9, "Sweep reversal", fadeText, fadeCol, cPanel)
     kv(10, "S/D rejection", fadeText, fadeCol, cPanel)
-    kv(11, "", "", cDim, cPanel)
+    // stop budget — the size veto (informational when no side is permitted)
+    string budgetVal = str.tostring(budgetPts, format.mintick) + " pt · " + str.tostring(qtyIn) + "x @ $" + str.tostring(riskUsd, "#.##")
+    string budgetSub = na(anchorDist) ? "no anchor on the permitted side" :
+         str.tostring(anchorDist, format.mintick) + " pt to swing " + (sideEff == "long" ? "low" : "high") + (budgetOk ? " · fits" : " — TOO WIDE, skip")
+    kv(11, "Stop budget", budgetVal + "\n" + budgetSub, na(anchorDist) ? cGrey : budgetOk ? cLong : cShort, cPanel)
+    kv(12, "", "", cDim, cPanel)
 
     // degenerate-TF warning — the slope lookback is bar-based
     bool tfWarn = timeframe.in_seconds() > 300
-    table.cell(t, 0, 12, tfWarn ? "⚠ slope is bar-based — use a 1–5m chart" : "", text_color = cHand, text_halign = text.align_center, text_size = txtSize, bgcolor = tfWarn ? cWarnBg : cPanel)
+    table.cell(t, 0, 13, tfWarn ? "⚠ slope is bar-based — use a 1–5m chart" : "", text_color = cHand, text_halign = text.align_center, text_size = txtSize, bgcolor = tfWarn ? cWarnBg : cPanel)

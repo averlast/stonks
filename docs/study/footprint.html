@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reading the footprint</title>
+<title>How to read the Permission lamp</title>
+<style>
+  :root{
+    --bg:#fbfaf7; --panel:#ffffff; --panel2:#f1efea; --edge:#d9d4cb;
+    --ink:#1a1e23; --muted:#5b6572; --rule:#e4e0d8;
+    --ok:#0c6b41; --ok-bg:rgba(12,107,65,.10); --ok-edge:rgba(12,107,65,.35);
+    --no:#a51f18; --no-bg:rgba(165,31,24,.09); --no-edge:rgba(165,31,24,.32);
+    --hold:#4c5561; --hold-bg:rgba(76,85,97,.10); --hold-edge:rgba(76,85,97,.30);
+    --hand:#8a5300; --hand-bg:rgba(138,83,0,.10); --hand-edge:rgba(138,83,0,.32);
+    --link:#1a5aa6;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#111417; --panel:#181c21; --panel2:#1f242b; --edge:#333b45;
+      --ink:#e7ecf1; --muted:#9aa6b3; --rule:#2a313a;
+      --ok:#5fd39a; --ok-bg:rgba(95,211,154,.10); --ok-edge:rgba(95,211,154,.32);
+      --no:#f5877e; --no-bg:rgba(245,135,126,.10); --no-edge:rgba(245,135,126,.30);
+      --hold:#a3aeba; --hold-bg:rgba(163,174,186,.09); --hold-edge:rgba(163,174,186,.26);
+      --hand:#e0b25c; --hand-bg:rgba(224,178,92,.10); --hand-edge:rgba(224,178,92,.30);
+      --link:#7fb3f0;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  .wrap{max-width:46rem;margin:0 auto;padding:0 1.25rem}
+  a{color:var(--link)}
+  header{padding:2.6rem 0 1.6rem;border-bottom:1px solid var(--rule)}
+  .kicker{font-size:.75rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0 0 .5rem}
+  h1{font-size:1.75rem;line-height:1.25;margin:0 0 .5rem;letter-spacing:-.01em}
+  .standfirst{color:var(--muted);margin:0;font-size:1.02rem}
+  section{padding:1.9rem 0;border-bottom:1px solid var(--rule)}
+  h2{font-size:1.18rem;margin:0 0 .7rem;line-height:1.3}
+  h2 .n{color:var(--muted);font-variant-numeric:tabular-nums;font-weight:600;margin-right:.45rem}
+  h3{font-size:1rem;margin:1.4rem 0 .4rem}
+  p{margin:.7rem 0}
+  ul,ol{margin:.7rem 0;padding-left:1.25rem}
+  li{margin:.3rem 0}
+  .muted{color:var(--muted)}
+  strong{font-weight:650}
+  code{background:var(--panel2);border:1px solid var(--edge);border-radius:4px;padding:.05em .35em;
+    font:.87em/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .note{background:var(--panel);border:1px solid var(--edge);border-left:3px solid var(--muted);
+    border-radius:6px;padding:.8rem 1rem;margin:1rem 0}
+  .note.bad{border-left-color:var(--no);background:var(--no-bg)}
+  .note.good{border-left-color:var(--ok);background:var(--ok-bg)}
+  .note.hand{border-left-color:var(--hand);background:var(--hand-bg)}
+  .note p:first-child{margin-top:0}
+  .note p:last-child{margin-bottom:0}
+  .tablewrap{overflow-x:auto;margin:1rem 0}
+  table{width:100%;border-collapse:collapse;font-size:.88rem}
+  caption{text-align:left;color:var(--muted);font-size:.85rem;padding-bottom:.45rem}
+  th,td{border:1px solid var(--edge);padding:.45rem .55rem;text-align:left;vertical-align:top}
+  thead th{background:var(--panel2);font-weight:650}
+  tbody th{background:var(--panel);font-weight:600;white-space:nowrap}
+  td.ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-edge);font-weight:600}
+  td.no{background:var(--no-bg);color:var(--no);border-color:var(--no-edge);font-weight:600}
+  td.hold{background:var(--hold-bg);color:var(--hold);border-color:var(--hold-edge);font-weight:600}
+  td.hand{background:var(--hand-bg);color:var(--hand);border-color:var(--hand-edge);font-weight:600}
+  td small,th small{display:block;font-weight:400;color:var(--muted);font-size:.8em;line-height:1.35}
+  .legend{display:flex;flex-wrap:wrap;gap:.5rem;margin:.6rem 0 0;padding:0;list-style:none;font-size:.8rem}
+  .legend li{border:1px solid var(--edge);border-radius:999px;padding:.1rem .6rem;color:var(--muted)}
+  .legend .s-ok{color:var(--ok);border-color:var(--ok-edge)}
+  .legend .s-no{color:var(--no);border-color:var(--no-edge)}
+  .legend .s-hold{color:var(--hold);border-color:var(--hold-edge)}
+  .legend .s-hand{color:var(--hand);border-color:var(--hand-edge)}
+  .states{display:grid;gap:.9rem;grid-template-columns:1fr;margin:1.1rem 0}
+  @media (min-width:34rem){.states{grid-template-columns:1fr 1fr}}
+  figure{margin:0;background:var(--panel);border:1px solid var(--edge);border-radius:8px;padding:.75rem}
+  figure svg{display:block;width:100%;height:auto}
+  figcaption{font-size:.85rem;color:var(--muted);margin-top:.4rem}
+  figcaption b{color:var(--ink)}
+  .vwapline{stroke:var(--muted);stroke-width:2;stroke-dasharray:5 4;fill:none}
+  .pricepath{stroke:var(--ink);stroke-width:2;fill:none;stroke-linejoin:round;stroke-linecap:round}
+  .axis{stroke:var(--edge);stroke-width:1}
+  .svgtext{fill:var(--muted);font:11px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .kv{margin:.8rem 0;border-top:1px solid var(--rule)}
+  .kv div{display:grid;grid-template-columns:1fr;gap:0 1rem;padding:.5rem 0;border-bottom:1px solid var(--rule)}
+  @media (min-width:34rem){.kv div{grid-template-columns:12rem 1fr}}
+  .kv dt{color:var(--muted);font-size:.9rem;margin:0}
+  .kv dd{margin:0}
+  footer{padding:1.6rem 0 3rem;color:var(--muted);font-size:.88rem}
+  @media print{
+    :root{--bg:#fff;--panel:#fff;--panel2:#f3f3f3;--ink:#000;--muted:#444;--edge:#bbb;--rule:#ccc}
+    body{font-size:11pt}
+    table,figure,.note{break-inside:avoid}
+  }
+  /* footprint ladders */
+  .fpwrap{display:grid;gap:1rem;grid-template-columns:1fr;margin:1.1rem 0}
+  @media (min-width:38rem){.fpwrap.two{grid-template-columns:1fr 1fr}}
+  .fp{background:var(--panel);border:1px solid var(--edge);border-radius:8px;padding:.75rem .8rem}
+  .fp h4{margin:0 0 .5rem;font-size:.82rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:650}
+  table.ladder{width:100%;border-collapse:collapse;font:.84rem/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+  table.ladder td{border:0;border-bottom:1px solid var(--rule);padding:.18rem .3rem;text-align:right}
+  table.ladder tr:last-child td{border-bottom:0}
+  table.ladder td.px{text-align:left;color:var(--muted);width:5.5rem}
+  table.ladder td.s{color:var(--no);width:36%}
+  table.ladder td.b{color:var(--ok);width:36%}
+  table.ladder td.x{color:var(--muted);width:1rem;padding:0}
+  table.ladder tr.imb td.b{background:var(--ok-bg);font-weight:700}
+  table.ladder tr.imb td.s{background:var(--no-bg);font-weight:700}
+  table.ladder tr.hot td.px{color:var(--ink);font-weight:700}
+  table.ladder tr.thin td{opacity:.55}
+  .fpfoot{margin:.55rem 0 0;font-size:.82rem;color:var(--muted);line-height:1.5}
+  .fpfoot b{color:var(--ink)}
+  .delta{margin:.4rem 0 0;font:.8rem/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    color:var(--muted);border-top:1px solid var(--rule);padding-top:.35rem}
+  .delta .pos{color:var(--ok);font-weight:700}
+  .delta .neg{color:var(--no);font-weight:700}
+  .verdict{display:inline-block;font-size:.75rem;letter-spacing:.05em;text-transform:uppercase;
+    border-radius:999px;padding:.1rem .6rem;font-weight:650;margin-top:.5rem}
+  .verdict.fade{color:var(--no);background:var(--no-bg);border:1px solid var(--no-edge)}
+  .verdict.go{color:var(--ok);background:var(--ok-bg);border:1px solid var(--ok-edge)}
+  .verdict.wait{color:var(--hold);background:var(--hold-bg);border:1px solid var(--hold-edge)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <p class="kicker">Study library · personal</p>
+    <h1>Reading the footprint</h1>
+    <p class="standfirst">A candle tells you where price ended. A footprint tells you what it cost
+    to get there. That difference is the whole read — and it only matters at your levels.</p>
+  </div>
+</header>
+
+<main class="wrap">
+
+<section id="what">
+  <h2><span class="n">01</span> What you are looking at</h2>
+
+  <p>Split a candle open. Inside is a ladder of price rows. Each row shows two numbers — the volume
+  that traded at that price from <span style="color:var(--no)"><strong>aggressive sellers</strong></span>
+  hitting the bid, and from <span style="color:var(--ok)"><strong>aggressive buyers</strong></span>
+  lifting the offer. Under the bar sits its <strong>delta</strong>: buys minus sells for the whole
+  candle.</p>
+
+  <div class="fpwrap">
+    <div class="fp">
+      <h4>One 5-minute candle, opened up</h4>
+      <table class="ladder">
+        <tr><td class="px">23,468</td><td class="s">14</td><td class="x">×</td><td class="b">96</td></tr>
+        <tr class="hot"><td class="px">23,466</td><td class="s">180</td><td class="x">×</td><td class="b">742</td></tr>
+        <tr><td class="px">23,464</td><td class="s">410</td><td class="x">×</td><td class="b">515</td></tr>
+        <tr><td class="px">23,462</td><td class="s">356</td><td class="x">×</td><td class="b">330</td></tr>
+        <tr><td class="px">23,460</td><td class="s">205</td><td class="x">×</td><td class="b">148</td></tr>
+      </table>
+      <p class="delta">bar delta <span class="pos">+808</span> · total 2,996</p>
+      <p class="fpfoot">Read top-down like a price ladder. <b>Left = sellers, right = buyers.</b>
+      The bolded row is where most of the volume traded. Nothing here means anything yet — this is
+      just the anatomy.</p>
+    </div>
+  </div>
+
+  <div class="note">
+    <p><strong>Absolute numbers never travel.</strong> 742 contracts is meaningless on its own — it
+    is big on a quiet Tokyo open and nothing at the NY cash open. Only the <em>shape within the
+    moment</em> counts: volume versus progress, this bar against the last few.</p>
+  </div>
+</section>
+
+<section id="rule">
+  <h2><span class="n">02</span> The rule that comes before every read</h2>
+
+  <div class="note bad">
+    <p><strong>The footprint only means something at a level.</strong> ORB high/low, IB edges,
+    pre-Tokyo range, overnight and London extremes, session VWAP, prior-session value areas. In the
+    middle of nowhere it is noise with good typography — ignore it completely.</p>
+  </div>
+
+  <p>Same discipline the whole playbook runs on. The level tells you <em>where</em> to look; the
+  footprint tells you what happened when price got there.</p>
+</section>
+
+<section id="absorption">
+  <h2><span class="n">03</span> Absorption — the fade tell</h2>
+
+  <p>This is the failed auction, visible frame by frame instead of waiting for a 30-minute close.
+  Price tests a level from below. Watch the top rows.</p>
+
+  <div class="fpwrap two">
+    <div class="fp">
+      <h4>Bar 1 — the poke</h4>
+      <table class="ladder">
+        <tr class="imb hot"><td class="px">23,492</td><td class="s">38</td><td class="x">×</td><td class="b">1,910</td></tr>
+        <tr class="imb"><td class="px">23,490</td><td class="s">64</td><td class="x">×</td><td class="b">1,240</td></tr>
+        <tr><td class="px">23,488</td><td class="s">300</td><td class="x">×</td><td class="b">520</td></tr>
+        <tr><td class="px">23,486</td><td class="s">288</td><td class="x">×</td><td class="b">310</td></tr>
+      </table>
+      <p class="delta">bar delta <span class="pos">+3,290</span> · closed at 23,490</p>
+      <p class="fpfoot"><b>1,910 contracts lifted the offer at the high — and price went nowhere.</b>
+      The row above barely prints. Somebody passive is selling them everything they ask for.
+      Big volume, no progress.</p>
+      <span class="verdict fade">absorption</span>
+    </div>
+
+    <div class="fp">
+      <h4>Bar 2 — the trap springs</h4>
+      <table class="ladder">
+        <tr class="thin"><td class="px">23,492</td><td class="s">22</td><td class="x">×</td><td class="b">30</td></tr>
+        <tr class="imb hot"><td class="px">23,490</td><td class="s">1,480</td><td class="x">×</td><td class="b">96</td></tr>
+        <tr class="imb"><td class="px">23,488</td><td class="s">1,105</td><td class="x">×</td><td class="b">140</td></tr>
+        <tr><td class="px">23,486</td><td class="s">640</td><td class="x">×</td><td class="b">305</td></tr>
+      </table>
+      <p class="delta">bar delta <span class="neg">−2,656</span> · still near the high</p>
+      <p class="fpfoot"><b>The same prices now print heavy sellers and the delta flips negative
+      while price is still up here.</b> Everyone who bought that breakout is underwater and starting
+      to puke. That is your fade fuel.</p>
+      <span class="verdict fade">trapped buyers</span>
+    </div>
+  </div>
+
+  <div class="note good">
+    <p><strong>The checklist:</strong> heavy one-sided volume at the extreme + no price progress =
+    the move is hollow. Then the confirmation: next bar, same prices, delta flips.</p>
+  </div>
+
+  <p>Mirror it exactly for a low — heavy sell volume at the bottom rows that fails to push price
+  down, then buyers appearing at the same prices.</p>
+</section>
+
+<section id="thin">
+  <h2><span class="n">04</span> The thin top — the quieter exhaustion</h2>
+
+  <p>Same conclusion, opposite appearance. Instead of huge volume being absorbed, there is barely
+  any volume at all.</p>
+
+  <div class="fpwrap">
+    <div class="fp">
+      <h4>Nobody left to buy</h4>
+      <table class="ladder">
+        <tr class="thin"><td class="px">23,496</td><td class="s">6</td><td class="x">×</td><td class="b">11</td></tr>
+        <tr class="thin"><td class="px">23,494</td><td class="s">9</td><td class="x">×</td><td class="b">24</td></tr>
+        <tr class="hot"><td class="px">23,486</td><td class="s">402</td><td class="x">×</td><td class="b">690</td></tr>
+        <tr><td class="px">23,484</td><td class="s">380</td><td class="x">×</td><td class="b">445</td></tr>
+      </table>
+      <p class="delta">bar delta <span class="pos">+383</span> · high 23,496</p>
+      <p class="fpfoot"><b>Price poked into fresh air and found no one.</b> The high was made on 35
+      contracts. There is no participation up there to defend it, so nothing holds it.</p>
+      <span class="verdict fade">hollow break</span>
+    </div>
+  </div>
+
+  <p class="muted">Absorption means the buyers were <em>met</em>. A thin top means they never
+  turned up. Either way the level held for a reason and the break is not real.</p>
+</section>
+
+<section id="initiative">
+  <h2><span class="n">05</span> Initiative — the continuation tell</h2>
+
+  <p>The opposite read, and the one that stops you fading a real breakout.</p>
+
+  <div class="fpwrap two">
+    <div class="fp">
+      <h4>The break — stacked imbalances</h4>
+      <table class="ladder">
+        <tr class="imb"><td class="px">23,506</td><td class="s">92</td><td class="x">×</td><td class="b">880</td></tr>
+        <tr class="imb"><td class="px">23,504</td><td class="s">110</td><td class="x">×</td><td class="b">1,040</td></tr>
+        <tr class="imb"><td class="px">23,502</td><td class="s">128</td><td class="x">×</td><td class="b">1,190</td></tr>
+        <tr class="imb hot"><td class="px">23,500</td><td class="s">140</td><td class="x">×</td><td class="b">1,320</td></tr>
+      </table>
+      <p class="delta">bar delta <span class="pos">+4,320</span> · closed on the high</p>
+      <p class="fpfoot"><b>Buy imbalances stacked all the way up, and the heaviest row keeps
+      climbing.</b> Every price is being paid through. Nobody is absorbing.</p>
+      <span class="verdict go">initiative</span>
+    </div>
+
+    <div class="fp">
+      <h4>The retest — light, then defended</h4>
+      <table class="ladder">
+        <tr class="thin"><td class="px">23,506</td><td class="s">70</td><td class="x">×</td><td class="b">61</td></tr>
+        <tr class="thin"><td class="px">23,504</td><td class="s">88</td><td class="x">×</td><td class="b">74</td></tr>
+        <tr class="thin"><td class="px">23,502</td><td class="s">95</td><td class="x">×</td><td class="b">90</td></tr>
+        <tr class="imb hot"><td class="px">23,500</td><td class="s">120</td><td class="x">×</td><td class="b">960</td></tr>
+      </table>
+      <p class="delta">bar delta <span class="pos">+742</span> · held the level</p>
+      <p class="fpfoot"><b>The pullback prints light volume — no one is selling into it — then buy
+      imbalances reappear right at the retested level.</b> Buyers are not defending, they are still
+      paying up. This is your entry context.</p>
+      <span class="verdict go">retest holds</span>
+    </div>
+  </div>
+
+  <div class="note good">
+    <p><strong>The checklist:</strong> stacked imbalances through the level + a light-volume retest
+    that holds = the move is real. Fade this and you get run over.</p>
+  </div>
+</section>
+
+<section id="not">
+  <h2><span class="n">06</span> What it does not do</h2>
+
+  <ul>
+    <li><strong>It is not an entry trigger.</strong> It is permission, exactly like the lamp and the
+    cloud. You still enter on your own confirmation — the close, the volume, the engulfing.</li>
+    <li><strong>Absorption can lose.</strong> Sometimes the absorber gets run over and price rips
+    through anyway. That is precisely why it is permission and not a trigger.</li>
+    <li><strong>It cannot see waiting walls</strong> — only walls <em>being hit</em>. Passive size
+    sitting there before price arrives is Bookmap's heatmap, deferred by decision. One consolation:
+    <strong>icebergs show up here</strong> as absorption, so hidden defenders invisible to the order
+    book do become visible.</li>
+    <li><strong>Numbers do not compare across days</strong> — or across sessions. Tokyo volume and
+    NY-open volume are different worlds.</li>
+  </ul>
+</section>
+
+<section id="days">
+  <h2><span class="n">07</span> Which tool, which day</h2>
+
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Day type</th><th>Exhaustion read</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><th>Trend day</th><td class="ok">Footprint only</td><td>RSI pins at 70 and stays there. Absorption in the rows is the only honest "this is ending" read.</td></tr>
+      <tr><th>Chop day</th><td>Footprint at levels + RSI at range edges</td><td>They should agree. RSI adds the familiar 70/30 frame once chop is confirmed.</td></tr>
+      <tr><th>Unsure</th><td class="ok">Footprint only</td><td>RSI needs the regime call first. The footprint does not.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p class="muted">The RSI chop-day discipline — confirm chop first, edges only, wait for the curl,
+  a pin means stop fading — is in <code>docs/study/cvd-and-rsi.md</code>.</p>
+</section>
+
+<section id="practical">
+  <h2><span class="n">08</span> Practical</h2>
+
+  <dl class="kv">
+    <div><dt>Requires</dt><dd>TradingView <strong>Premium</strong>. Native chart type — no Pine
+      needed.</dd></div>
+    <div><dt>Timeframe</dt><dd>Read it on the <strong>5m</strong>.</dd></div>
+    <div><dt>Where to look</dt><dd>Only at levels. Everywhere else, ignore it.</dd></div>
+    <div><dt>First few weeks</dt><dd>Learn the raw read before layering on imbalance alerts or
+      custom rendering. <code>request.footprint()</code> exists on Premium if we ever want
+      our own.</dd></div>
+    <div><dt>Replaces</dt><dd>The retired CVD pane, and the volume pane — per-bar volume is already
+      in the ladder.</dd></div>
+  </dl>
+</section>
+
+</main>
+
+<footer class="wrap">
+  <p>Ladders above are illustrative, not captured trades — the shapes are what to memorise, never
+  the numbers. Adopted 2026-08-06 when the CVD pane was retired; see
+  <code>docs/study/cvd-and-rsi.md</code> for that history and the RSI half.</p>
+  <p class="muted">Related: <code>CONTEXT.md</code> Footprint · Liquidity sweep · Failed auction ·
+  <code>docs/study/liquidity-map.html</code> · <code>docs/study/permission-lamp.html</code>.</p>
+</footer>
+
+</body>
+</html>
