@@ -137,25 +137,70 @@ londonLowColor  = input.color(#10b981, "London Low color", group = "Session H/L"
 sessionLabelOffset = input.int(-8, "Session label offset (bars back)", group = "Session H/L",
      tooltip = "How far back along the line the Overnight tag sits; Asia and London stagger further back automatically.")
 
-// ── Helpers ──────────────────────────────────────────────────────────────────────────
-styleFromStr(s) =>
-    switch s
-        "Solid"  => line.style_solid
-        "Dashed" => line.style_dashed
-        "Dotted" => line.style_dotted
-        => line.style_solid
+// ═══════════════════════════ level math — COPIED from lib/levels.pine ═══════════════════════════
+// SELF-CONTAINED: the functions below are COPIED from tradingview/lib/levels.pine (the master
+// copy). Edit them THERE, then re-paste into this file, orb-gold.pine and absorption-tag.pine.
+// One place to think, copied into each script — no TradingView library publishing needed.
+//
+// Deliberately NOT copied, because the master's version would change what this file draws:
+//   • resolveStyle — the master ignores this file's `devDotted` input, so the local one-liner
+//     below stays in-file (a values-only library cannot see an input).
+//   • dailyVwap/weeklyVwap — the master seeds pv/vv with `na`, so `pv += …` stays na for the
+//     chart's first Globex day; this file's 0.0-seeded accumulators draw from the first bar.
+//     Left in-file (weekly has no master equivalent at all).
+//   • nearestRound — round numbers tested at only ~1.1x chance (analysis/round_numbers.py).
+styleFromStr(simple string s) =>
+    s == "Dashed" ? line.style_dashed : s == "Dotted" ? line.style_dotted : line.style_solid
 
+sizeFromStr(simple string s) =>
+    s == "Tiny" ? size.tiny : s == "Normal" ? size.normal : s == "Large" ? size.large :
+      s == "Huge" ? size.huge : size.small
+
+priorPeriods(simple string extTicker) =>
+    [pdH, pdL] = request.security(extTicker, "1D", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+    [pwH, pwL] = request.security(extTicker, "1W", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+    [pmH, pmL] = request.security(extTicker, "1M", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+    [pdH, pdL, pwH, pwL, pmH, pmL]
+
+sessionHL(simple string windowStr, simple string tz) =>
+    inWin  = not na(time(timeframe.period, windowStr + ":1234567", tz))
+    var float hi = na
+    var float lo = na
+    var float frozenHi = na
+    var float frozenLo = na
+    newWin   = inWin and not inWin[1]
+    endedWin = not inWin and inWin[1]
+    if newWin
+        hi := high
+        lo := low
+    else if inWin
+        hi := math.max(hi, high)
+        lo := math.min(lo, low)
+    if endedWin
+        frozenHi := hi
+        frozenLo := lo
+    [frozenHi, frozenLo, inWin, hi, lo]
+
+sessionVwap(simple string anchorSession, simple string tz) =>
+    inSes  = not na(time(timeframe.period, anchorSession + ":23456", tz))   // Mon–Fri
+    newDay = inSes and not inSes[1]
+    var float pv = na
+    var float vv = na
+    if newDay
+        pv := hlc3 * volume
+        vv := volume
+    else if inSes
+        pv += hlc3 * volume
+        vv += volume
+    inSes and vv > 0 ? pv / vv : na
+
+_globexKey(simple string tz) =>
+    shifted = time + 6 * 60 * 60 * 1000
+    year(shifted, tz) * 10000 + month(shifted, tz) * 100 + dayofmonth(shifted, tz)
+
+// ── Helpers (this file's own — they read inputs, so they can't live in the library) ──
 resolveStyle(baseStr, developing) =>
     developing and devDotted ? line.style_dotted : styleFromStr(baseStr)
-
-sizeFromStr(s) =>
-    switch s
-        "Tiny"   => size.tiny
-        "Small"  => size.small
-        "Normal" => size.normal
-        "Large"  => size.large
-        "Huge"   => size.huge
-        => size.small
 
 labelSize = sizeFromStr(labelSizeIn)
 
@@ -408,8 +453,17 @@ if showIbRange or showIbRetrace or showIbExt
 // ═══════════════════════════════════════════════════════════════════════════════════
 // VWAP — three independently toggleable anchors, no bands
 // ═══════════════════════════════════════════════════════════════════════════════════
+// NY session VWAP — the accumulation is the shared sessionVwap(). It returns na outside the
+// window, so HOLD the last in-session value: the accumulator this replaced only zeroed at the
+// next 09:30, so the plot ran flat from the 16:00 close to the next open. Same numbers, and the
+// reset on the new session's first bar keeps a zero-volume open reading na exactly as before.
 inRth = not na(time(timeframe.period, nyVwapSession + ":23456", etTz))
-newRthDay = inRth and not inRth[1]
+nyVwapLive = sessionVwap(nyVwapSession, etTz)
+var float nyVwap = na
+if inRth and not inRth[1]
+    nyVwap := na
+if not na(nyVwapLive)
+    nyVwap := nyVwapLive
 
 // Globex day rolls at 18:00 ET. Detecting that via a "true except one minute" window
 // breaks here: CME has a ~17:00-18:00 ET maintenance halt with zero prints, so the
@@ -417,21 +471,12 @@ newRthDay = inRth and not inRth[1]
 // reset silently never fires. Instead, compute which Globex day each bar belongs to
 // directly (shift the timestamp 6h so 18:00+ rolls onto the next calendar date) and
 // reset whenever that key changes between consecutive bars — robust to any gap size,
-// maintenance halt or weekend alike.
+// maintenance halt or weekend alike. The key is the library's _globexKey; the shifted
+// timestamp stays local because the weekly reset needs its day-of-week.
 globexShiftedTime = time + 6 * 60 * 60 * 1000
-globexDayKey = year(globexShiftedTime, etTz) * 10000 + month(globexShiftedTime, etTz) * 100 + dayofmonth(globexShiftedTime, etTz)
+globexDayKey = _globexKey(etTz)
 newGlobexDay = globexDayKey != globexDayKey[1]
 newWeek = newGlobexDay and dayofweek(globexShiftedTime, etTz) == dayofweek.monday
-
-var float nyPV = 0.0
-var float nyV = 0.0
-if newRthDay
-    nyPV := 0.0
-    nyV := 0.0
-if inRth
-    nyPV += hlc3 * volume
-    nyV += volume
-nyVwap = nyV > 0 ? nyPV / nyV : na
 
 var float dayPV = 0.0
 var float dayV = 0.0
@@ -462,11 +507,12 @@ plot(showVwapWeekly ? weeklyVwap : na, "Weekly VWAP", color = vwapWeeklyColor, l
 // ═══════════════════════════════════════════════════════════════════════════════════
 extTicker = ticker.new(syminfo.prefix, syminfo.ticker, session.extended)
 
-[pdHigh, pdLow] = request.security(extTicker, "1D", [high[1], low[1]], lookahead = barmerge.lookahead_off)
-[pwHigh, pwLow] = request.security(extTicker, "1W", [high[1], low[1]], lookahead = barmerge.lookahead_off)
-[pmHigh, pmLow] = request.security(extTicker, "1M", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+[pdHigh, pdLow, pwHigh, pwLow, pmHigh, pmLow] = priorPeriods(extTicker)
 
-drawPeriodLevel(active, val, lbl, col, styleStr, xOffset) =>
+// Takes the resolved line style, not the style string: the shared styleFromStr() declares a
+// `simple string` parameter, so it is called at the call sites (on the inputs themselves) rather
+// than on a value passed through this function's parameter list. Same style, same lines.
+drawPeriodLevel(active, val, lbl, col, lineStyle, xOffset) =>
     var float lastVal = na
     var line ln = na
     var label lb = na
@@ -479,23 +525,27 @@ drawPeriodLevel(active, val, lbl, col, styleStr, xOffset) =>
             lastVal := val
             line.delete(ln)
             label.delete(lb)
-            ln := line.new(bar_index - 1, val, bar_index, val, color = col, width = 1, style = styleFromStr(styleStr), extend = extend.both)
+            ln := line.new(bar_index - 1, val, bar_index, val, color = col, width = 1, style = lineStyle, extend = extend.both)
             if showLabels
                 lb := label.new(bar_index + xOffset, val, lbl + " " + str.tostring(val, format.mintick), style = label.style_label_left,
                      textcolor = col, color = color.new(color.black, 100), size = labelSize)
         line.set_y1(ln, val)
         line.set_y2(ln, val)
-        line.set_style(ln, styleFromStr(styleStr))
+        line.set_style(ln, lineStyle)
         if showLabels
             label.set_xy(lb, bar_index + xOffset, val)
             label.set_text(lb, lbl + " " + str.tostring(val, format.mintick))
 
-drawPeriodLevel(showPdhl, pdHigh, "PDH", pdhColor, highStyle, periodLabelOffset)
-drawPeriodLevel(showPdhl, pdLow, "PDL", pdlColor, lowStyle, periodLabelOffset)
-drawPeriodLevel(showPwhl, pwHigh, "PWH", pwhColor, highStyle, periodLabelOffset - 1)
-drawPeriodLevel(showPwhl, pwLow, "PWL", pwlColor, lowStyle, periodLabelOffset - 1)
-drawPeriodLevel(showPmhl, pmHigh, "PMH", pmhColor, highStyle, periodLabelOffset - 2)
-drawPeriodLevel(showPmhl, pmLow, "PML", pmlColor, lowStyle, periodLabelOffset - 2)
+highLineStyle = styleFromStr(highStyle)
+lowLineStyle  = styleFromStr(lowStyle)
+midLineStyle  = styleFromStr(midStyle)
+
+drawPeriodLevel(showPdhl, pdHigh, "PDH", pdhColor, highLineStyle, periodLabelOffset)
+drawPeriodLevel(showPdhl, pdLow, "PDL", pdlColor, lowLineStyle, periodLabelOffset)
+drawPeriodLevel(showPwhl, pwHigh, "PWH", pwhColor, highLineStyle, periodLabelOffset - 1)
+drawPeriodLevel(showPwhl, pwLow, "PWL", pwlColor, lowLineStyle, periodLabelOffset - 1)
+drawPeriodLevel(showPmhl, pmHigh, "PMH", pmhColor, highLineStyle, periodLabelOffset - 2)
+drawPeriodLevel(showPmhl, pmLow, "PML", pmlColor, lowLineStyle, periodLabelOffset - 2)
 
 // ═══════════════════════════════════════════════════════════════════════════════════
 // Value Area — prior-session VAH/VAL/POC, auto-computed (ADR-0012). Volume histogram
@@ -577,9 +627,9 @@ if showVa and inVaWin and not na(vaLtfVol) and array.size(vaLtfVol) > 0
             for k = loK to hiK
                 vaBins.put(k, (vaBins.contains(k) ? vaBins.get(k) : 0.0) + share)
 
-drawPeriodLevel(showVa and vaShowVah, vahVal, "VAH", vahColor, highStyle, vaLabelOffset)
-drawPeriodLevel(showVa and vaShowVal, valVal, "VAL", valColor, lowStyle, vaLabelOffset)
-drawPeriodLevel(showVa and vaShowPoc, pocVal, "POC", pocColor, midStyle, vaLabelOffset - 1)
+drawPeriodLevel(showVa and vaShowVah, vahVal, "VAH", vahColor, highLineStyle, vaLabelOffset)
+drawPeriodLevel(showVa and vaShowVal, valVal, "VAL", valColor, lowLineStyle, vaLabelOffset)
+drawPeriodLevel(showVa and vaShowPoc, pocVal, "POC", pocColor, midLineStyle, vaLabelOffset - 1)
 
 // Data Window readout for the VA pipeline. Nothing renders on the chart (display.data_window
 // only) — these exist so the frozen values are readable as numbers, and so a missing line can
@@ -597,26 +647,17 @@ plot(inVaWin ? 1 : 0, "VA in-window", display = display.data_window)
 // ═══════════════════════════════════════════════════════════════════════════════════
 // Session H/L — Overnight / Asia / London (windows shared with the sim)
 // ═══════════════════════════════════════════════════════════════════════════════════
-drawSessionHL(active, windowStr, lbl, hiColor, loColor, xOffset) =>
-    var float hi = na
-    var float lo = na
+// The H/L accumulation is the shared sessionHL() (same window + ":1234567" day filter, same ET
+// timezone, same reset/hold conditions as the block this replaced); the live `hi`/`lo` — not the
+// frozen pair — feed the drawing, so the lines still track the developing session exactly as
+// before, and `endedWin` comes from the same in-window flag.
+drawSessionHL(active, endedWin, hi, lo, lbl, hiColor, loColor, xOffset) =>
     var line hiLine = na
     var line loLine = na
     var label hiLabel = na
     var label loLabel = na
 
     if active
-        inWin = not na(time(timeframe.period, windowStr + ":1234567", etTz))
-        newWin = inWin and not inWin[1]
-        endedWin = inWin[1] and not inWin
-
-        if newWin
-            hi := high
-            lo := low
-        else if inWin
-            hi := math.max(hi, high)
-            lo := math.min(lo, low)
-
         if endedWin
             line.delete(hiLine)
             line.delete(loLine)
@@ -641,6 +682,13 @@ drawSessionHL(active, windowStr, lbl, hiColor, loColor, xOffset) =>
                 label.set_xy(loLabel, bar_index + xOffset, lo)
                 label.set_text(loLabel, lbl + " L " + str.tostring(lo, format.mintick))
 
-drawSessionHL(showOn and isIntraday, onWindow, "ON", onHighColor, onLowColor, sessionLabelOffset)
-drawSessionHL(showAsia and isIntraday, asiaWindow, "Asia", asiaHighColor, asiaLowColor, sessionLabelOffset - 1)
-drawSessionHL(showLondon and isIntraday, londonWindow, "London", londonHighColor, londonLowColor, sessionLabelOffset - 2)
+[_onFrozenHi, _onFrozenLo, onIn, onHi, onLo] = sessionHL(onWindow, etTz)
+[_asFrozenHi, _asFrozenLo, asIn, asHi, asLo] = sessionHL(asiaWindow, etTz)
+[_loFrozenHi, _loFrozenLo, loIn, loHi, loLo] = sessionHL(londonWindow, etTz)
+onEnded = onIn[1] and not onIn
+asEnded = asIn[1] and not asIn
+loEnded = loIn[1] and not loIn
+
+drawSessionHL(showOn and isIntraday, onEnded, onHi, onLo, "ON", onHighColor, onLowColor, sessionLabelOffset)
+drawSessionHL(showAsia and isIntraday, asEnded, asHi, asLo, "Asia", asiaHighColor, asiaLowColor, sessionLabelOffset - 1)
+drawSessionHL(showLondon and isIntraday, loEnded, loHi, loLo, "London", londonHighColor, londonLowColor, sessionLabelOffset - 2)

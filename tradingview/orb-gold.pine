@@ -136,25 +136,72 @@ londonLowColor  = input.color(#10b981, "London Low color", group = "Session H/L"
 sessionLabelOffset = input.int(-8, "Session label offset (bars back)", group = "Session H/L",
      tooltip = "How far back along the line the Overnight tag sits; Asia and London stagger further back automatically.")
 
-// ── Helpers ──────────────────────────────────────────────────────────────────────────
-styleFromStr(s) =>
-    switch s
-        "Solid"  => line.style_solid
-        "Dashed" => line.style_dashed
-        "Dotted" => line.style_dotted
-        => line.style_solid
+// ═══════════════════════════════════════════════════════════════════════════════════
+// Level math — COPIED from tradingview/lib/levels.pine (the master copy). Edit it THERE,
+// then re-paste into this file, orb-index.pine and absorption-tag.pine. One place to
+// think, copied into each script — no TradingView library publishing needed. Only the
+// VALUE-computing internals live here; every input and every drawing call in this file
+// is its own.
+//
+// Deliberately NOT copied — each of these would change what this chart draws:
+//   resolveStyle — the master drops this file's `devDotted` input gate, and types
+//     `developing` as a simple bool while drawOrb passes the series `inWin`. Below.
+//   dailyVwap    — the master seeds pv/vv at na and only assigns on a day change, so the
+//     first partial Globex day of loaded history reads na. This file seeds 0.0.
+//   weeklyVwap   — not in the master at all.
+// ═══════════════════════════════════════════════════════════════════════════════════
+styleFromStr(simple string s) =>
+    s == "Dashed" ? line.style_dashed : s == "Dotted" ? line.style_dotted : line.style_solid
 
+sizeFromStr(simple string s) =>
+    s == "Tiny" ? size.tiny : s == "Normal" ? size.normal : s == "Large" ? size.large :
+      s == "Huge" ? size.huge : size.small
+
+priorPeriods(simple string extTicker) =>
+    [pdH, pdL] = request.security(extTicker, "1D", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+    [pwH, pwL] = request.security(extTicker, "1W", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+    [pmH, pmL] = request.security(extTicker, "1M", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+    [pdH, pdL, pwH, pwL, pmH, pmL]
+
+sessionHL(simple string windowStr, simple string tz) =>
+    inWin  = not na(time(timeframe.period, windowStr + ":1234567", tz))
+    var float hi = na
+    var float lo = na
+    var float frozenHi = na
+    var float frozenLo = na
+    newWin   = inWin and not inWin[1]
+    endedWin = not inWin and inWin[1]
+    if newWin
+        hi := high
+        lo := low
+    else if inWin
+        hi := math.max(hi, high)
+        lo := math.min(lo, low)
+    if endedWin
+        frozenHi := hi
+        frozenLo := lo
+    [frozenHi, frozenLo, inWin, hi, lo]
+
+sessionVwap(simple string anchorSession, simple string tz) =>
+    inSes  = not na(time(timeframe.period, anchorSession + ":23456", tz))   // Mon–Fri
+    newDay = inSes and not inSes[1]
+    var float pv = na
+    var float vv = na
+    if newDay
+        pv := hlc3 * volume
+        vv := volume
+    else if inSes
+        pv += hlc3 * volume
+        vv += volume
+    inSes and vv > 0 ? pv / vv : na
+
+_globexKey(simple string tz) =>
+    shifted = time + 6 * 60 * 60 * 1000
+    year(shifted, tz) * 10000 + month(shifted, tz) * 100 + dayofmonth(shifted, tz)
+
+// ── Helpers (this file's own — input-dependent, so they can't live in the library) ───
 resolveStyle(baseStr, developing) =>
     developing and devDotted ? line.style_dotted : styleFromStr(baseStr)
-
-sizeFromStr(s) =>
-    switch s
-        "Tiny"   => size.tiny
-        "Small"  => size.small
-        "Normal" => size.normal
-        "Large"  => size.large
-        "Huge"   => size.huge
-        => size.small
 
 labelSize = sizeFromStr(labelSizeIn)
 
@@ -267,19 +314,20 @@ newNyDay = inNySession and not inNySession[1]
 // reset whenever that key changes between consecutive bars — robust to any gap size,
 // maintenance halt or weekend alike.
 globexShiftedTime = time + 6 * 60 * 60 * 1000
-globexDayKey = year(globexShiftedTime, etTz) * 10000 + month(globexShiftedTime, etTz) * 100 + dayofmonth(globexShiftedTime, etTz)
+globexDayKey = _globexKey(etTz)
 newGlobexDay = globexDayKey != globexDayKey[1]
 newWeek = newGlobexDay and dayofweek(globexShiftedTime, etTz) == dayofweek.monday
 
-var float nyPV = 0.0
-var float nyV = 0.0
+// NY session VWAP — the accumulation is the shared sessionVwap(). It returns na outside the
+// window, so HOLD the last in-session value: the accumulator this replaced only zeroed at the
+// next 08:20, so the plot ran flat from the 16:00 close to the next open. Same numbers, and the
+// reset on the new session's first bar keeps a zero-volume open reading na exactly as before.
+nyVwapLive = sessionVwap(nyVwapSession, etTz)
+var float nyVwap = na
 if newNyDay
-    nyPV := 0.0
-    nyV := 0.0
-if inNySession
-    nyPV += hlc3 * volume
-    nyV += volume
-nyVwap = nyV > 0 ? nyPV / nyV : na
+    nyVwap := na
+if not na(nyVwapLive)
+    nyVwap := nyVwapLive
 
 var float dayPV = 0.0
 var float dayV = 0.0
@@ -310,9 +358,7 @@ plot(showVwapWeekly ? weeklyVwap : na, "Weekly VWAP", color = vwapWeeklyColor, l
 // ═══════════════════════════════════════════════════════════════════════════════════
 extTicker = ticker.new(syminfo.prefix, syminfo.ticker, session.extended)
 
-[pdHigh, pdLow] = request.security(extTicker, "1D", [high[1], low[1]], lookahead = barmerge.lookahead_off)
-[pwHigh, pwLow] = request.security(extTicker, "1W", [high[1], low[1]], lookahead = barmerge.lookahead_off)
-[pmHigh, pmLow] = request.security(extTicker, "1M", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+[pdHigh, pdLow, pwHigh, pwLow, pmHigh, pmLow] = priorPeriods(extTicker)
 
 drawPeriodLevel(active, val, lbl, col, styleStr, xOffset) =>
     var float lastVal = na
@@ -445,24 +491,16 @@ plot(inVaWin ? 1 : 0, "VA in-window", display = display.data_window)
 // Session H/L — Overnight / Asia / London (windows shared with the sim)
 // ═══════════════════════════════════════════════════════════════════════════════════
 drawSessionHL(active, windowStr, lbl, hiColor, loColor, xOffset) =>
-    var float hi = na
-    var float lo = na
+    // H/L accumulation comes from the copied library block; the lines below still track the
+    // LIVE hi/lo (frozen values ignored) so the drawn level is bar-for-bar what it always was.
+    [_frozenHi, _frozenLo, inWin, hi, lo] = sessionHL(windowStr, etTz)
     var line hiLine = na
     var line loLine = na
     var label hiLabel = na
     var label loLabel = na
 
     if active
-        inWin = not na(time(timeframe.period, windowStr + ":1234567", etTz))
-        newWin = inWin and not inWin[1]
         endedWin = inWin[1] and not inWin
-
-        if newWin
-            hi := high
-            lo := low
-        else if inWin
-            hi := math.max(hi, high)
-            lo := math.min(lo, low)
 
         if endedWin
             line.delete(hiLine)
