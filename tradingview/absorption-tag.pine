@@ -1,0 +1,280 @@
+//@version=6
+// Absorption tag — the glanceable Footprint (ADR-0013).
+//
+// One mark at a Level, at the 5m bar close: the word says the action — FADE (absorbed → reversal)
+// or PUSH (running → continuation) — plus the level name, and a ★ for high conviction. Colour just
+// reinforces (red=FADE, blue=PUSH). Silent everywhere else. Takes the retired permission-lamp's slot.
+//
+// SELF-CONTAINED: the level functions below are COPIED from tradingview/lib/levels.pine (the master
+// copy). Edit them THERE, then re-paste into this file and the ORB indicators. One place to think,
+// copied into each script — no TradingView library publishing needed.
+//
+// HOW TO RUN: paste into the Pine Editor on a 5-minute chart of the MINI (ES/NQ), Add to chart.
+//   request.footprint() has no symbol param, so it reads whatever you chart — chart the mini, not
+//   the micro (institutional size is in the full-size book).
+//
+// NON-REPAINTING: every read is gated on barstate.isconfirmed — the mark prints only at 5m close.
+// VERIFY IN TV (I can't compile Pine here): that it compiles, request.footprint() returns data,
+// and get_row_by_price() returns the right row. If it errors red, send me the message.
+
+indicator("Absorption tag", overlay = true, max_labels_count = 200, max_lines_count = 50)
+
+// ═══════════════════════════ inputs ═══════════════════════════
+tz          = "America/New_York"
+mktMode     = input.string("Index", "Market", options = ["Index", "Gold"], group = "Market",
+     tooltip = "Picks the VWAP anchor (Index → 09:30 RTH open; Gold → 18:00 ETH open), the ADR window, the proximity, and the trade window. Anchors are hardcoded; set this per chart.")
+imbPct      = input.int(300,"Imbalance % (footprint)",  minval = 100, group = "Footprint")
+
+// ONE shared strength set (2026-09-11). The earlier per-instrument split (finer rows + stricter
+// one-sidedness for gold) read WORSE live than the index numbers, so ticks-per-row and one-sidedness
+// are NOT where gold differs. Gold's real levers are proximity (its bars are tiny in points) and the
+// trade-window filter — both below. Tune with the panel's gate letters (H=heavy S=one-sided P=pressing).
+ticksPerRow = input.int(4,  "Ticks per row",  minval = 1, group = "Strength")
+minRowFrac  = input.float(0.06, "Min extreme-row volume (frac)", minval = 0.0, step = 0.01, group = "Strength",
+     tooltip = "The tested extreme's row must hold this share of the bar's volume. Many rows per bar → keep low (~0.05–0.08).")
+minOneSided = input.float(0.30, "Min one-sidedness |delta|/vol", minval = 0.0, maxval = 1.0, step = 0.05, group = "Strength")
+
+// Per-instrument proximity — "at a level" in ticks; gold's tiny bars want their own number.
+idxProxTicks = input.int(6, "Index proximity (ticks)", minval = 1, group = "Trigger")
+gldProxTicks = input.int(8, "Gold proximity (ticks)",  minval = 1, group = "Trigger",
+     tooltip = "Gold tick = 0.1 → 8 ticks = 0.8 pt. Tune to how close a gold bar realistically sits to a level.")
+
+// Trade-window filter — only tag during the hours actually traded; also kills dead-hour false tags.
+useWindow  = input.bool(true, "Tag only during trade window", group = "Trade window")
+idxWindow  = input.session("1000-1300", "Index window (ET)", group = "Trade window")
+gldWindow  = input.session("1930-2055", "Gold window (ET)",  group = "Trade window",
+     tooltip = "Gold evening run-up 7:30–8:55pm ET — deliberately BEFORE the 9pm Shanghai bell (too volatile to trade responsibly).")
+
+isGold      = mktMode == "Gold"
+proxTicks   = isGold ? gldProxTicks : idxProxTicks
+
+// Round-number levels tested at only ~1.1x chance (analysis/round_numbers.py, 2026-09-05) — no real
+// S/R edge at any spacing, so they are deliberately NOT a level here.
+usePDHL     = input.bool(true,  "PDH/PDL", inline = "a", group = "Levels")
+useONHL     = input.bool(true,  "ONH/ONL", inline = "a", group = "Levels")
+usePT       = input.bool(true,  "Pre-Tokyo H/L", inline = "b", group = "Levels")
+useVWAP     = input.bool(true,  "Session VWAP", inline = "b", group = "Levels")
+useORB      = input.bool(true,  "ORB edges (H/L/mid)", inline = "c", group = "Levels",
+     tooltip = "Opening-range high/low/mid — index 09:30–09:45, gold 18:00–18:05 — as levels to read absorption at.")
+absColor    = input.color(#f47067, "FADE color (absorbed → reversal)", group = "Display")
+runColor    = input.color(#5aa9ff, "PUSH color (running → continuation)", group = "Display")
+keepTags    = input.int(40, "Keep last N tags", minval = 5, maxval = 190, group = "Display")
+showDiag    = input.bool(true, "Show diagnostic panel", group = "Display",
+     tooltip = "Top-right status: proves the tag is alive when it's silent. Turn off once you trust it.")
+
+tick = syminfo.mintick
+tol  = proxTicks * tick
+
+// ═══════════════════════════ level math — COPIED from lib/levels.pine ═══════════════════════════
+priorPeriods(simple string extTicker) =>
+    [pdH, pdL] = request.security(extTicker, "1D", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+    [pwH, pwL] = request.security(extTicker, "1W", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+    [pmH, pmL] = request.security(extTicker, "1M", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+    [pdH, pdL, pwH, pwL, pmH, pmL]
+
+sessionHL(simple string windowStr, simple string tzStr) =>
+    inWin  = not na(time(timeframe.period, windowStr + ":1234567", tzStr))
+    var float hi = na
+    var float lo = na
+    var float frozenHi = na
+    var float frozenLo = na
+    newWin   = inWin and not inWin[1]
+    endedWin = not inWin and inWin[1]
+    if newWin
+        hi := high
+        lo := low
+    else if inWin
+        hi := math.max(hi, high)
+        lo := math.min(lo, low)
+    if endedWin
+        frozenHi := hi
+        frozenLo := lo
+    [frozenHi, frozenLo]
+
+sessionVwap(simple string anchorSession, simple string tzStr) =>
+    inSes  = not na(time(timeframe.period, anchorSession + ":23456", tzStr))
+    newDay = inSes and not inSes[1]
+    var float pv = na
+    var float vv = na
+    if newDay
+        pv := hlc3 * volume
+        vv := volume
+    else if inSes
+        pv += hlc3 * volume
+        vv += volume
+    inSes and vv > 0 ? pv / vv : na
+
+// gold's 18:00-anchored ETH-daily VWAP (accumulates all bars, resets at the 18:00 Globex open)
+_globexKey(simple string tzStr) =>
+    shifted = time + 6 * 60 * 60 * 1000
+    year(shifted, tzStr) * 10000 + month(shifted, tzStr) * 100 + dayofmonth(shifted, tzStr)
+
+dailyVwap(simple string tzStr) =>
+    key = _globexKey(tzStr)
+    newDay = key != key[1]
+    var float pv = na
+    var float vv = na
+    if newDay
+        pv := hlc3 * volume
+        vv := volume
+    else
+        pv += hlc3 * volume
+        vv += volume
+    vv > 0 ? pv / vv : na
+
+// ADR = mean of the last 14 COMPLETED session ranges (high-low) in `windowStr`. Trailing/as-of —
+// today's incomplete range is never counted, so no lookahead. Matches analysis/gauge_calibration.py.
+adrRange(simple string windowStr, simple string tzStr) =>
+    inWin = not na(time(timeframe.period, windowStr + ":1234567", tzStr))
+    var float shi = na
+    var float slo = na
+    var array<float> ranges = array.new<float>()
+    newWin   = inWin and not inWin[1]
+    endedWin = not inWin and inWin[1]
+    if newWin
+        shi := high
+        slo := low
+    else if inWin
+        shi := math.max(shi, high)
+        slo := math.min(slo, low)
+    if endedWin
+        ranges.push(shi - slo)
+        if ranges.size() > 14
+            ranges.shift()
+    ranges.size() > 0 ? ranges.avg() : na
+
+// ═══════════════════════════ collect the active levels ═══════════════════════════
+extTicker = ticker.new(syminfo.prefix, syminfo.ticker, session.extended)
+[pdH, pdL, _pwH, _pwL, _pmH, _pmL] = priorPeriods(extTicker)
+[onH, onL] = sessionHL("1800-0930", tz)
+[ptH, ptL] = sessionHL("1800-2000", tz)
+orWin      = isGold ? "1800-1805" : "0930-0945"                            // the OR the ORB indicators draw
+[orH, orL] = sessionHL(orWin, tz)
+orMid      = (na(orH) or na(orL)) ? na : (orH + orL) / 2
+vwap  = mktMode == "Gold" ? dailyVwap(tz) : sessionVwap("0930-1600", tz)   // anchors fixed, not inputs
+
+// VWAP stretch = distance from VWAP as a fraction of ADR. >20% = extended (analysis calibration).
+adr       = mktMode == "Gold" ? adrRange("1800-2055", tz) : adrRange("0930-1600", tz)
+stretchFr = (na(adr) or adr <= 0 or na(vwap)) ? na : math.abs(close - vwap) / adr
+stretched = not na(stretchFr) and stretchFr >= 0.20
+
+var array<float>  lvlPx = array.new<float>()
+var array<string> lvlNm = array.new<string>()
+lvlPx.clear(), lvlNm.clear()
+addLvl(float p, string nm) =>
+    if not na(p)
+        lvlPx.push(p), lvlNm.push(nm)
+if usePDHL
+    addLvl(pdH, "PDH"), addLvl(pdL, "PDL")
+if useONHL
+    addLvl(onH, "ONH"), addLvl(onL, "ONL")
+if usePT
+    addLvl(ptH, "PTH"), addLvl(ptL, "PTL")
+if useVWAP
+    addLvl(vwap, "VWAP")
+if useORB
+    addLvl(orH, "ORH"), addLvl(orL, "ORL"), addLvl(orMid, "ORM")
+
+// ═══════════════════════════ find the level this bar tested ═══════════════════════════
+f_test() =>
+    float bestPx   = na
+    string bestNm  = na
+    bool   isResist = false
+    float  bestDist = 1e12
+    if lvlPx.size() > 0
+        for i = 0 to lvlPx.size() - 1
+            p = lvlPx.get(i)
+            dHi = math.abs(high - p)     // resistance: the bar's high tags the level
+            dLo = math.abs(low  - p)     // support: the bar's low tags the level
+            if dHi <= tol and dHi < bestDist
+                bestDist := dHi, bestPx := p, bestNm := lvlNm.get(i), isResist := true
+            if dLo <= tol and dLo < bestDist
+                bestDist := dLo, bestPx := p, bestNm := lvlNm.get(i), isResist := false
+    [bestPx, bestNm, isResist]
+
+// ═══════════════════════════ the read (bar close only) ═══════════════════════════
+var label[] tags = array.new<label>()
+
+// diagnostic state (updated each confirmed bar so the panel can show it)
+var string diagFp    = "—"
+var string diagLvls  = "—"
+var string diagNear  = "—"
+var string diagGate  = "waiting"
+
+if barstate.isconfirmed
+    [testPx, testNm, isResist] = f_test()
+    footprint fp = request.footprint(ticksPerRow, 70, imbPct)
+    activeWindow = isGold ? gldWindow : idxWindow
+    inTradeWin   = not useWindow or not na(time(timeframe.period, activeWindow + ":1234567", tz))
+
+    // ---- diagnostics: distance to the single nearest level (either side) ----
+    float nearDist = na
+    string nearNm = "none"
+    if lvlPx.size() > 0
+        for i = 0 to lvlPx.size() - 1
+            d = math.min(math.abs(high - lvlPx.get(i)), math.abs(low - lvlPx.get(i)))
+            if na(nearDist) or d < nearDist
+                nearDist := d
+                nearNm := lvlNm.get(i)
+    diagFp   := na(fp) ? "NO DATA" : "ok"
+    diagLvls := str.tostring(lvlPx.size())
+    diagNear := nearNm + " " + (na(nearDist) ? "—" : str.tostring(math.round(nearDist / tick)) + "t")
+
+    if not na(testPx) and not na(fp)
+        extremePx = isResist ? high : low          // the bar edge that reached the level
+        volume_row exRow = fp.get_row_by_price(extremePx)
+        if na(exRow)
+            diagGate := "at " + testNm + " · no row"
+        if not na(exRow)
+            rowVol   = exRow.total_volume()
+            rowDelta = exRow.delta()
+            barVol   = fp.buy_volume() + fp.sell_volume()
+            heavy    = barVol > 0 and (rowVol / barVol) >= minRowFrac
+            oneSided = rowVol > 0 and (math.abs(rowDelta) / rowVol) >= minOneSided
+            rejected = isResist ? (close < testPx) : (close > testPx)   // pushed back = absorbed
+            pressing = isResist ? (rowDelta > 0) : (rowDelta < 0)       // aggressor on the tested side
+            diagGate := "at " + testNm + " · " + (heavy ? "H" : "h") + (oneSided ? "S" : "s") + (pressing ? "P" : "p") + (inTradeWin ? "" : " off-win")
+            if heavy and oneSided and pressing and inTradeWin
+                absorbed = rejected
+                conv  = math.min(1.0, (rowVol / barVol) * (math.abs(rowDelta) / rowVol) * 3.0)
+                // the word carries the meaning; ★ = strong FLOW (footprint conviction); the stretch
+                // suffix = LOCATION vs VWAP (independent axis). prime = stretched fade (room to VWAP);
+                // scalp! = stretched push (don't chase). Both, one, or neither can appear.
+                action = absorbed ? "FADE" : "PUSH"
+                star   = conv > 0.66 ? "  ★" : ""
+                stretchSfx = stretched ? (absorbed ? "  · prime" : "  · scalp!") : ""
+                col    = absorbed ? absColor : runColor       // fixed, high-contrast — reinforcement only
+                // DIRECTION: short = reject-down off a high OR break-down through a low; long = the
+                // mirror. goShort when the tested side (resistance/support) and the read coincide.
+                // The caret (▲ long / ▼ short) is the direction to trade; position reinforces it.
+                goShort = isResist == absorbed
+                caret   = goShort ? " ▼" : " ▲"
+                yPos    = goShort ? high : low                // short → above the bar, long → below
+                lstyle  = goShort ? label.style_label_down : label.style_label_up
+                // anchor by TIME, not bar_index: bar_index is relative to the first loaded bar, so
+                // scrolling in more history shifts it and old labels float off their candles.
+                lb = label.new(time, yPos, action + caret + "  " + testNm + star + stretchSfx,
+                     xloc = xloc.bar_time, style = lstyle, color = col, textcolor = color.white,
+                     size = size.normal)
+                tags.push(lb)
+                if tags.size() > keepTags
+                    label.delete(tags.shift())
+    else if na(testPx)
+        diagGate := "not at a level"
+
+// ═══════════════════════════ diagnostic panel ═══════════════════════════
+if showDiag and barstate.islast
+    stretchTxt = na(stretchFr) ? "—" : str.tostring(math.round(stretchFr * 100)) + "%" + (stretched ? " ▲" : "")
+    var table t = table.new(position.top_right, 2, 5, border_width = 1)
+    table.cell(t, 0, 0, "footprint", text_size = size.small, text_color = color.gray)
+    table.cell(t, 1, 0, diagFp, text_size = size.small,
+         text_color = diagFp == "ok" ? #4cc38a : #f47067)
+    table.cell(t, 0, 1, "levels",   text_size = size.small, text_color = color.gray)
+    table.cell(t, 1, 1, diagLvls,   text_size = size.small, text_color = color.white)
+    table.cell(t, 0, 2, "nearest",  text_size = size.small, text_color = color.gray)
+    table.cell(t, 1, 2, diagNear,   text_size = size.small, text_color = color.white)
+    table.cell(t, 0, 3, "stretch",  text_size = size.small, text_color = color.gray)
+    table.cell(t, 1, 3, stretchTxt, text_size = size.small,
+         text_color = stretched ? #e3b341 : color.white)
+    table.cell(t, 0, 4, "gate",     text_size = size.small, text_color = color.gray)
+    table.cell(t, 1, 4, diagGate,   text_size = size.small, text_color = color.white)

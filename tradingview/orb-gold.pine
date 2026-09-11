@@ -46,6 +46,29 @@ nySpan       = input.session("0820-1600", "Draw until (span, ET)", group = "NY O
 orbLabelOffset = input.int(0, "ORB label offset (bars back)", group = "NY ORB",
      tooltip = "How far back along the line the price tags sit for the ORB and Pre-Tokyo groups; the Pre-Tokyo range staggers further back automatically. 0 = right at the live edge.")
 
+// ── Gold evening ORB (Globex/ETH open 18:00 — pre-positioning levels for the 9pm Shanghai bell) ──
+// 5-min and 15-min opening ranges anchored at the 18:00 ET Globex open. Watched going into the
+// 9pm bell move; nothing is traded at 18:00 itself — entry waits for the post-9pm trend.
+eve5Show     = input.bool(true, "Show 18:00 5-min ORB (18:00–18:05)", group = "Gold evening ORB")
+eve5ShowHi   = input.bool(true, "High", group = "Gold evening ORB", inline = "e5lines")
+eve5ShowLo   = input.bool(true, "Low", group = "Gold evening ORB", inline = "e5lines")
+eve5ShowMid  = input.bool(true, "Midpoint", group = "Gold evening ORB", inline = "e5lines")
+eve5Color    = input.color(#a78bfa, "5-min color", group = "Gold evening ORB")
+eve5Shade    = input.bool(true, "Shade area", group = "Gold evening ORB")
+eve5ShadeCol = input.color(color.new(#a78bfa, 88), "5-min shade (opacity slider = transparency)", group = "Gold evening ORB")
+eve5Window   = input.session("1800-1805", "5-min window (start-end, ET)", group = "Gold evening ORB")
+eve5Span     = input.session("1800-0300", "Draw until (span, ET)", group = "Gold evening ORB")
+
+eve15Show     = input.bool(true, "Show 18:00 15-min ORB (18:00–18:15)", group = "Gold evening ORB")
+eve15ShowHi   = input.bool(true, "High", group = "Gold evening ORB", inline = "e15lines")
+eve15ShowLo   = input.bool(true, "Low", group = "Gold evening ORB", inline = "e15lines")
+eve15ShowMid  = input.bool(false, "Midpoint", group = "Gold evening ORB", inline = "e15lines")
+eve15Color    = input.color(#c4b5fd, "15-min color", group = "Gold evening ORB")
+eve15Shade    = input.bool(false, "Shade area", group = "Gold evening ORB")
+eve15ShadeCol = input.color(color.new(#c4b5fd, 90), "15-min shade (opacity slider = transparency)", group = "Gold evening ORB")
+eve15Window   = input.session("1800-1815", "15-min window (start-end, ET)", group = "Gold evening ORB")
+eve15Span     = input.session("1800-0300", "Draw until (span, ET)", group = "Gold evening ORB")
+
 // ── Pre-Tokyo range (Globex open 18:00 → Tokyo open 20:00 ET — ADR-0012) ────────────
 showPt      = input.bool(true, "Show Pre-Tokyo range (18:00–20:00)", group = "Pre-Tokyo range",
      tooltip = "The Globex-open-to-Tokyo-open accumulation window; freezes at the 20:00 ET Tokyo open and its H/L are the Asia-evening sweep levels (ADR-0012). Not an opening range — nothing is traded at 18:00. Fires every Globex open including Sunday's.")
@@ -226,6 +249,8 @@ drawOrb(active, windowStr, spanStr, lbl, showHi, showLo, showMid, col, shade, sh
                     label.set_text(midLabel, lbl + " M " + str.tostring(mid, format.mintick))
 
 drawOrb(showNy, nyWindow, nySpan, "NY OR", nyShowHi, nyShowLo, nyShowMid, nyColor, nyShade, nyShadeCol, orbLabelOffset)
+drawOrb(eve5Show,  eve5Window,  eve5Span,  "OR5",  eve5ShowHi,  eve5ShowLo,  eve5ShowMid,  eve5Color,  eve5Shade,  eve5ShadeCol,  orbLabelOffset)
+drawOrb(eve15Show, eve15Window, eve15Span, "OR15", eve15ShowHi, eve15ShowLo, eve15ShowMid, eve15Color, eve15Shade, eve15ShadeCol, orbLabelOffset - 4)
 drawOrb(showPt, ptWindow, ptSpan, "PT", ptShowHi, ptShowLo, ptShowMid, ptColor, ptShade, ptShadeCol, orbLabelOffset - 2)
 
 // ═══════════════════════════════════════════════════════════════════════════════════

@@ -50,6 +50,39 @@ key** they derive from **full prior RTH session(s)** (09:30–16:00). On gap day
 Volume-weighted average price — a developing line drawn live, tracked at multiple **anchors**
 (New-York-open, daily-open, weekly); used as dynamic support/resistance and a retracement target.
 
+**ADR** (Average Daily Range):
+The yardstick for **VWAP stretch** — a normal session's high-minus-low, per instrument (resolved
+2026-09-05): index (NQ) = 14-day trailing mean of the **RTH** (09:30–16:00) range; gold = 14-day
+trailing mean of the **Asia-evening** (18:00–20:55 ET) range — trimmed 2026-09-11 to end before the
+9pm Shanghai bell, which the user no longer trades, so its spike doesn't inflate the yardstick.
+**As-of-day** (trailing, shifted one day, no lookahead), same discipline as **Base rate**. NQ runs
+~245 pts. Gold's evening ADR is still right-skewed by big nights (median well below mean), so gold
+reads off the **median**, not the mean.
+
+**VWAP stretch**:
+How far price sits from the session **VWAP**, measured in **% of ADR** — the one calibrated
+continue-vs-fade gauge (resolved 2026-09-05, from 4y of 1m bars). A **veto/ambition read, never a
+trigger** (like the **Permission lamp** philosophy, minus the on-chart machinery): it says *don't
+chase*, never *enter*. Bands: **<10% ADR** = not stretched, continuation/chase fine; **10–20%** =
+neutral; **>20%** = stretched — ~62% of the time price snaps back toward VWAP within 30m (NQ) /
+15m (gold), so don't chase the extreme; wait for the pull to VWAP, then continue *with* the trend.
+Gold only: **>75% ADR** from the 18:00 VWAP is a hard reversion (~−15% ADR snap-back) — the one
+place a naked fade is earned, matching the Asia-session mean-reversion instinct. Anchors per
+instrument: NQ off the 09:30 VWAP, gold off the 18:00 (ETH) VWAP.
+Pairs with trend-persistence (**HTF SMA regime**): stretch says *when to wait*, the trend's
+continued travel says *the pullback is a buy, not a top* — together they are the numbers behind
+**Retracement continuation**.
+**Surfaced on the Absorption tag**, not as a standalone meter (2026-09-06): the tag computes ADR
+(14-day trailing session range — index 09:30–16:00, gold 18:00–20:55) and shows the stretch as the
+`· prime` / `· scalp!` suffix, plus a live % in the tag's diagnostic panel. Deliberately *not* its
+own indicator — the value is offloading the "am I too far from VWAP" check onto the read the user is
+already looking at, exactly when watching several things at once.
+_Rejected alternatives_ (2026-09-05): **VWAP SD bands** (the "3-SD" idea — non-stationary, and
+pinned tight/false-positive in the first 30m, though that matters less on a 10:00-start window);
+and a **fuel / range-used gauge** — tested two ways (two-sided range and net directional travel)
+and dropped: the data showed **momentum, not exhaustion** (room *grows* with travel), so it would
+only restate the HTF regime or argue you out of good runners.
+
 **Value Area** (VAH / VAL / POC):
 The price band holding most of a session's volume — value-area high, value-area low, point of
 control — computed for the prior session and prior week. On the live chart, "prior session"
@@ -124,7 +157,8 @@ filled passively — reversal context); **initiative** = CVD expanding with pric
 retest (continuation context). On the live chart CVD is an approximation from lower-timeframe
 bar direction, not true tick delta. **Superseded as the every-day read by the Footprint**
 (2026-08-06): the bar-direction approximation is candle color restated, so the line cannot
-meaningfully disagree with the chart; delta is now read per price via the **Footprint**.
+meaningfully disagree with the chart; delta is now read per price via the **Footprint**. The
+`cvd.pine` indicator is **retired** (2026-09-05) — superseded, and never on the live chart.
 
 **Footprint** (volume footprint):
 A candle split into per-price rows, each showing aggressive sell × aggressive buy volume
@@ -136,6 +170,46 @@ retest (continuation context). The successor to the **CVD** line as the every-da
 exhaustion read — the same shape-reads, resolved to price and side from real ticks. It
 shows walls *being hit* (including icebergs, as absorption), never walls *waiting* — resting
 passive liquidity is a different signal (a heatmap read, not adopted).
+
+**Absorption tag**:
+The glanceable distillation of the **Footprint** — one mark at a **Level**, so the every-day
+order-flow read is a glance instead of a grid of per-row numbers (resolved 2026-09-05, ADR-0013).
+Fires **only when price is within proximity of a Level at the 5m bar close** (an approach/test
+counts, not only a **liquidity sweep**); silent everywhere else, like the **Footprint**'s
+"read only at Levels" rule made automatic. The mark carries **two independent axes** so a busy-screen
+glance needs no follow-up checks:
+- **word = action**: **FADE** (heavy one-sided volume at the tested extreme, bar **closes rejected
+  away** = absorption/reversal — trade back off the level) or **PUSH** (volume **pushing through** =
+  initiative/continuation), plus the level name.
+- **★ = flow conviction** (how strong the footprint read is: volume-at-extreme × one-sidedness over
+  a threshold) — *how sure*.
+- **stretch suffix = location** vs VWAP, folding in **VWAP stretch** (below) so it needn't be read
+  separately — *how far*. `· prime` on a **stretched fade** (>20% ADR from VWAP → room back to VWAP,
+  the best fades); `· scalp!` on a **stretched push** (chasing an extended move → take a scalp, don't
+  run it); nothing when near VWAP. ★ and the suffix stack — e.g. `PUSH PTH ★ · scalp!` = strong
+  continuation flow but late, so scalp it (the ★-alone chase-trap the suffix exists to catch).
+Colour only reinforces (red=FADE, blue=PUSH). The word-first form replaced a colour/boldness
+gradient (2026-09-06): on a busy chart a shade can't be decoded without seeing all shades at once —
+`FADE PTH` can. Same two reads as the Footprint, resolved to a binary. **Bar-close only, never repaints** — an intrabar mark would
+settle after the fact and flatter every reversal in hindsight, the one thing the read must not do.
+Fires at the **chart-timeframe bar close** — not locked to 5m; the index is read on 5m, gold often
+on 2m. (Persisting a fixed 5m read onto a faster entry chart the way the **EMA cloud** does is a
+later item — `request.footprint()` isn't a plain series to wrap in `request.security`.) Reads the **mini/full-size** footprint (ES/NQ), never the
+micros — institutional size transacts in the full-size book, and `request.footprint()` has **no
+symbol parameter**, so you *chart the mini directly* (resolved 2026-09-05). It **recomputes the mechanical Levels internally to know where to fire but
+does not redraw them** (the orbs and liquidity map already draw the lines), so it adds no new
+clutter; the level maths lives in a shared Pine **levels library** copied into every indicator
+(the fix for level maths being copy-pasted across five files). Takes the retired **Permission
+lamp**'s indicator slot.
+**Level set** (each togglable): PDH/PDL, ONH/ONL, Pre-Tokyo H/L, session VWAP, and **ORB edges**
+(H/L/mid — index 09:30–09:45, gold 18:00–18:05); round numbers and moving-average (SMA) levels were
+each tried and rejected (2026-09). **Controls** (resolved 2026-09-11): one **shared strength set** —
+the per-instrument row-frac/one-sidedness split was collapsed once it read worse live, as those
+weren't where gold differed; **per-instrument proximity** (gold's tiny bars want their own tick
+tolerance); and a **trade-window filter** — off-window bars never tag (index 10:00–13:00, gold
+19:30–20:55), which also kills the dead-hour false tags. Pairs with **VWAP stretch**: stretch says *don't chase the extreme*, the
+tag says *is this extreme being absorbed or run through*.
+_Avoid_: "signal"/"trigger" — like the lamp it displays state at a level, it does not say enter.
 
 **Head & shoulders** (three-peak top; the inverse, a three-valley bottom, mirrors everything):
 Read as a liquidity map only (2026-08-12). For the top version: price makes a high (first
@@ -278,7 +352,10 @@ Three stop **policies**, never mixed by halves (adopted 2026-08-12):
    is noise, a close is information), backed by a disaster stop at the structural level.
 The banned hybrid: tight stop + no re-entry plan + full-conviction hold — the worst half of each.
 
-**Permission lamp**:
+**Permission lamp** _(retired 2026-09-05, ADR-0013 — never made it onto the live chart; the
+enumerated per-setup legality was more than the eye wanted mid-trade. Its slot goes to the
+**Absorption tag**; the veto/ambition *thinking* survives in the **Auction bias gate**,
+**VWAP stretch**, and the two-strike rule, just not as an on-chart machine)_:
 The passive on-chart display of the current regime state and the resulting legality of each
 setup archetype — vetoes with reasons, never entries. It operationalizes the **Auction bias
 gate** and **Entry gates** as a read-only lamp: it may say a setup is banned and why, but it
@@ -294,16 +371,29 @@ _Avoid_: "signal", "trigger", "bot" — the lamp displays permission state; it d
 **Level**:
 A horizontal price of interest, either auto-computed (PDH/PDL, prior-week/-month H/L, overnight
 H/L, developing IB, POC/VAH/VAL) or drawn by the user in Prep.
+**Round numbers** were tested as a Level class and **rejected** (2026-09-05,
+`analysis/round_numbers.py`): swing pivots land on them only ~1.1× chance at *every* spacing
+(5/25/50/100) — the flat lift across spacings is the signature of no real S/R edge, so they are not
+a Level and are not wired into the **Absorption tag**.
 _Avoid_: line, zone (a **Zone** is a user-drawn band, distinct from a single-price **Level**).
 
 **RTH / ETH**:
 Regular Trading Hours (the 09:30–11:30 ET replay window) vs Extended/overnight Globex hours.
 
 **Trading window**:
-The hours the user actually trades live: 09:30 to ~12:00 ET at the latest for index (NQ/ES) —
-plus, for **gold**, the NY metals morning (from the 08:20 ET COMEX open) — plus the **Asia
-evening session** on **both** NQ and gold (~two evenings a week, chosen to avoid trading during
-the day job; resolved 2026-08-15, superseding the gold-only Sunday/Wednesday scope). Levels are
+The hours the user actually trades live: **10:00 to ~13:00 ET** at the latest for index (NQ/ES)
+(revised 2026-09-05 from the prior 09:30–12:00) — so the day is now **post-IB**: the user arrives
+as the IB finishes forming (~10:30) and the 9:45 **ORB** break is effectively out of the live day
+(it lives on only in the sim, which still practices the RTH 15m open) — plus, for **gold**, the NY
+metals morning (from the 08:20 ET COMEX open) — plus the **Asia evening session** on **both** NQ
+and gold (~two evenings a week, chosen to avoid trading during the day job; resolved 2026-08-15,
+superseding the gold-only Sunday/Wednesday scope). The gold evening is traded **~19:30–20:55 ET**,
+the **run-up before** the 9pm Shanghai-bell burst — the user steps aside for the bell itself
+(~20:45–21:00 ET), whose direction is a coin-flip and too volatile to trade responsibly (resolved
+2026-09-11, reverting the 2026-09-05 "trade the 9pm bell" idea back to the run-up). The
+pre-positioning levels are marked at the 18:00 Globex open — a **5-min ORB** (18:00–18:05), a
+**15-min ORB** (18:00–18:15), and the **Pre-Tokyo range** (18:00–20:00) — all on the gold ORB
+indicator; nothing is traded at 18:00 itself. Levels are
 still marked per **full-day market convention** — the user exits early but trades against
 participants who hold all day, so the levels that matter are the ones *they* watch. Gold and
 the Asia evenings are live-chart-only; the sim stays NQ/ES RTH.

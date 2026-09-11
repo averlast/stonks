@@ -1,0 +1,103 @@
+//@version=6
+// Levels — the single source of truth for mechanical level MATH.
+//
+// Shared by orb-index / orb-gold (to retire the copy-paste catalogued in ADR-0013) and by the
+// Absorption tag (so it fires at the exact prices the ORB indicators draw). This library returns
+// VALUES only — no drawing, no inputs (Pine forbids input.* in libraries; callers pass params).
+//
+// VERIFY IN TRADINGVIEW before trusting (I cannot compile Pine here):
+//   1. request.security / request.security_lower_tf are permitted inside library functions in v6.
+//   2. The prior-period values match what orb-index/orb-gold currently draw, bar-for-bar.
+//   3. `var` state inside these functions is per-call-site (each importing indicator gets its own).
+library("Levels")
+
+// ─────────────────────────── pure render helpers (safe dedup) ───────────────────────────
+// Byte-for-byte duplicates today (orb-index L141-158 / orb-gold L117-134). No state, no request.
+
+export styleFromStr(simple string s) =>
+    s == "Dashed" ? line.style_dashed : s == "Dotted" ? line.style_dotted : line.style_solid
+
+export resolveStyle(simple string baseStr, simple bool developing) =>
+    developing ? line.style_dotted : styleFromStr(baseStr)
+
+export sizeFromStr(simple string s) =>
+    s == "Tiny" ? size.tiny : s == "Normal" ? size.normal : s == "Large" ? size.large :
+      s == "Huge" ? size.huge : size.small
+
+// ─────────────────────────── prior period H/L (PDH/PDL, PW, PM) ───────────────────────────
+// Mirrors orb-index L465-467. extTicker = ticker.new(syminfo.prefix, syminfo.ticker,
+// session.extended) built by the caller (full ETH day, market convention).
+
+export priorPeriods(simple string extTicker) =>
+    [pdH, pdL] = request.security(extTicker, "1D", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+    [pwH, pwL] = request.security(extTicker, "1W", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+    [pmH, pmL] = request.security(extTicker, "1M", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+    [pdH, pdL, pwH, pwL, pmH, pmL]
+
+// ─────────────────────────── session H/L band (ON / Asia / London / Pre-Tokyo) ───────────────────────────
+// Mirrors drawSessionHL accumulation (orb-index L600-642). Returns the FROZEN band of the most
+// recent completed session (what the tag fires at) plus the live developing hi/lo and in-window
+// flag. windowStr e.g. "1800-0930"; tz "America/New_York".
+
+export sessionHL(simple string windowStr, simple string tz) =>
+    inWin  = not na(time(timeframe.period, windowStr + ":1234567", tz))
+    var float hi = na
+    var float lo = na
+    var float frozenHi = na
+    var float frozenLo = na
+    newWin   = inWin and not inWin[1]
+    endedWin = not inWin and inWin[1]
+    if newWin
+        hi := high
+        lo := low
+    else if inWin
+        hi := math.max(hi, high)
+        lo := math.min(lo, low)
+    if endedWin
+        frozenHi := hi
+        frozenLo := lo
+    [frozenHi, frozenLo, inWin, hi, lo]
+
+// ─────────────────────────── VWAPs ───────────────────────────
+// Manual PV/V (hlc3 × volume), mirroring orb-index L411-452. NY anchor is an input session so the
+// caller sets 09:30 (index) or 08:20 (gold). Daily/weekly anchor at Globex 18:00 via the 6h shift.
+
+export sessionVwap(simple string anchorSession, simple string tz) =>
+    inSes  = not na(time(timeframe.period, anchorSession + ":23456", tz))   // Mon–Fri
+    newDay = inSes and not inSes[1]
+    var float pv = na
+    var float vv = na
+    if newDay
+        pv := hlc3 * volume
+        vv := volume
+    else if inSes
+        pv += hlc3 * volume
+        vv += volume
+    inSes and vv > 0 ? pv / vv : na
+
+_globexKey(simple string tz) =>
+    shifted = time + 6 * 60 * 60 * 1000
+    year(shifted, tz) * 10000 + month(shifted, tz) * 100 + dayofmonth(shifted, tz)
+
+export dailyVwap(simple string tz) =>
+    key = _globexKey(tz)
+    newDay = key != key[1]
+    var float pv = na
+    var float vv = na
+    if newDay
+        pv := hlc3 * volume
+        vv := volume
+    else
+        pv += hlc3 * volume
+        vv += volume
+    vv > 0 ? pv / vv : na
+
+// ─────────────────────────── round numbers ───────────────────────────
+// NOT wired into the Absorption tag: tested at only ~1.1x chance as pivot S/R at every spacing
+// (analysis/round_numbers.py, 2026-09-05) — no real edge. Kept here only if a future use appears.
+
+export nearestRound(simple float increment) =>
+    below   = math.floor(close / increment) * increment
+    above   = below + increment
+    nearest = (close - below) < (above - close) ? below : above
+    [nearest, below, above]
