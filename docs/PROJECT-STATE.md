@@ -40,6 +40,54 @@ here is enrichment, not the spine. **Unblocked now**:
 (discretionary S/D zone + HVN drawing tools). #14/#15 are unblocked once #13's data lands. The
 `ingestion/levels.py` `value_area`/`volume_profile` helpers are reusable for #14's live profile.
 
+### ⚠ The $80 risk budget is DEAD (2026-08-30) — stop is set by the market, account by the stop
+User call ("lets nuke this idea of $80, risk of $200-300 a trade"), now confirmed by measurement
+on real data. **The $80 came from `drawdown / 25` on a $2,000 account — a formula output that was
+never tested against a strategy.** Measured on NQ's 9:45 opening-range break (upside only, 2x
+target, flat 12:30, `analysis/study_nq_breakdown.py` over 529 real trades):
+
+| Risk/trade | $/trade | Win rate |
+|---|---|---|
+| $80  | +$2.77  | 37.4% |
+| $150 | +$14.41 | 49.0% |
+| **$200** | **+$16.10** | **52.7%** |
+| $250 | +$11.73 | 53.1% |
+| $300 | +$12.77 | 53.9% |
+
+An $80 stop sits **inside the noise** — the study's own damage-before-the-move figures (median
+$70, 3-in-4 $137, 9-in-10 $228) say it gets hit before the move on trades that were going to win.
+It satisfies the ruin formula by destroying the edge the formula exists to protect.
+- **The correct direction of reasoning: set the stop from what the instrument needs, then choose
+  an ACCOUNT SIZE that can hold it.** Never solve for the stop by dividing the drawdown you
+  happen to own. `N_R ≥ 25` is a property of the (stop, account) pair, and it was calibrated for
+  500–1000 trades — a rule firing ~106×/year needs far less, so bootstrap the real distribution
+  (`analysis/study_nq_survival.py`) instead of obeying the thumb.
+- **Survival at a $200 stop, 1 MNQ, one year** (20k bootstrapped years, Lucid EOD trailing DD):
+  **25k 44% · 50k 73% · 100k 93% · 150k 99%**. Across the user's whole $200–300 range **$200
+  wins on BOTH expectancy and survival**, so there is no trade-off to make inside it.
+- **Profit is ~$2,100–2,800 per surviving account-year at 1 MNQ regardless of account size**
+  (bigger accounts show slightly less only because small ones survive solely when they run hot —
+  survivorship, not a real difference). **Account size buys survival, not income; income comes
+  from more ACCOUNTS, not more contracts.**
+- **⚠ Annualisation bug (caught by the user, same day).** The first pass divided trade counts by
+  `dt.year.nunique()`; the sample spans **four years across FIVE calendar-year labels** (Aug 2022 –
+  Aug 2026, first and last partial), so every annual figure came out ~25% low. Fixed to use
+  elapsed span in `study_nq_survival.py` and `study_nq_scale.py`. Figures here are corrected.
+- **Trade BOTH sides — optimise $/YEAR, not $/trade.** This rule fires at most once a morning, so
+  **253 trades/yr is its structural ceiling** (both sides); upside-only halves it to 132.
+  Upside-only is the better trade ($16.43 at 1.5x) but the worse year ($2,143 vs **$3,029**).
+  Best cell inside the user's risk range: **$200 stop, 1.5x target, both sides** — $11.98/trade,
+  t = 2.02. More trades must come from other SETUPS or SESSIONS, never from tuning this rule.
+- **Scaling ceiling (`analysis/study_nq_scale.py`):** Lucid caps a trader at **5 funded accounts**
+  ($750k combined, 10 incl. evals). Best per-account expectation after bust-and-replace costs is a
+  150k at 2 MNQ = **$4,817/yr (63.5% survive)** or 4 MNQ = $6,268/yr (37.8% survive). **Lucid alone
+  therefore tops out at ~$24–31k/year.** A ~$100k goal needs ~16–21 simultaneous accounts, i.e.
+  multiple prop firms and/or a second uncorrelated setup. NQ+ES would NOT be diversification
+  (~95% correlated = double size on one bet); separate SESSIONS would be.
+- **Changed:** `tradingview/permission-lamp.pine` risk-budget default **80 → 200**, tooltip and
+  section comment rewritten to teach the corrected direction of reasoning. The entry below is
+  superseded wherever it says $80 or `drawdown/25`.
+
 ### Position sizing + stop-budget veto (2026-08-22) — live-chart + prop economics, no sim change
 Worked the sizing question from first principles (prompted by a YouTube transcript, `quantguy.md`,
 untracked). Verified its claims by Monte Carlo: the losing-streak table and the
@@ -61,7 +109,8 @@ unsurvivable at any skill level; micros are structural, not preference.
   4-5 MNQ / 40pt max stop, ~60%/50% pass, ~2 weeks, ~$950-1,150 all-in for 5 copy-traded accounts.
   The **zero-edge floor is P(pass) = 2000/5000 = 40%**, so the blitz does not depend on the Tokyo
   playbook being proven. The whole span from 4 months (1 MNQ) to 2 days (15 MNQ) costs only ~$733.
-  Funded: **1 MNQ / $80** (N_R = 25, ~98% two-year survival vs 66% at 2 MNQ); build ~$2k cushion
+  Funded: **1 MNQ / $200 risk** (corrected 2026-08-30 — see the entry below; the earlier "$80"
+  was drawdown/25, a formula output that measurement shows destroys the edge); build ~$2k cushion
   before the $500 payout (lifetime payout scales with cushion **squared**, size only linearly).
 - **Expectancy is the only lever that improves BOTH clocks** (ruin and time-to-target); size trades
   one against the other. 40%@2R = 0.20R/trade, 35%@3R = 0.40R/trade. Decision rule, measurable from

@@ -60,9 +60,15 @@ tripwireMin = input.int(15, "Carried-over challenge window (minutes after open)"
 // Risk per trade is fixed in DOLLARS; the stop distance that buys is therefore fixed too.
 // The band is the budget drawn on the chart: if the stop anchor you would honestly use sits
 // outside it, the setup is illegal at this size. You do NOT tighten the stop to fit.
+//
+// The budget is set from what the MARKET needs, never from the account (corrected 2026-08-30).
+// The old default of $80 came from drawdown/25 on a $2,000 account and was never measured; on
+// NQ's 9:45 upside break it cuts expectancy from $16.10 to $2.77 a trade and the win rate from
+// 53% to 37%, because the stop sits under the noise. The account is the free variable: at a
+// $200 stop, one micro survives a year 78% of the time on a 50k, 94% on a 100k, 100% on a 150k.
 showBudget = input.bool(true, "Show stop-budget band", group = "Stop budget")
-riskUsd    = input.float(80.0, "Risk budget per trade ($)", minval = 1.0, step = 5.0, group = "Stop budget",
-     tooltip = "Dollars you are willing to lose on ONE trade. Funded: drawdown / 25 (a $2,000 drawdown = $80). Eval blitz: raise deliberately, and put it back the day the account funds.")
+riskUsd    = input.float(200.0, "Risk budget per trade ($)", minval = 1.0, step = 5.0, group = "Stop budget",
+     tooltip = "Dollars you are willing to lose on ONE trade. Default $200 is MEASURED, not derived: on NQ's 9:45 upside break it earns $16.10/trade versus $2.77 at $80, because an $80 stop sits inside the noise and gets hit before the move on trades that were going to win (analysis/study_nq_breakdown.py). Do not set this from drawdown/25 — that formula optimises survival by destroying the edge it protects. Pick the stop the market needs, then pick an ACCOUNT SIZE that can hold it. Eval blitz: raise deliberately, and put it back the day the account funds.")
 qtyIn      = input.int(1, "Contracts", minval = 1, group = "Stop budget")
 anchorPiv  = input.int(5, "Stop-anchor swing lookback (bars)", minval = 2, group = "Stop budget",
      tooltip = "Bars either side of a pivot. The anchor read is an APPROXIMATION of the sweep extreme you would actually stop beyond — the band is the truth, this row is a hint.")

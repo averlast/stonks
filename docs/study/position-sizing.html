@@ -120,6 +120,25 @@
     only sizing number worth carrying around.</p>
   </div>
 
+  <div class="note bad">
+    <p><strong>Correction, 30 August 2026 — read this before using any $80 on this page.</strong></p>
+    <p>The arithmetic above is right. The way this page then <em>used</em> it was wrong, and the
+    $80 it produced has been retired.</p>
+    <p>N<sub>R</sub> is a property of the <strong>pair</strong> (stop, account). This page solved it
+    the wrong way round — it took the $2,000 drawdown as fixed and divided to get the stop. Do the
+    opposite: <strong>set the stop from what the instrument actually needs, then choose an account
+    size that can hold it.</strong> Solving for the stop puts it inside the market's noise, which
+    lowers expectancy, which makes ruin <em>worse</em> — the formula ends up destroying the edge it
+    exists to protect.</p>
+    <p>Measured on NQ's 9:45 opening-range break (upside breaks only, 2× target, flat 12:30, 529
+    real trades — <code>analysis/study_nq_breakdown.py</code>): an <strong>$80 stop earns $2.77 a
+    trade at a 37% win rate</strong>, while a <strong>$200 stop earns $16.10 at 53%</strong>. Same
+    rule, same days. The $80 was strangling winners before they moved.</p>
+    <p>The second error: N<sub>R</sub> ≥ 25 was calibrated for a 500–1000 trade lifetime. A rule
+    that fires ~106 times a year needs far less room than the thumb demands. Bootstrap the real
+    trade distribution instead — <code>analysis/study_nq_survival.py</code>.</p>
+  </div>
+
   <p>It is not "how many losses in a row would kill me" — wins interleave and rebuild the cushion.
   It is the depth of hole the account can tolerate over its whole life. The chance of ever digging
   that hole, given a real edge, falls away exponentially as N<sub>R</sub> grows.</p>
@@ -267,7 +286,10 @@
   <div class="tablewrap">
   <table>
     <caption>Lucid Pro 50k eval at $115 a go — expected all-in spend to end up with five funded
-    accounts, and how long it takes. 40% @ 2R assumed.</caption>
+    accounts, and how long it takes. 40% @ 2R assumed. <strong>Note (30 Aug 2026):</strong> the
+    N<sub>R</sub> column here is descriptive, not a target — see the correction in section 01. The
+    eval-blitz conclusion (4–5 MNQ) survives the correction; measured against real NQ trades a 50k
+    eval passes 43% at 4 MNQ in about 10 trades, versus 67% at 1 MNQ but taking a full year.</caption>
     <thead>
       <tr><th>Size (40pt stop)</th><th>Risk</th><th>N<sub>R</sub></th><th>Pass rate</th><th>Median</th><th>Slow case</th><th>Total spend</th></tr>
     </thead>
@@ -344,12 +366,23 @@
   <ol>
     <li><strong>Eval: 4–5 MNQ, 40 point max stop.</strong> All five copy-traded. Expect about two
     weeks and about $1,000 all-in. It is a funding operation, not trading.</li>
-    <li><strong>Funded: 1 MNQ, $80 max risk.</strong> The day it funds, the size drops. No
-    exceptions, no "just while I am ahead".</li>
-    <li><strong>An $80 budget is a 40 point stop on MNQ, $8.00 on MGC.</strong> If the honest stop
-    beyond the sweep extreme sits further than that, <strong>the trade is illegal</strong> — do not
-    tighten the stop, skip the setup. A size veto, same standing as the direction and family
-    locks.</li>
+    <li><strong>Funded: 1 MNQ, $200 max risk</strong> (corrected 30 Aug 2026 — was $80, see the
+    box in section 01). The day it funds, the <em>contract count</em> drops to one. The stop does
+    not drop with it: $200 is what the instrument needs, and cutting to $80 costs about $13 a
+    trade.</li>
+    <li><strong>Pick the account to fit the stop, not the stop to fit the account.</strong> At a
+    $200 stop on 1 MNQ, a year of NQ upside breaks survives <strong>73% on a 50k, 93% on a 100k,
+    99% on a 150k</strong>. If the honest stop beyond the sweep extreme sits outside the budget
+    band, <strong>the trade is illegal</strong> — skip the setup, never tighten the stop. A size
+    veto, same standing as the direction and family locks.</li>
+    <li><strong>Income comes from more accounts, not more contracts.</strong> One micro returns
+    roughly $2,100–2,800 per surviving account-year whatever the account size — size buys survival,
+    not earnings. Five funded accounts at one contract beat one account at five.</li>
+    <li><strong>Optimise dollars per YEAR, not per trade.</strong> Trades are the scarce resource:
+    this rule fires at most once a morning, so ~253 a year taking both sides and ~132 taking only
+    the better one. The higher-quality upside-only trade earns more each time ($16.43 versus
+    $11.98) and less each year ($2,143 versus $3,029). Per-trade quality is the wrong objective
+    when the trade count is capped.</li>
     <li><strong>Step up only from ahead, never to catch up.</strong> Raising size while behind is
     the martingale, and it is how a 20% risk becomes a 50% one.</li>
     <li><strong>Build $2,000 of cushion before the first payout.</strong> Ignore the 60% DLL.</li>
