@@ -40,6 +40,66 @@ here is enrichment, not the spine. **Unblocked now**:
 (discretionary S/D zone + HVN drawing tools). #14/#15 are unblocked once #13's data lands. The
 `ingestion/levels.py` `value_area`/`volume_profile` helpers are reusable for #14's live profile.
 
+### Fair value gaps (2026-09-12) — grill + study + build; **BUILT as a standalone place, confluence REJECTED**
+**Outcome:** `tradingview/liquidity-map.pine` gained a third group, **Fair value gaps** — 15m/30m/1h
+three-candle skips (body ≥ 0.5 of range, height ≥ 0.5 × that TF's ATR14) drawn as green/red bands
+extending right, read from CLOSED HTF bars via `request.security(..., lookahead_on)` on `[1]+`
+offsets (non-repainting, one chart bar of lag). A **15m close fully beyond the far edge flips** the
+band purple/dashed, label `iFVG` (the trapped-crowd reversal read; trade the *return*, never the
+close-through). Retire-to-grey (frozen, like filled RTH gaps) on: **third test** without a flip
+(Erosion), **one return** after a flip, a 15m close back through the whole flipped band, **age ≥ 2
+sessions** (today + prior), or the `Max live gaps` cap (12). TFs skipped when the chart is slower
+than them; 15m clock = chart close when the chart is ≥ 15m. **Deliberately no lined-up highlight**
+(the study killed that claim). Study page `docs/study/liquidity-map.html` gained §04 (sections
+renumbered 05–07) + an inputs block. CONTEXT.md **Fair value gap** / **Inverse FVG** are live
+doctrine again (standalone), **Lined up** is retired-with-record. *Pine untested locally — paste
+into TV and report errors back (known loop).* The user's framing: "useful ranges that could sway a
+decision or portend a reversal", not triggers.
+Question was whether FVGs / inverse FVGs help the live post-IB strategy and how to add them as
+confluence. Doctrine was resolved first (below), then **measured the same day** —
+`analysis/study_fvg.py`, write-up `analysis/fvg_results.md`, raw output `analysis/fvg_run.txt`
+(script drafted by an Opus subagent, which died on an API usage cap; finished + run here).
+**Result: drop.** NQ first-retest hold rate, gap lined up with a Level vs gap alone: **64.6% vs
+71.2%** (15m, N=511/340), **63.7% vs 69.3%** (30m), 64.8% vs 60.2% (1h, CIs overlap) — lifts
+0.91 / 0.92 / 1.08. Inverse-FVG reject rate: same, 0.94–0.99. Mirror test (Level tests with vs
+without a gap behind them): **76.6% vs 75.2%** (15m, N=1727/2605), +2.3 and +2.8 pts on 30m/1h,
+intervals overlapping — a gap adds nothing the Level didn't already say, the round-numbers shape.
+Gold untestable: eleven evening Levels in a few-point range → ~88% of gaps "lined up", the alone
+bucket is 28 / 8 / 3 gaps. Sweep of ATR floor × body fraction finds no cell with real N above lift
+~1.1; dropping the floor *raises* alone-gap hold rate (hold is measured in gap-heights, so tiny gaps
+clear it trivially) — the absolute hold rate is not evidence either. Parameters were fixed by
+doctrine before the run, not fitted; fitting them now would be curve-fitting a rejected result.
+**Chance baseline** (`analysis/fvg_baseline.py`, raw `fvg_baseline_run.txt`; same gaps shifted
+2–5 heights away as controls): a gap **alone** holds above chance — NQ 15m **67% vs 60%** (lift
+1.11, N=851/586), 30m 66% vs 63%, **1h 62% vs 48%** (1.29, N=181/118); GC 15m 70% vs 58% (N=87
+control). The control's 60% (not 50%) shows the hold definition is asymmetric, so the honest edge
+is the ~7–14 pt *difference*. Gaps at Levels (65%) sit barely above control — Levels are where the
+fight is. **Verdict: rejected *as confluence*, adopted *standalone*** (user call on seeing the
+baseline — see Outcome above).
+**Process note (user, 2026-09-12): future `analysis/` studies go to an Opus subagent.** This one's
+Opus agent died on a usage cap (finished in-session); the user raised the cap the same day.
+The doctrine as resolved in the grill (the "lined-up" parts are now superseded):
+- **Definition**: three-candle skip with a real displacement body in the middle, drawn on the
+  **15m–1h** only (5m and faster = noise). ATR-relative minimum size = **open param**, set by the study.
+- **Inversion** = a **15m close fully beyond the far edge**, for every gap regardless of drawing TF.
+  Trade the **first return to the flipped band**, never the close-through (Entry gate 3).
+- **Lined up** = a Level inside the gap or within the absorption tag's proximity of an edge. A
+  lined-up gap says **where** (entry zone; flipped gap = trapped-crowd fade spot) and raises
+  **quality only** (second coincident reason at the price → toward A+, A+ lesson still applies).
+  Never ambition, never size, never permission. The gap's far edge is **one input to the stop, not
+  the anchor** (user: "my stop is by price").
+- **Lifetime**: today + prior day; a plain gap dies by flip or the **third-test rule** (not by a
+  touch); a flipped gap gets **one retest**.
+- **Surface** (BUILT, see Outcome): a **new box group on `tradingview/liquidity-map.pine`**
+  (alongside equal extremes + RTH gap boxes). The grill's "dim until lined up" rule was dropped
+  once the study showed lining up adds nothing — every gap draws the same. Not a new indicator,
+  not part of the tag.
+- **Gate — measure first** (run, see the result above): first-retest **hold vs flip** (hold =
+  travels the gap's height in its direction before a 15m close through the far edge); deciding
+  number = **lined-up gaps must hold clearly more often than unlined ones**. They didn't.
+- Gold followed the same rules (study ran both symbols). Live-chart only; the sim is untouched.
+  No ADR — reversible, and now moot.
+
 ### ⚠ The $80 risk budget is DEAD (2026-08-30) — stop is set by the market, account by the stop
 User call ("lets nuke this idea of $80, risk of $200-300 a trade"), now confirmed by measurement
 on real data. **The $80 came from `drawdown / 25` on a $2,000 account — a formula output that was

@@ -1,0 +1,287 @@
+==============================================================================
+NQ   window 10:00-13:00 ET   proximity +/-1.5 pts   defaults F=0.5 x ATR14, body B=0.5
+==============================================================================
+-- NQ 15m gaps --------------------------------------------------
+  [1] born (any filter)  17645 | pass F/B filter   4593 | retested in-window   989  -> hold 572, flip 279, unresolved 138
+      overall hold rate  67.2%   median gap height 20.25 pts (0.78 x ATR)
+
+  [2] HEADLINE - first-retest hold rate, lined-up vs unlined
+        group  hold  flip  unres    rate          95% CI
+     lined-up   330   181     91   64.6%      60.3-68.6%
+      unlined   242    98     47   71.2%      66.1-75.7%
+    lift (lined/unlined) = 0.91
+
+  [2b] same split, but "lined-up" counts static levels only (VWAP excluded)
+        group  hold  flip  unres    rate          95% CI
+     lined-up   307   166     85   64.9%      60.5-69.1%
+      unlined   265   113     53   70.1%      65.3-74.5%
+    lift (lined/unlined) = 0.93
+
+  [3] hold rate by which Level lined up (a gap can line up with several)
+        level  hold  flip    rate
+          PDH    45    32   58.4%
+          PDL    24    19   55.8%
+          ONH    47    39   54.7%
+          ONL    37    19   66.1%
+        ORB_H    88    41   68.2%
+        ORB_L    57    36   61.3%
+        ORB_M   131    58   69.3%
+         VWAP   134    82   62.0%
+
+  [4] Inverse FVG, first return to the flipped band (N=809)
+  reject rate (hold column = rejected), lined-up vs unlined
+        group  hold  flip  unres    rate          95% CI
+     lined-up   246   126     66   66.1%      61.2-70.8%
+      unlined   250   104     17   70.6%      65.7-75.1%
+    lift (lined/unlined) = 0.94
+
+-- NQ 30m gaps --------------------------------------------------
+  [1] born (any filter)   8633 | pass F/B filter   2238 | retested in-window   582  -> hold 286, flip 146, unresolved 150
+      overall hold rate  66.2%   median gap height 30.50 pts (0.80 x ATR)
+
+  [2] HEADLINE - first-retest hold rate, lined-up vs unlined
+        group  hold  flip  unres    rate          95% CI
+     lined-up   153    87    115   63.7%      57.5-69.6%
+      unlined   133    59     35   69.3%      62.4-75.4%
+    lift (lined/unlined) = 0.92
+
+  [2b] same split, but "lined-up" counts static levels only (VWAP excluded)
+        group  hold  flip  unres    rate          95% CI
+     lined-up   137    80    100   63.1%      56.5-69.3%
+      unlined   149    66     50   69.3%      62.8-75.1%
+    lift (lined/unlined) = 0.91
+
+  [3] hold rate by which Level lined up (a gap can line up with several)
+        level  hold  flip    rate
+          PDH    20    14   58.8%
+          PDL    10    10   50.0%  (small N)
+          ONH    34    19   64.2%
+          ONL    28    11   71.8%
+        ORB_H    35    23   60.3%
+        ORB_L    42    20   67.7%
+        ORB_M    62    24   72.1%
+         VWAP    53    35   60.2%
+
+  [4] Inverse FVG, first return to the flipped band (N=450)
+  reject rate (hold column = rejected), lined-up vs unlined
+        group  hold  flip  unres    rate          95% CI
+     lined-up   139    72     59   65.9%      59.2-71.9%
+      unlined   106    54     20   66.2%      58.6-73.1%
+    lift (lined/unlined) = 0.99
+
+-- NQ 60m gaps --------------------------------------------------
+  [1] born (any filter)   3983 | pass F/B filter   1004 | retested in-window   306  -> hold 113, flip 68, unresolved 125
+      overall hold rate  62.4%   median gap height 48.75 pts (0.81 x ATR)
+
+  [2] HEADLINE - first-retest hold rate, lined-up vs unlined
+        group  hold  flip  unres    rate          95% CI
+     lined-up    57    31     96   64.8%      54.4-73.9%
+      unlined    56    37     29   60.2%      50.1-69.6%
+    lift (lined/unlined) = 1.08
+
+  [2b] same split, but "lined-up" counts static levels only (VWAP excluded)
+        group  hold  flip  unres    rate          95% CI
+     lined-up    49    31     78   61.3%      50.3-71.2%
+      unlined    64    37     47   63.4%      53.6-72.1%
+    lift (lined/unlined) = 0.97
+
+  [3] hold rate by which Level lined up (a gap can line up with several)
+        level  hold  flip    rate
+          PDH     7     6   53.8%  (small N)
+          PDL     7     2   77.8%  (small N)
+          ONH    11     3   78.6%  (small N)
+          ONL     7     3   70.0%  (small N)
+        ORB_H    12     9   57.1%  (small N)
+        ORB_L    19    11   63.3%
+        ORB_M    17     8   68.0%  (small N)
+         VWAP    16     9   64.0%  (small N)
+
+  [4] Inverse FVG, first return to the flipped band (N=195)
+  reject rate (hold column = rejected), lined-up vs unlined
+        group  hold  flip  unres    rate          95% CI
+     lined-up    49    34     47   59.0%      48.3-69.0%
+      unlined    30    18     17   62.5%      48.4-74.8%
+    lift (lined/unlined) = 0.94
+
+-- NQ [5] size-floor / body sweep --------------------------------
+    tf     F    B |  lined N  lined% | unlined N  unlin% |  lift
+    15   0.0  0.5 |      949   70.4% |      1396   78.7% |  0.89
+    15  0.25  0.5 |      735   67.1% |       731   74.3% |  0.90
+    15   0.5  0.5 |      511   64.6% |       340   71.2% |  0.91
+    15   1.0  0.5 |      247   65.2% |        77   66.2% |  0.98
+    15   0.0  0.7 |      635   69.3% |       806   76.4% |  0.91
+    15  0.25  0.7 |      526   66.7% |       494   71.9% |  0.93
+    15   0.5  0.7 |      384   64.3% |       263   70.0% |  0.92
+    15   1.0  0.7 |      190   64.7% |        65   64.6% |  1.00
+    30   0.0  0.5 |      410   67.6% |       649   77.2% |  0.88
+    30  0.25  0.5 |      334   64.4% |       360   73.9% |  0.87
+    30   0.5  0.5 |      240   63.7% |       192   69.3% |  0.92
+    30   1.0  0.5 |      116   62.1% |        47   66.0% |  0.94
+    30   0.0  0.7 |      255   67.1% |       378   76.7% |  0.87
+    30  0.25  0.7 |      219   64.8% |       238   73.9% |  0.88
+    30   0.5  0.7 |      165   63.6% |       140   71.4% |  0.89
+    30   1.0  0.7 |       89   61.8% |        40   72.5% |  0.85
+    60   0.0  0.5 |      191   65.4% |       352   73.9% |  0.89
+    60  0.25  0.5 |      142   64.8% |       183   68.3% |  0.95
+    60   0.5  0.5 |       88   64.8% |        93   60.2% |  1.08
+    60   1.0  0.5 |       39   69.2% |        23   43.5% |  1.59
+    60   0.0  0.7 |      108   66.7% |       209   70.8% |  0.94
+    60  0.25  0.7 |       86   68.6% |       122   66.4% |  1.03
+    60   0.5  0.7 |       53   64.2% |        69   59.4% |  1.08
+    60   1.0  0.7 |       31   61.3% |        21   47.6% |  1.29
+
+-- NQ [6] mirror test: Level tests with vs without a lined-up gap --------
+    tf      group  hold  flip    rate          95% CI
+    15   with gap  1323   404   76.6%      74.6-78.5%
+    15     no gap  1958   647   75.2%      73.5-76.8%
+    30   with gap  1028   302   77.3%      75.0-79.5%
+    30     no gap  2253   749   75.0%      73.5-76.6%
+    60   with gap   606   171   78.0%      74.9-80.8%
+    60     no gap  2675   880   75.2%      73.8-76.6%
+
+==============================================================================
+GC   window 19:30-20:55 ET   proximity +/-0.8 pts   defaults F=0.5 x ATR14, body B=0.5
+==============================================================================
+-- GC 15m gaps --------------------------------------------------
+  [1] born (any filter)  16123 | pass F/B filter   4178 | retested in-window   357  -> hold 162, flip 70, unresolved 125
+      overall hold rate  69.8%   median gap height 2.65 pts (0.76 x ATR)
+
+  [2] HEADLINE - first-retest hold rate, lined-up vs unlined
+        group  hold  flip  unres    rate          95% CI
+     lined-up   143    61     99   70.1%      63.5-76.0%
+      unlined    19     9     26   67.9%      49.3-82.1%
+    lift (lined/unlined) = 1.03
+
+  [2b] same split, but "lined-up" counts static levels only (VWAP excluded)
+        group  hold  flip  unres    rate          95% CI
+     lined-up   131    56     93   70.1%      63.1-76.2%
+      unlined    31    14     32   68.9%      54.3-80.5%
+    lift (lined/unlined) = 1.02
+
+  [3] hold rate by which Level lined up (a gap can line up with several)
+        level  hold  flip    rate
+          PDH     9     1   90.0%  (small N)
+          PDL     5     6   45.5%  (small N)
+          PTH    33    12   73.3%
+          PTL    37    10   78.7%
+       ORB5_H    62    21   74.7%
+       ORB5_L    54    22   71.1%
+       ORB5_M    61    29   67.8%
+      ORB15_H    61    23   72.6%
+      ORB15_L    56    23   70.9%
+      ORB15_M    62    27   69.7%
+         VWAP   106    46   69.7%
+
+  [4] Inverse FVG, first return to the flipped band (N=155)
+  reject rate (hold column = rejected), lined-up vs unlined
+        group  hold  flip  unres    rate          95% CI
+     lined-up    41    21     65   66.1%      53.7-76.7%
+      unlined     9     6     13   60.0%      35.7-80.2%
+    lift (lined/unlined) = 1.10
+
+-- GC 30m gaps --------------------------------------------------
+  [1] born (any filter)   7343 | pass F/B filter   1957 | retested in-window   105  -> hold 29, flip 19, unresolved 57
+      overall hold rate  60.4%   median gap height 3.80 pts (0.77 x ATR)
+
+  [2] HEADLINE - first-retest hold rate, lined-up vs unlined
+        group  hold  flip  unres    rate          95% CI
+     lined-up    26    14     41   65.0%      49.5-77.9%
+      unlined     3     5     16   37.5%      13.7-69.4%
+    lift (lined/unlined) = 1.73
+
+  [2b] same split, but "lined-up" counts static levels only (VWAP excluded)
+        group  hold  flip  unres    rate          95% CI
+     lined-up    25    13     35   65.8%      49.9-78.8%
+      unlined     4     6     22   40.0%      16.8-68.7%
+    lift (lined/unlined) = 1.64
+
+  [3] hold rate by which Level lined up (a gap can line up with several)
+        level  hold  flip    rate
+          PDH     3     0  100.0%  (small N)
+          PDL     0     1    0.0%  (small N)
+          PTH     3     2   60.0%  (small N)
+          PTL     9     2   81.8%  (small N)
+       ORB5_H     6     4   60.0%  (small N)
+       ORB5_L     9     5   64.3%  (small N)
+       ORB5_M     7     6   53.8%  (small N)
+      ORB15_H     7     6   53.8%  (small N)
+      ORB15_L     9     5   64.3%  (small N)
+      ORB15_M     7     6   53.8%  (small N)
+         VWAP    15    11   57.7%  (small N)
+
+  [4] Inverse FVG, first return to the flipped band (N=50)
+  reject rate (hold column = rejected), lined-up vs unlined
+        group  hold  flip  unres    rate          95% CI
+     lined-up     7     3     32   70.0%      39.7-89.2%
+      unlined     1     0      7  100.0%     20.7-100.0%
+    lift (lined/unlined) = 0.70
+
+-- GC 60m gaps --------------------------------------------------
+  [1] born (any filter)   3244 | pass F/B filter    876 | retested in-window    46  -> hold 2, flip 7, unresolved 37
+      overall hold rate  22.2%   median gap height 5.50 pts (0.79 x ATR)
+
+  [2] HEADLINE - first-retest hold rate, lined-up vs unlined
+        group  hold  flip  unres    rate          95% CI
+     lined-up     2     4     24   33.3%       9.7-70.0%
+      unlined     0     3     13    0.0%       0.0-56.2%
+    lift (lined/unlined) = nan
+
+  [2b] same split, but "lined-up" counts static levels only (VWAP excluded)
+        group  hold  flip  unres    rate          95% CI
+     lined-up     2     4     24   33.3%       9.7-70.0%
+      unlined     0     3     13    0.0%       0.0-56.2%
+    lift (lined/unlined) = nan
+
+  [3] hold rate by which Level lined up (a gap can line up with several)
+        level  hold  flip    rate
+          PTH     1     4   20.0%  (small N)
+          PTL     1     0  100.0%  (small N)
+       ORB5_H     0     2    0.0%  (small N)
+       ORB5_M     0     1    0.0%  (small N)
+      ORB15_H     1     2   33.3%  (small N)
+      ORB15_M     0     1    0.0%  (small N)
+         VWAP     0     1    0.0%  (small N)
+
+  [4] Inverse FVG, first return to the flipped band (N=19)
+  reject rate (hold column = rejected), lined-up vs unlined
+        group  hold  flip  unres    rate          95% CI
+     lined-up     1     0     15  100.0%     20.7-100.0%
+      unlined     1     1      1   50.0%       9.5-90.5%
+    lift (lined/unlined) = 2.00
+
+-- GC [5] size-floor / body sweep --------------------------------
+    tf     F    B |  lined N  lined% | unlined N  unlin% |  lift
+    15   0.0  0.5 |      785   78.1% |       171   79.5% |  0.98
+    15  0.25  0.5 |      448   74.8% |        78   71.8% |  1.04
+    15   0.5  0.5 |      204   70.1% |        28   67.9% |  1.03
+    15   1.0  0.5 |       39   61.5% |         4  100.0% |  0.62
+    15   0.0  0.7 |      469   78.3% |        95   73.7% |  1.06
+    15  0.25  0.7 |      306   73.2% |        52   63.5% |  1.15
+    15   0.5  0.7 |      157   70.1% |        21   57.1% |  1.23
+    15   1.0  0.7 |       35   65.7% |         2  100.0% |  0.66
+    30   0.0  0.5 |      245   73.5% |        57   78.9% |  0.93
+    30  0.25  0.5 |      104   71.2% |        24   62.5% |  1.14
+    30   0.5  0.5 |       40   65.0% |         8   37.5% |  1.73
+    30   1.0  0.5 |        4   25.0% |         1    0.0% |   nan
+    30   0.0  0.7 |      128   68.8% |        30   76.7% |  0.90
+    30  0.25  0.7 |       68   69.1% |        15   60.0% |  1.15
+    30   0.5  0.7 |       30   60.0% |         4   50.0% |  1.20
+    30   1.0  0.7 |        3   33.3% |         1    0.0% |   nan
+    60   0.0  0.5 |       58   72.4% |        23   69.6% |  1.04
+    60  0.25  0.5 |       23   69.6% |        10   60.0% |  1.16
+    60   0.5  0.5 |        6   33.3% |         3    0.0% |   nan
+    60   1.0  0.5 |        1    0.0% |         0     n/a |   nan
+    60   0.0  0.7 |       26   76.9% |         9   66.7% |  1.15
+    60  0.25  0.7 |       11   63.6% |         8   62.5% |  1.02
+    60   0.5  0.7 |        4   25.0% |         3    0.0% |   nan
+    60   1.0  0.7 |        1    0.0% |         0     n/a |   nan
+
+-- GC [6] mirror test: Level tests with vs without a lined-up gap --------
+    tf      group  hold  flip    rate          95% CI
+    15   with gap  2656   379   87.5%      86.3-88.6%
+    15     no gap  3296   563   85.4%      84.3-86.5%
+    30   with gap  1811   255   87.7%      86.2-89.0%
+    30     no gap  4141   687   85.8%      84.8-86.7%
+    60   with gap  1133   180   86.3%      84.3-88.0%
+    60     no gap  4819   762   86.3%      85.4-87.2%
+

@@ -19,6 +19,18 @@
 //    to the prior close). Unfilled gaps persist as standing magnets (capped, oldest
 //    dropped). Set the RTH session input per instrument (index 0930-1600, gold e.g.
 //    0820-1330).
+// 3. FAIR VALUE GAPS (CONTEXT.md "Fair value gap" / "Inverse FVG"): the band a 15m/30m/1h
+//    impulse skipped — candle 1 and candle 3 don't overlap, candle 2 is a real body. Read
+//    from CLOSED higher-timeframe bars only (lookahead_on + [1] offsets = non-repainting),
+//    so a gap appears one chart bar after its third candle closes. Drawn as a shaded band
+//    extending right: green = bullish (pullback-hold zone), red = bearish. A 15m CLOSE
+//    fully beyond the far edge FLIPS it (purple, dashed) — the trapped-crowd band, read as
+//    resistance/support the other way on its first return, then retired. Lifetime: today
+//    + the prior day; a plain gap that has been tested 3+ times is retired as Erosion
+//    (third-test rule). Measured 2026-09-12 (analysis/fvg_results.md): a gap alone holds
+//    its first retest ~7-14 pts above a same-size random band; lining it up with a Level
+//    adds NOTHING — so there is deliberately no "lined-up" highlight. A range that can
+//    sway a decision, never a trigger.
 indicator("Liquidity Map", overlay = true, max_lines_count = 500, max_labels_count = 500,
      max_boxes_count = 100)
 
@@ -45,6 +57,23 @@ rthSession = input.session("0930-1600", "RTH session (ET)", group = "Gaps",
 minGapPts  = input.float(0.0, "Min gap size (points, 0 = any)", minval = 0.0, group = "Gaps")
 maxGaps    = input.int(5, "Max unfilled gaps kept", minval = 1, maxval = 20, group = "Gaps")
 gapColor   = input.color(color.new(#94a3b8, 85), "Gap box color", group = "Gaps")
+
+// ── Fair value gaps ─────────────────────────────────────────────────────────────────
+showFvg     = input.bool(true, "Show fair value gaps", group = "Fair value gaps")
+fvgUse15    = input.bool(true, "15m gaps", group = "Fair value gaps", inline = "fvgtf")
+fvgUse30    = input.bool(true, "30m",      group = "Fair value gaps", inline = "fvgtf")
+fvgUse60    = input.bool(true, "1h",       group = "Fair value gaps", inline = "fvgtf",
+     tooltip = "Which higher timeframes to scan. A timeframe is skipped when the chart is on a slower one (a 1h gap can't be read from a 4h chart).")
+fvgBodyFrac = input.float(0.5, "Middle candle body (fraction of its range)", minval = 0.1, maxval = 1.0, step = 0.05, group = "Fair value gaps",
+     tooltip = "Candle 2 must be a real displacement body — body/range at least this. Three sloppy candles that happen not to overlap are not a gap.")
+fvgAtrFloor = input.float(0.5, "Min gap height (x ATR14 of the gap's timeframe)", minval = 0.0, step = 0.05, group = "Fair value gaps",
+     tooltip = "The study default. Lower = more, smaller gaps.")
+fvgDays     = input.int(2, "Sessions kept (today = 1)", minval = 1, maxval = 5, group = "Fair value gaps",
+     tooltip = "2 = today + the prior day (CONTEXT.md lifetime rule).")
+fvgMax      = input.int(12, "Max live gaps", minval = 2, maxval = 30, group = "Fair value gaps")
+fvgBullCol  = input.color(color.new(#22c55e, 85), "Bullish gap", group = "Fair value gaps", inline = "fvgc")
+fvgBearCol  = input.color(color.new(#ef4444, 85), "Bearish gap", group = "Fair value gaps", inline = "fvgc")
+fvgFlipCol  = input.color(color.new(#a855f7, 80), "Flipped (inverse)", group = "Fair value gaps", inline = "fvgc")
 
 // ── Helpers ─────────────────────────────────────────────────────────────────────────
 sizeFromStr(s) =>
@@ -249,3 +278,138 @@ if showGaps
 
 if inRth
     rthClose := close
+
+// ═════════════════════════════════════════════════════════════════════════════════════
+// Fair value gaps — HTF three-candle skips, drawn as bands; a 15m close through the far
+// edge flips them (Inverse FVG). Non-repainting: every HTF read is of CLOSED bars ([1]+
+// offsets under lookahead_on), so a gap shows up on the first chart bar after its third
+// candle closes, and the flip on the first chart bar after the 15m close that caused it.
+// ═════════════════════════════════════════════════════════════════════════════════════
+var array<box>   fBox     = array.new<box>(0)
+var array<float> fBot     = array.new_float(0)
+var array<float> fTop     = array.new_float(0)
+var array<int>   fDir     = array.new_int(0)      // 1 = bullish gap (support), -1 = bearish
+var array<bool>  fFlip    = array.new<bool>(0)    // true once inverted
+var array<int>   fTouch   = array.new_int(0)      // distinct entries into the band (reset on flip)
+var array<bool>  fInside  = array.new<bool>(0)    // was price inside the band last bar
+var array<int>   fBorn    = array.new_int(0)      // session index at birth
+var array<int>   fTf      = array.new_int(0)      // minutes of the drawing TF (for the label)
+
+// Evaluated ON the higher timeframe. c1 = [3], c2 = [2], c3 = [1] — all closed there.
+fvgScan() =>
+    rng2   = high[2] - low[2]
+    body2  = math.abs(close[2] - open[2])
+    bodyOk = rng2 > 0 and body2 / rng2 >= fvgBodyFrac
+    a      = ta.atr(14)[1]
+    bull   = low[1] > high[3]
+    bear   = high[1] < low[3]
+    bot    = bull ? high[3] : high[1]
+    top    = bull ? low[1]  : low[3]
+    ok     = (bull or bear) and bodyOk and not na(a) and (top - bot) >= fvgAtrFloor * a
+    dir    = ok ? (bull ? 1 : -1) : 0
+    [dir, bot, top, time_close[1]]
+
+[d15, b15, t15, k15] = request.security(syminfo.tickerid, "15", fvgScan(), lookahead = barmerge.lookahead_on)
+[d30, b30, t30, k30] = request.security(syminfo.tickerid, "30", fvgScan(), lookahead = barmerge.lookahead_on)
+[d60, b60, t60, k60] = request.security(syminfo.tickerid, "60", fvgScan(), lookahead = barmerge.lookahead_on)
+
+// The inversion clock: the last CLOSED 15m bar (chart close when the chart is 15m or slower).
+chartSec   = timeframe.in_seconds()
+use15Chart = chartSec >= 900
+c15raw     = request.security(syminfo.tickerid, "15", close[1],      lookahead = barmerge.lookahead_on)
+k15raw     = request.security(syminfo.tickerid, "15", time_close[1], lookahead = barmerge.lookahead_on)
+close15    = use15Chart ? close : c15raw
+new15      = use15Chart ? barstate.isconfirmed : k15raw != k15raw[1]
+
+// Birth-time changes are computed at global scope (history-referencing must run every bar).
+n15 = k15 != k15[1]
+n30 = k30 != k30[1]
+n60 = k60 != k60[1]
+
+// Session counter for the lifetime rule (TV's "D" bar for CME futures rolls at the Globex open).
+var int sessIdx = 0
+if ta.change(time("D")) != 0
+    sessIdx += 1
+
+// Retire a gap: freeze the box where it is (stays drawn, stops growing) and forget it.
+fvgRetire(int i) =>
+    bx = array.get(fBox, i)
+    box.set_bgcolor(bx, color.new(color.gray, 92))
+    box.set_border_color(bx, color.new(color.gray, 70))
+    array.remove(fBox, i)
+    array.remove(fBot, i)
+    array.remove(fTop, i)
+    array.remove(fDir, i)
+    array.remove(fFlip, i)
+    array.remove(fTouch, i)
+    array.remove(fInside, i)
+    array.remove(fBorn, i)
+    array.remove(fTf, i)
+
+// Draw a freshly closed HTF gap. `isNew` = the birth time (c3's close) just changed — once per new HTF bar.
+fvgSpawn(int dir, float bot, float top, bool isNew, int tfMin, bool enabled) =>
+    fresh = enabled and dir != 0 and isNew and chartSec <= tfMin * 60
+    if fresh
+        col = dir > 0 ? fvgBullCol : fvgBearCol
+        bx = box.new(bar_index, top, bar_index + 1, bot, border_color = color.new(col, 60), bgcolor = col,
+             text = showLabels ? "FVG " + str.tostring(tfMin) : "", text_size = size.tiny,
+             text_halign = text.align_right, text_valign = text.align_center, text_color = color.new(col, 30))
+        array.push(fBox, bx)
+        array.push(fBot, bot)
+        array.push(fTop, top)
+        array.push(fDir, dir)
+        array.push(fFlip, false)
+        array.push(fTouch, 0)
+        array.push(fInside, false)
+        array.push(fBorn, sessIdx)
+        array.push(fTf, tfMin)
+        if array.size(fBox) > fvgMax
+            fvgRetire(0)
+
+if showFvg
+    fvgSpawn(d15, b15, t15, n15, 15, fvgUse15)
+    fvgSpawn(d30, b30, t30, n30, 30, fvgUse30)
+    fvgSpawn(d60, b60, t60, n60, 60, fvgUse60)
+
+    if array.size(fBox) > 0
+        for i = array.size(fBox) - 1 to 0
+            bx      = array.get(fBox, i)
+            bot     = array.get(fBot, i)
+            top     = array.get(fTop, i)
+            dir     = array.get(fDir, i)
+            flipped = array.get(fFlip, i)
+            box.set_right(bx, bar_index)
+
+            // lifetime: today + prior day
+            if sessIdx - array.get(fBorn, i) >= fvgDays
+                fvgRetire(i)
+                continue
+
+            // touch bookkeeping: a distinct entry into the band from outside
+            inside = low <= top and high >= bot
+            if inside and not array.get(fInside, i)
+                array.set(fTouch, i, array.get(fTouch, i) + 1)
+            array.set(fInside, i, inside)
+            touches = array.get(fTouch, i)
+
+            if not flipped
+                // inversion: a 15m close fully beyond the far edge
+                if new15 and (dir > 0 ? close15 < bot : close15 > top)
+                    array.set(fFlip, i, true)
+                    array.set(fTouch, i, 0)
+                    array.set(fInside, i, false)
+                    box.set_bgcolor(bx, fvgFlipCol)
+                    box.set_border_color(bx, color.new(fvgFlipCol, 30))
+                    box.set_border_style(bx, line.style_dashed)
+                    if showLabels
+                        box.set_text(bx, "iFVG " + str.tostring(array.get(fTf, i)))
+                        box.set_text_color(bx, color.new(fvgFlipCol, 10))
+                // third-test rule: a band tested 3+ times is eroding, expected to flip — stop leaning on it
+                else if touches >= 3 and not inside
+                    fvgRetire(i)
+            else
+                // flipped band: one return, then it's just a price again; or price closes back through
+                // the whole band (the trapped crowd got out the other way) — either way, retire.
+                reclaimed = new15 and (dir > 0 ? close15 > top : close15 < bot)
+                if reclaimed or (touches >= 1 and not inside)
+                    fvgRetire(i)

@@ -235,6 +235,73 @@ first ~30 minutes decides which crowd pays: initiative *away* from the gap = **g
 standing magnet all session. Small gaps in balance fill routinely; trend-day gaps don't, and
 the fill-traders become the fuel.
 
+**Fair value gap** (FVG) — _adopted as a **standalone** place on the liquidity map, 2026-09-12;
+the **confluence** claim was tested and rejected the same day (`analysis/fvg_results.md`)_. Measured
+on 4y of 1m bars: a gap **alone** holds its first in-window retest modestly above a same-size band
+at a random nearby price (NQ 15m 67% vs 60%, 1h 62% vs 48%; gold 15m 70% vs 58%) — a real but
+small lean, a range that can sway a decision or warn of a reversal, never a trigger. A gap **lined
+up with a Level** held *less* often than a gap alone (lift 0.91 / 0.92 on 15m / 30m), and a Level
+with a gap behind it held only 1–3 points better than one without — the **Round numbers** shape.
+So the map draws every qualifying gap the same and has **no lined-up highlight**; the "Lined up"
+term below is retired.
+The price band an impulse skipped over — a three-candle sequence where the first candle's
+extreme and the third candle's extreme do not overlap, so the middle candle's span traded one
+way only (bullish: gap between candle 1's high and candle 3's low; bearish: the mirror). Read as
+the place where the impulse *began*: a pullback into it is the precise "retest" the continuation
+family looks for, sharper than "the 50% or VWAP". Classified as a **place** — an auto-computed
+**Zone** class, never a setup or a trigger (resolved 2026-09-12). Entries still come only from the
+six archetypes. _Superseded by measurement the same day_: the original rule "matters only when it
+stacks with a Level, noise in open space" was **backwards** — the data says the gap alone carries
+the lean and a Level next to it adds nothing. Its failure event is the **Inverse FVG** (below). Drawn from the
+**15-minute up to the 1-hour** timeframes only (resolved 2026-09-12) — the same higher-timeframe
+tier as **Supply / Demand zone**s, executed on the signal timeframe; 5m and faster gaps are noise
+and are not marked. The **middle candle must be a real displacement body** (body most of its
+range), not three sloppy candles that happen not to overlap. Minimum gap size relative to the
+timeframe's ATR is an open param, to be set by measurement. **Lifetime** (resolved 2026-09-12):
+only gaps from **today and the prior day** count (an unfilled 1h gap from yesterday afternoon is
+exactly what the morning comes back for; older ones are clutter). A plain gap is **not spent by a
+touch** — it lives until it **flips** (becomes an **Inverse FVG**) or has been **tested three or
+more times** (the **third-test rule**: a gap that keeps getting tested is **Erosion**, expected to
+flip, so fading into it is off). A flipped gap lives for **one retest** — once the trapped crowd
+has exited, the band is just a price again.
+_Avoid_: "gap" alone (that is the RTH **Gap** between prior close and today's open); "imbalance"
+alone (that is the **Footprint**'s per-row buy-vs-sell ratio).
+
+**Inverse FVG** (inversion):
+An **Fair value gap** that price has closed through entirely, flipping its polarity — a bullish
+gap that failed becomes resistance, a bearish one support. Read as a **trapped crowd**: the
+traders who bought the gap's retest now hold losers with stops beyond it, so the first retest of
+the flipped gap is where they exit — the same liquidity read as **Head & shoulders** and
+**Failed auction**, applied to a displacement leg. An *event* on the zone, the way a **Liquidity
+sweep** is an event on Equal extremes — not a setup. **Inversion rule** (resolved 2026-09-12): a
+**15-minute close fully beyond the far edge** of the gap, for every gap regardless of which
+timeframe drew it. Fully beyond, because the trapped crowd's stops sit past the far edge, not the
+midpoint; a close, because a wick is noise and a close is information (**Stop anchor**, policy 3);
+15m rather than 5m so a zone drawn on the 1h isn't declared dead by one twitchy signal-timeframe
+candle, and rather than the gap's own timeframe so a 1h gap's inversion doesn't take most of the
+**Trading window** to confirm. A wick through the far edge that closes back inside is *not* an
+inversion — it is a sweep of the gap. The trade is taken **on the first return to the flipped
+band**, in the direction of the failure — never on the close-through itself (a mid-impulse entry,
+Entry gate 3).
+
+**Lined up** _(FVG confluence — resolved 2026-09-12, then **retired the same day** by
+`analysis/fvg_results.md`: gaps lined up with a Level held *less* often than gaps alone, so the
+term names a distinction the market doesn't make. Kept as the record of what was tested.)_:
+A gap and a **Level** count as lined up when the Level's price sits inside the gap **or within the
+Absorption tag's per-instrument proximity of either edge** — a 1h gap ten ticks off PDH is the same
+spot to everyone trading it. A lined-up gap does two things and only two: it says **where** (the
+gap is the pullback entry; the flipped gap is the trapped-crowd fade location) and it raises
+**quality only**: a sweep or test of a Level with a gap lined up counts as a **second coincident
+reason at the same price**, the way IB low + London low makes a **double liquidity sweep** — it
+pushes the trade toward A+, but the A+ lesson still holds (the auction must have finished
+arguing). A **flipped** gap lined up with a Level earns the same credit for the fade-family trade
+(the trapped crowd is another stop pool at a known price). It never touches **ambition** (a gap is
+not a trend read, so it cannot override the unanimity rule), never **size** (funded size is fixed by
+measurement, not setup quality), and never grants permission: whether a trade is legal stays with
+the **Auction bias gate** and **Entry gates**. The gap's far edge is **one
+input to the stop, not the anchor** — the **Stop anchor** rule still places the stop past the price
+that kills the idea, which may be a sweep extreme or structural level rather than the gap's edge.
+
 **Failed auction**:
 A failed IB breakout — price pokes outside the range then closes back inside (by definition a
 30-minute candle close; read earlier on 1m/5m).

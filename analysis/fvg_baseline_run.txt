@@ -1,0 +1,24 @@
+
+===== NQ  real gaps vs same-size bands shifted 2-5 heights away  (F=0.5 x ATR, body>=0.5) =====
+    tf    group      N   hold   flip    rate          95% CI
+    15     real    851    572    279   67.2%      64.0-70.3%
+    15  control    586    354    232   60.4%      56.4-64.3%
+       lift (real/control) = 1.11
+    30     real    432    286    146   66.2%      61.6-70.5%
+    30  control    288    181    107   62.8%      57.1-68.2%
+       lift (real/control) = 1.05
+    60     real    181    113     68   62.4%      55.2-69.2%
+    60  control    118     57     61   48.3%      39.5-57.2%
+       lift (real/control) = 1.29
+
+===== GC  real gaps vs same-size bands shifted 2-5 heights away  (F=0.5 x ATR, body>=0.5) =====
+    tf    group      N   hold   flip    rate          95% CI
+    15     real    232    162     70   69.8%      63.6-75.4%
+    15  control     87     50     37   57.5%      47.0-67.3%
+       lift (real/control) = 1.22
+    30     real     48     29     19   60.4%      46.3-73.0%
+    30  control     23     14      9   60.9%      40.8-77.8%
+       lift (real/control) = 0.99
+    60     real      9      2      7   22.2%       6.3-54.7%
+    60  control      6      3      3   50.0%      18.8-81.2%
+       lift (real/control) = 0.44

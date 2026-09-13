@@ -335,8 +335,48 @@
   several of them on the chart at once.</p>
 </section>
 
+<section id="fvg">
+  <h2><span class="n">04</span> Fair value gaps (FVG / iFVG)</h2>
+
+  <p>A shaded band where a 15-minute, 30-minute or 1-hour impulse skipped a stretch of prices:
+  three candles in a row where the first and third don't overlap, and the middle one is a real
+  body, not a wick. Green = a bullish impulse left it (the band is where buyers stepped in), red
+  = bearish. The band reads as <em>where the move began</em> — the precise spot a pullback is
+  expected to pause, sharper than "somewhere near the 50%".</p>
+
+  <p><strong>What the numbers say</strong> (four years of NQ and gold 1-minute bars, first retest
+  inside your trading window): a gap holds its first pullback about 7 points more often than a
+  same-size band dropped at a random price nearby on the 15-minute, about 14 points more on the
+  1-hour. That's a modest, real lean, not a trigger. And the thing most FVG material insists on,
+  a gap "in confluence" with a level, adds <em>nothing</em>: a gap sitting on PDH, an ORB edge or
+  VWAP held slightly <em>less</em> often than a gap standing alone. So the indicator draws every
+  qualifying gap the same and does not highlight the ones near a level. The write-up is in
+  <code>analysis/fvg_results.md</code>.</p>
+
+  <h3>How a band changes state</h3>
+  <ul>
+    <li><strong>Alive (green / red).</strong> Extends right every bar. Price can dip into it and
+    hold any number of times; a touch does not spend it.</li>
+    <li><strong>Flipped (purple, dashed, labelled iFVG).</strong> A 15-minute bar <em>closed</em>
+    fully beyond the band's far edge. Everyone who bought the pullback into a green band is now
+    trapped, so on the first return the band acts as resistance instead of support (mirror for red).
+    This is the "portends a reversal" read: the return into a purple band is where the trapped
+    crowd gets out, and where a fade in the direction of the failure is looked at. The trade is
+    never the close-through itself, only the return.</li>
+    <li><strong>Retired (grey, frozen).</strong> Three ways: it has been tested three or more times
+    without flipping (the third-test rule, it's eroding, expect it to give way); it flipped and
+    price has now come back once (the crowd is out, it's just a price again); or it's older than
+    today plus the prior day.</li>
+  </ul>
+
+  <p><strong>Timing.</strong> Bands are read from <em>closed</em> higher-timeframe bars only, so a
+  15-minute gap appears on the first chart bar after its third candle closes, and a flip appears
+  on the first chart bar after the 15-minute close that caused it. They never repaint. Cost: up
+  to one HTF bar of lag. A timeframe is skipped when the chart is slower than it.</p>
+</section>
+
 <section id="deliberate">
-  <h2><span class="n">04</span> What the indicator deliberately does not do</h2>
+  <h2><span class="n">05</span> What the indicator deliberately does not do</h2>
 
   <p>No named-pattern detection. No head &amp; shoulders, no cups, no channels, no auto-drawn
   trendlines. That was a decision, not a backlog item: the shapes are subjective, detectors fire
@@ -398,7 +438,7 @@
 </section>
 
 <section id="limits">
-  <h2><span class="n">05</span> Known limitations</h2>
+  <h2><span class="n">06</span> Known limitations</h2>
 
   <ul>
     <li><strong>Pivots confirm late.</strong> A pivot needs <code>pivotLen</code> bars on each side,
@@ -423,7 +463,7 @@
 </section>
 
 <section id="inputs">
-  <h2><span class="n">06</span> Inputs quick reference</h2>
+  <h2><span class="n">07</span> Inputs quick reference</h2>
 
   <p class="muted">One instrument-agnostic script: <code>tradingview/liquidity-map.pine</code>.
   Runs on the index and gold charts alike; only the RTH session input changes.</p>
@@ -480,6 +520,38 @@
       <dd>Default <strong>5</strong>. Oldest box is dropped past the cap.</dd>
     </div>
   </dl>
+
+  <h3>Fair value gaps</h3>
+  <dl class="kv">
+    <div>
+      <dt>15m / 30m / 1h</dt>
+      <dd>Which higher timeframes to scan. All on by default. A timeframe is skipped when the
+      chart is slower than it.</dd>
+    </div>
+    <div>
+      <dt>Middle candle body</dt>
+      <dd>Default <strong>0.5</strong>: the middle candle's body must be at least half its range.
+      Filters out three sloppy candles that merely fail to overlap.</dd>
+    </div>
+    <div>
+      <dt>Min gap height (× ATR14 of the gap's timeframe)</dt>
+      <dd>Default <strong>0.5</strong>, the study setting. Lower shows more, smaller bands; the
+      study found no setting that changed the conclusion.</dd>
+    </div>
+    <div>
+      <dt>Sessions kept</dt>
+      <dd>Default <strong>2</strong> = today plus the prior day. Older bands retire grey.</dd>
+    </div>
+    <div>
+      <dt>Max live gaps</dt>
+      <dd>Default <strong>12</strong>. Oldest band retires past the cap. Shares the box budget
+      with the RTH gap boxes.</dd>
+    </div>
+    <div>
+      <dt>Colors</dt>
+      <dd>Green bullish, red bearish, purple flipped. Grey is not a setting: it means retired.</dd>
+    </div>
+  </dl>
 </section>
 
 </main>
@@ -489,7 +561,8 @@
   layer) · <code>docs/study/patterns-as-liquidity.md</code> (the source reasoning) ·
   <code>docs/study/method.html</code>. Script: <code>tradingview/liquidity-map.pine</code>.
   Vocabulary: <code>CONTEXT.md</code> — Equal extremes, Erosion, Liquidity sweep, Coil, Gap,
-  Head &amp; shoulders, Two-sided run, Entry gates, Stop anchor.</p>
+  Fair value gap, Inverse FVG, Head &amp; shoulders, Two-sided run, Entry gates, Stop anchor.
+  Study: <code>analysis/fvg_results.md</code>.</p>
 </footer>
 
 </body>
